@@ -342,7 +342,7 @@ export async function createPausedSearchCampaign(body: unknown): Promise<{
       providerId: provider.id,
       externalAccountId: external.id,
       requestedById: ctx.user.id,
-      kind: "SEARCH_CREATE",
+      kind: input.kind ?? "SEARCH_CREATE",
       status: "DRAFT",
       name: input.name,
       dailyBudgetMicros: BigInt(input.dailyBudgetMicros),

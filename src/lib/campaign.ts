@@ -1,13 +1,53 @@
 import { assertPausedOnly, CONFIRM_PAUSED_PHRASE, resolveDryRun } from "./safety";
 import { digitsOnly } from "./ids";
 
+export const CAMPAIGN_OP_KINDS = [
+  "SEARCH_CREATE",
+  "PMAX_CREATE",
+  "DISPLAY_CREATE",
+  "META_CAMPAIGN_CREATE",
+  "TIKTOK_CAMPAIGN_CREATE",
+  "LINKEDIN_CAMPAIGN_CREATE",
+  "GENERIC_MUTATE",
+] as const;
+
+export type CampaignOpKindValue = (typeof CAMPAIGN_OP_KINDS)[number];
+
+export const IMPLEMENTED_CAMPAIGN_OP_KINDS = ["SEARCH_CREATE"] as const;
+
 export type CampaignCreateInput = {
   customerId: string;
   name: string;
   dailyBudgetMicros: number;
   dryRun?: unknown;
   confirmPhrase?: string;
+  kind?: CampaignOpKindValue;
 };
+
+export function resolveCampaignOpKind(kind: unknown): CampaignOpKindValue {
+  const value = kind == null || kind === "" ? "SEARCH_CREATE" : String(kind);
+  if (!(CAMPAIGN_OP_KINDS as readonly string[]).includes(value)) {
+    throw Object.assign(new Error(`Unknown campaign op kind ${value}.`), {
+      status: 400,
+      info: { kind: "validation", hint: `Supported kinds: ${CAMPAIGN_OP_KINDS.join(", ")}.` },
+    });
+  }
+  if (value !== "SEARCH_CREATE") {
+    throw Object.assign(
+      new Error(
+        `${value} is schema-ready but not implemented. Google Search create is the only live path.`,
+      ),
+      {
+        status: 400,
+        info: {
+          kind: "validation",
+          hint: "Use SEARCH_CREATE. Other CampaignOpKind values are stubs until a later provider path lands.",
+        },
+      },
+    );
+  }
+  return "SEARCH_CREATE";
+}
 
 export type MutateRequest = {
   customerId: string;
@@ -61,6 +101,7 @@ export function parseCampaignInput(body: unknown): CampaignCreateInput {
     dailyBudgetMicros: Math.trunc(dailyBudgetMicros),
     dryRun: raw.dryRun,
     confirmPhrase: raw.confirmPhrase === undefined ? undefined : String(raw.confirmPhrase),
+    kind: resolveCampaignOpKind(raw.kind),
   };
 
   if (!resolveDryRun(input.dryRun) && input.confirmPhrase !== CONFIRM_PAUSED_PHRASE) {

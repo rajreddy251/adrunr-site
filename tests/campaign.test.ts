@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { buildPausedSearchCampaignMutate, parseCampaignInput } from "@/lib/campaign";
+import {
+  buildPausedSearchCampaignMutate,
+  parseCampaignInput,
+  resolveCampaignOpKind,
+} from "@/lib/campaign";
 import { assertPausedOnly, resolveDryRun } from "@/lib/safety";
 
 describe("paused campaign payload", () => {
@@ -104,5 +108,21 @@ describe("paused campaign payload", () => {
         dryRun: true,
       }),
     ).not.toThrow();
+  });
+
+  it("defaults omitted kind to SEARCH_CREATE and stubs other schema kinds", () => {
+    expect(resolveCampaignOpKind(undefined)).toBe("SEARCH_CREATE");
+    expect(
+      parseCampaignInput({
+        customerId: "1234567890",
+        name: "Search",
+        dailyBudgetMicros: 1_000_000,
+        kind: "SEARCH_CREATE",
+      }).kind,
+    ).toBe("SEARCH_CREATE");
+    expect(() => resolveCampaignOpKind("PMAX_CREATE")).toThrow(/schema-ready but not implemented/);
+    expect(() => resolveCampaignOpKind("META_CAMPAIGN_CREATE")).toThrow(
+      /schema-ready but not implemented/,
+    );
   });
 });
