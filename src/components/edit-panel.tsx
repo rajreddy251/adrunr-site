@@ -134,7 +134,7 @@ export function EditPanel({
     ];
     return {
       customerId,
-      syncedCampaignId: selected.id,
+      syncedCampaignId: selected.id || undefined,
       campaignExternalId: selected.externalId,
       googleCampaignResourceName: selected.resourceName,
       budgetResourceName: snapshot?.budgetResourceName ?? null,

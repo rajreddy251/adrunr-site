@@ -230,19 +230,32 @@ async function resolveSyncedContext(raw: Record<string, unknown>, externalAccoun
   const provider = await requireProvider(GOOGLE_ADS_SLUG);
   const syncedCampaignId = raw.syncedCampaignId ? String(raw.syncedCampaignId) : "";
   const campaignExternalId = String(raw.campaignExternalId ?? "").trim();
-  const synced = await prisma().syncedCampaign.findFirst({
-    where: {
-      organizationId: ctx.org.id,
-      providerId: provider.id,
-      externalAccountId,
-      ...(syncedCampaignId ? { id: syncedCampaignId } : {}),
-      ...(campaignExternalId && !syncedCampaignId ? { externalId: campaignExternalId } : {}),
-    },
-    include: {
-      adGroups: { orderBy: { name: "asc" } },
-      metricSnapshots: { orderBy: { lastSyncedAt: "desc" }, take: 1 },
-    },
-  });
+  const include = {
+    adGroups: { orderBy: { name: "asc" as const } },
+    metricSnapshots: { orderBy: { lastSyncedAt: "desc" as const }, take: 1 },
+  };
+  let synced = syncedCampaignId
+    ? await prisma().syncedCampaign.findFirst({
+        where: {
+          id: syncedCampaignId,
+          organizationId: ctx.org.id,
+          providerId: provider.id,
+          externalAccountId,
+        },
+        include,
+      })
+    : null;
+  if (!synced && campaignExternalId) {
+    synced = await prisma().syncedCampaign.findFirst({
+      where: {
+        organizationId: ctx.org.id,
+        providerId: provider.id,
+        externalAccountId,
+        externalId: campaignExternalId,
+      },
+      include,
+    });
+  }
   const snapshot = synced?.metricSnapshots[0];
   const customerId = digitsOnly(String(raw.customerId ?? ""));
   return {
@@ -310,7 +323,7 @@ export async function createCampaignEditDraft(body: unknown): Promise<CampaignEd
     budgetResourceName: raw.budgetResourceName ?? resolved.budgetResourceName,
     advertisingChannelType: raw.advertisingChannelType ?? resolved.advertisingChannelType,
     currentDailyBudgetMicros: raw.currentDailyBudgetMicros ?? resolved.currentDailyBudgetMicros,
-    syncedCampaignId: raw.syncedCampaignId ?? resolved.synced?.id,
+    syncedCampaignId: resolved.synced?.id ?? null,
   });
 
   const draft = await prisma().campaignEditDraft.create({
