@@ -8,12 +8,14 @@ import {
   diffDraftFields,
   diffDemandGenDraftFields,
   diffPmaxDraftFields,
+  diffVideoDraftFields,
   extractBudgetMicros,
   extractUrlFromText,
   mergeDemandGenDraftPatch,
   mergeDisplayDraftPatch,
   mergeDraftPatch,
   mergePmaxDraftPatch,
+  mergeVideoDraftPatch,
   mockAssistantTurn,
   parseAssistantTurnPlan,
   type AssistantContextPack,
@@ -26,11 +28,14 @@ import { defaultPmaxDraftTree, parsePmaxDraftWrite } from "@/lib/pmax-draft";
 import { hydratePmaxWizardFromDraft } from "@/lib/pmax-wizard-map";
 import { defaultSearchDraftTree, parseSearchDraftWrite } from "@/lib/search-draft";
 import { hydrateWizardFromDraft } from "@/lib/search-wizard-map";
+import { defaultVideoDraftTree, parseVideoDraftWrite } from "@/lib/video-draft";
+import { hydrateVideoWizardFromDraft } from "@/lib/video-wizard-map";
 import type {
   DemandGenDraftClientView,
   DisplayDraftClientView,
   PmaxDraftClientView,
   SearchDraftClientView,
+  VideoDraftClientView,
 } from "@/lib/types";
 
 const emptyPack = (draft = defaultSearchDraftTree({ customerId: "1234567890" })): AssistantContextPack => ({
@@ -608,6 +613,145 @@ describe("demand gen assistant fill-first", () => {
   });
 });
 
+const emptyVideoPack = (
+  draft = defaultVideoDraftTree({ customerId: "1234567890" }),
+): AssistantContextPack => ({
+  kind: "VIDEO",
+  org: { id: "org", name: "Adrunr", slug: "adrunr" },
+  client: { id: "client-default", name: "Default client", slug: "default" },
+  accounts: [{ id: "acc", externalId: "1234567890", displayName: "Demo", status: "ENABLED", isManager: false }],
+  campaigns: [],
+  draft,
+  draftId: "video-1",
+  messages: [],
+  memory: [],
+});
+
+describe("video assistant fill-first", () => {
+  it("fills Video draft fields from a URL before asking optional gaps", () => {
+    const plan = mockAssistantTurn({
+      message: "https://acmeboots.com/hiking",
+      pack: emptyVideoPack(),
+    });
+    expect(plan.update_draft_fields).toBeTruthy();
+    expect(String(plan.update_draft_fields?.name)).toMatch(/Acmeboots/i);
+    const groups = plan.update_draft_fields?.adGroups as Array<{
+      ads: Array<{ finalUrl: string; headlines: string[]; assets: Array<{ kind: string }> }>;
+    }>;
+    expect(groups[0].ads[0].finalUrl).toContain("acmeboots.com");
+    expect(groups[0].ads[0].headlines.length).toBeGreaterThanOrEqual(1);
+    expect(groups[0].ads[0].assets.some((asset) => asset.kind === "YOUTUBE_VIDEO")).toBe(true);
+    const audiences = plan.update_draft_fields?.audiences as Array<{ kind: string }>;
+    expect(audiences.some((audience) => audience.kind === "USER_LIST")).toBe(true);
+    const required = plan.ask_questions.filter((question) => !question.optional);
+    expect(required).toHaveLength(0);
+    expect(plan.assistant_message.toLowerCase()).toMatch(/filled/);
+  });
+
+  it("refuses validate / apply / enable on Video without emitting draft mutate actions", () => {
+    for (const message of ["Validate this", "Apply CREATE PAUSED", "enable and go live"]) {
+      const plan = mockAssistantTurn({ message, pack: emptyVideoPack() });
+      expect(plan.update_draft_fields).toBeNull();
+      expect(plan.refusedAction).toBeTruthy();
+    }
+  });
+
+  it("merges structured patches onto the existing Video draft tree", () => {
+    const current = parseVideoDraftWrite({
+      customerId: "1234567890",
+      name: "Keep me",
+      dailyBudgetMicros: 1_000_000,
+      adGroups: [{ name: "Existing", ads: [] }],
+    });
+    const merged = mergeVideoDraftPatch(current, { name: "Patched video", dailyBudgetMicros: 5_000_000 });
+    expect(merged.name).toBe("Patched video");
+    expect(merged.dailyBudgetMicros).toBe(5_000_000);
+    expect(merged.adGroups[0].name).toBe("Existing");
+    expect(diffVideoDraftFields(current, merged)).toEqual(["name", "dailyBudgetMicros"]);
+  });
+
+  it("hydrates Video wizard fields from a draft view", () => {
+    const draft: VideoDraftClientView = {
+      id: "d1",
+      customerId: "1234567890",
+      externalAccountId: "ea1",
+      name: "Hydrated Video",
+      dailyBudgetMicros: "25000000",
+      biddingStrategy: "MANUAL_CPV",
+      maxCpvMicros: null,
+      targetCpmMicros: null,
+      targetCpaMicros: null,
+      inStream: true,
+      bumper: false,
+      inFeed: true,
+      shorts: false,
+      outstream: false,
+      startDate: null,
+      endDate: null,
+      statusDraft: "DRAFT",
+      googleCampaignResourceName: null,
+      campaignOpId: null,
+      notesText: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      adGroups: [
+        {
+          id: "g1",
+          name: "Coffee",
+          defaultBidMicros: "2000000",
+          sortOrder: 0,
+          googleAdGroupResourceName: null,
+          ads: [
+            {
+              id: "a1",
+              headlines: ["One", "Two"],
+              descriptions: ["Desc one"],
+              longHeadline: "Long headline",
+              finalUrl: "https://example.com",
+              callToActionText: "LEARN_MORE",
+              googleAdResourceName: null,
+              assets: [
+                {
+                  id: "as1",
+                  kind: "YOUTUBE_VIDEO",
+                  urlText: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+                  assetResourceName: null,
+                  sortOrder: 0,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      targets: [
+        {
+          id: "t1",
+          type: "GEO",
+          valueText: "Canada",
+          criterionText: "geoTargetConstants/2124",
+          included: true,
+        },
+      ],
+      audiences: [
+        {
+          id: "au1",
+          kind: "USER_LIST",
+          valueText: "Website visitors (Video audience)",
+          criterionText: "customers/1234567890/userLists/111",
+          included: true,
+        },
+      ],
+    };
+    const state = hydrateVideoWizardFromDraft(draft);
+    expect(state.name).toBe("Hydrated Video");
+    expect(state.budgetDollars).toBe("25.00");
+    expect(state.groups[0].ads[0].longHeadline).toBe("Long headline");
+    expect(state.targets[0].valueText).toBe("Canada");
+    expect(state.audiences[0].kind).toBe("USER_LIST");
+    expect(state.shorts).toBe(false);
+  });
+});
+
 describe("assistant safety source locks", () => {
   it("does not call validate or apply endpoints from assistant server modules", () => {
     const ops = readFileSync(resolve(process.cwd(), "src/lib/assistant-ops.ts"), "utf8");
@@ -618,6 +762,7 @@ describe("assistant safety source locks", () => {
       expect(source).not.toMatch(/validateOrApplyDisplayDraft/);
       expect(source).not.toMatch(/validateOrApplyPmaxDraft/);
       expect(source).not.toMatch(/validateOrApplyDemandGenDraft/);
+      expect(source).not.toMatch(/validateOrApplyVideoDraft/);
       expect(source).not.toMatch(/\/api\/ads\/search\/drafts\/.+\/validate/);
       expect(source).not.toMatch(/\/api\/ads\/search\/drafts\/.+\/apply/);
       expect(source).not.toMatch(/\/api\/ads\/display\/drafts\/.+\/validate/);
@@ -626,6 +771,8 @@ describe("assistant safety source locks", () => {
       expect(source).not.toMatch(/\/api\/ads\/pmax\/drafts\/.+\/apply/);
       expect(source).not.toMatch(/\/api\/ads\/demand-gen\/drafts\/.+\/validate/);
       expect(source).not.toMatch(/\/api\/ads\/demand-gen\/drafts\/.+\/apply/);
+      expect(source).not.toMatch(/\/api\/ads\/video\/drafts\/.+\/validate/);
+      expect(source).not.toMatch(/\/api\/ads\/video\/drafts\/.+\/apply/);
     }
   });
 });

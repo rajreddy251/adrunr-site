@@ -8,6 +8,7 @@ import {
   diffDisplayDraftFields,
   diffDraftFields,
   diffPmaxDraftFields,
+  diffVideoDraftFields,
   type AssistantContextPack,
   type AssistantTurnPlan,
 } from "./assistant";
@@ -34,6 +35,13 @@ import {
   pmaxDraftViewToTree,
   type PmaxDraftView,
 } from "./pmax-ops";
+import {
+  createVideoDraft,
+  getVideoDraft,
+  patchVideoDraft,
+  videoDraftViewToTree,
+  type VideoDraftView,
+} from "./video-ops";
 import { prisma } from "./prisma";
 import { GOOGLE_ADS_SLUG } from "./providers";
 import {
@@ -54,7 +62,7 @@ import type {
 
 export type AssistantTurnResult = {
   thread: AssistantThreadView;
-  draft: SearchDraftView | DisplayDraftView | PmaxDraftView | DemandGenDraftView | null;
+  draft: SearchDraftView | DisplayDraftView | PmaxDraftView | DemandGenDraftView | VideoDraftView | null;
   questions: AssistantQuestion[];
   patchedFields: string[];
   source: "mock" | "llm";
@@ -66,7 +74,9 @@ function threadKind(row: {
   displayDraftId: string | null;
   pmaxDraftId: string | null;
   demandGenDraftId: string | null;
+  videoDraftId: string | null;
 }): AssistantCampaignKind {
+  if (row.videoDraftId) return "VIDEO";
   if (row.demandGenDraftId) return "DEMAND_GEN";
   if (row.pmaxDraftId) return "PMAX";
   if (row.displayDraftId) return "DISPLAY";
@@ -77,6 +87,7 @@ function assistantTitle(kind: AssistantCampaignKind): string {
   if (kind === "DISPLAY") return "Display wizard assistant";
   if (kind === "PMAX") return "Performance Max wizard assistant";
   if (kind === "DEMAND_GEN") return "Demand Gen wizard assistant";
+  if (kind === "VIDEO") return "Video wizard assistant";
   return "Search wizard assistant";
 }
 
@@ -84,6 +95,7 @@ function draftResourceType(kind: AssistantCampaignKind): string {
   if (kind === "DISPLAY") return "DISPLAY_CAMPAIGN_DRAFT";
   if (kind === "PMAX") return "PERFORMANCE_MAX_CAMPAIGN_DRAFT";
   if (kind === "DEMAND_GEN") return "DEMAND_GEN_CAMPAIGN_DRAFT";
+  if (kind === "VIDEO") return "VIDEO_CAMPAIGN_DRAFT";
   return "SEARCH_CAMPAIGN_DRAFT";
 }
 
@@ -93,12 +105,14 @@ function boundDraftId(
     displayDraftId: string | null;
     pmaxDraftId: string | null;
     demandGenDraftId: string | null;
+    videoDraftId: string | null;
   },
   kind: AssistantCampaignKind,
 ): string | null {
   if (kind === "DISPLAY") return row.displayDraftId;
   if (kind === "PMAX") return row.pmaxDraftId;
   if (kind === "DEMAND_GEN") return row.demandGenDraftId;
+  if (kind === "VIDEO") return row.videoDraftId;
   return row.draftId;
 }
 
@@ -144,7 +158,7 @@ async function loadThreadOrThrow(id: string): Promise<AssistantThreadView> {
   if (!row) {
     throw Object.assign(new Error("Assistant thread not found."), {
       status: 404,
-      info: { kind: "validation", hint: "Start a thread from the Search, Display, Performance Max, or Demand Gen wizard assistant." },
+      info: { kind: "validation", hint: "Start a thread from the Search, Display, Performance Max, Demand Gen, or Video wizard assistant." },
     });
   }
   return {
@@ -155,6 +169,7 @@ async function loadThreadOrThrow(id: string): Promise<AssistantThreadView> {
     displayDraftId: row.displayDraftId,
     pmaxDraftId: row.pmaxDraftId,
     demandGenDraftId: row.demandGenDraftId,
+    videoDraftId: row.videoDraftId,
     kind: threadKind(row),
     createdById: row.createdById,
     title: row.title,
@@ -205,6 +220,19 @@ async function assertDraftInScope(draftId: string, kind: AssistantCampaignKind =
     }
     return draft;
   }
+  if (kind === "VIDEO") {
+    const draft = await prisma().videoCampaignDraft.findFirst({
+      where: { id: draftId, organizationId: ctx.org.id, clientId: ctx.client.id },
+      select: { id: true, name: true },
+    });
+    if (!draft) {
+      throw Object.assign(new Error("Video campaign draft not found for this client."), {
+        status: 404,
+        info: { kind: "rbac", hint: "Assistant threads cannot read another client's drafts." },
+      });
+    }
+    return draft;
+  }
   const draft = await prisma().searchCampaignDraft.findFirst({
     where: { id: draftId, organizationId: ctx.org.id, clientId: ctx.client.id },
     select: { id: true, name: true },
@@ -236,7 +264,9 @@ export async function listAssistantThreads(input?: {
             ? { pmaxDraftId: input.draftId }
             : kind === "DEMAND_GEN"
               ? { demandGenDraftId: input.draftId }
-              : { draftId: input.draftId }
+              : kind === "VIDEO"
+                ? { videoDraftId: input.draftId }
+                : { draftId: input.draftId }
         : {}),
     },
     include: { messages: { orderBy: { createdAt: "asc" } } },
@@ -251,6 +281,7 @@ export async function listAssistantThreads(input?: {
     displayDraftId: row.displayDraftId,
     pmaxDraftId: row.pmaxDraftId,
     demandGenDraftId: row.demandGenDraftId,
+    videoDraftId: row.videoDraftId,
     kind: threadKind(row),
     createdById: row.createdById,
     title: row.title,
@@ -281,6 +312,7 @@ export async function createAssistantThread(input: {
       displayDraftId: kind === "DISPLAY" ? input.draftId ?? null : null,
       pmaxDraftId: kind === "PMAX" ? input.draftId ?? null : null,
       demandGenDraftId: kind === "DEMAND_GEN" ? input.draftId ?? null : null,
+      videoDraftId: kind === "VIDEO" ? input.draftId ?? null : null,
       createdById: ctx.user.id,
       title: input.title?.trim() || assistantTitle(kind),
     },
@@ -360,7 +392,7 @@ export async function buildAssistantContextPack(input: {
   const ctx = await requireScopedContext();
   const provider = await requireProvider(GOOGLE_ADS_SLUG);
   const kind = input.kind ?? "SEARCH";
-  const [accounts, entities, searchDrafts, displayDrafts, pmaxDrafts, demandGenDrafts, memory, thread] = await Promise.all([
+  const [accounts, entities, searchDrafts, displayDrafts, pmaxDrafts, demandGenDrafts, videoDrafts, memory, thread] = await Promise.all([
     prisma().externalAccount.findMany({
       where: { organizationId: ctx.org.id, clientId: ctx.client.id, providerId: provider.id },
       orderBy: { updatedAt: "desc" },
@@ -392,6 +424,11 @@ export async function buildAssistantContextPack(input: {
       take: 20,
     }),
     prisma().demandGenCampaignDraft.findMany({
+      where: { organizationId: ctx.org.id, clientId: ctx.client.id },
+      orderBy: { updatedAt: "desc" },
+      take: 20,
+    }),
+    prisma().videoCampaignDraft.findMany({
       where: { organizationId: ctx.org.id, clientId: ctx.client.id },
       orderBy: { updatedAt: "desc" },
       take: 20,
@@ -441,6 +478,14 @@ export async function buildAssistantContextPack(input: {
       settings: draft.biddingStrategy,
       source: "demand_gen_draft" as const,
     })),
+    ...videoDrafts.map((draft) => ({
+      name: draft.name,
+      type: "VIDEO_DRAFT",
+      status: draft.statusDraft,
+      budgetHint: draft.dailyBudgetMicros.toString(),
+      settings: draft.biddingStrategy,
+      source: "video_draft" as const,
+    })),
   ];
 
   let draftTree: AssistantContextPack["draft"] = null;
@@ -453,7 +498,9 @@ export async function buildAssistantContextPack(input: {
           ? pmaxDraftViewToTree(await getPmaxDraft(scoped.id))
           : kind === "DEMAND_GEN"
             ? demandGenDraftViewToTree(await getDemandGenDraft(scoped.id))
-            : searchDraftViewToTree(await getSearchDraft(scoped.id));
+            : kind === "VIDEO"
+              ? videoDraftViewToTree(await getVideoDraft(scoped.id))
+              : searchDraftViewToTree(await getSearchDraft(scoped.id));
   }
 
   return {
@@ -524,6 +571,15 @@ export async function runAssistantTurn(input: {
         status: "PAUSED",
       });
       draftId = created.id;
+    } else if (kind === "VIDEO") {
+      const created = await createVideoDraft({
+        customerId: input.customerId,
+        name: "Adrunr paused Video",
+        dailyBudgetMicros: 1_000_000,
+        biddingStrategy: "MANUAL_CPV",
+        status: "PAUSED",
+      });
+      draftId = created.id;
     } else {
       const created = await createSearchDraft({
         customerId: input.customerId,
@@ -556,7 +612,9 @@ export async function runAssistantTurn(input: {
               ? { pmaxDraftId: draftId }
               : kind === "DEMAND_GEN"
                 ? { demandGenDraftId: draftId }
-                : { draftId },
+                : kind === "VIDEO"
+                  ? { videoDraftId: draftId }
+                  : { draftId },
       });
     }
     draftId = draftId ?? boundId;
@@ -591,14 +649,16 @@ export async function runAssistantTurn(input: {
       }
     : await planAssistantTurn({ message, pack });
 
-  let draft: SearchDraftView | DisplayDraftView | PmaxDraftView | DemandGenDraftView | null = draftId
+  let draft: SearchDraftView | DisplayDraftView | PmaxDraftView | DemandGenDraftView | VideoDraftView | null = draftId
     ? kind === "DISPLAY"
       ? await getDisplayDraft(draftId)
       : kind === "PMAX"
         ? await getPmaxDraft(draftId)
         : kind === "DEMAND_GEN"
           ? await getDemandGenDraft(draftId)
-          : await getSearchDraft(draftId)
+          : kind === "VIDEO"
+            ? await getVideoDraft(draftId)
+            : await getSearchDraft(draftId)
     : null;
   let patchedFields: string[] = [];
   if (plan.update_draft_fields && draftId && !refused) {
@@ -617,6 +677,11 @@ export async function runAssistantTurn(input: {
       draft = await patchDemandGenDraft(draftId, plan.update_draft_fields);
       const after = demandGenDraftViewToTree(draft);
       patchedFields = diffDemandGenDraftFields(before, after);
+    } else if (kind === "VIDEO") {
+      const before = videoDraftViewToTree((draft as VideoDraftView) ?? (await getVideoDraft(draftId)));
+      draft = await patchVideoDraft(draftId, plan.update_draft_fields);
+      const after = videoDraftViewToTree(draft);
+      patchedFields = diffVideoDraftFields(before, after);
     } else {
       const before = searchDraftViewToTree((draft as SearchDraftView) ?? (await getSearchDraft(draftId)));
       draft = await patchSearchDraft(draftId, plan.update_draft_fields);
