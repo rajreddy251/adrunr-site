@@ -4,6 +4,7 @@ import type { AssistantMessageRole } from "@prisma/client";
 
 import {
   detectForbiddenAssistantIntent,
+  diffDemandGenDraftFields,
   diffDisplayDraftFields,
   diffDraftFields,
   diffPmaxDraftFields,
@@ -19,6 +20,13 @@ import {
   patchDisplayDraft,
   type DisplayDraftView,
 } from "./display-ops";
+import {
+  createDemandGenDraft,
+  demandGenDraftViewToTree,
+  getDemandGenDraft,
+  patchDemandGenDraft,
+  type DemandGenDraftView,
+} from "./demand-gen-ops";
 import {
   createPmaxDraft,
   getPmaxDraft,
@@ -46,7 +54,7 @@ import type {
 
 export type AssistantTurnResult = {
   thread: AssistantThreadView;
-  draft: SearchDraftView | DisplayDraftView | PmaxDraftView | null;
+  draft: SearchDraftView | DisplayDraftView | PmaxDraftView | DemandGenDraftView | null;
   questions: AssistantQuestion[];
   patchedFields: string[];
   source: "mock" | "llm";
@@ -57,7 +65,9 @@ function threadKind(row: {
   draftId: string | null;
   displayDraftId: string | null;
   pmaxDraftId: string | null;
+  demandGenDraftId: string | null;
 }): AssistantCampaignKind {
+  if (row.demandGenDraftId) return "DEMAND_GEN";
   if (row.pmaxDraftId) return "PMAX";
   if (row.displayDraftId) return "DISPLAY";
   return "SEARCH";
@@ -66,21 +76,29 @@ function threadKind(row: {
 function assistantTitle(kind: AssistantCampaignKind): string {
   if (kind === "DISPLAY") return "Display wizard assistant";
   if (kind === "PMAX") return "Performance Max wizard assistant";
+  if (kind === "DEMAND_GEN") return "Demand Gen wizard assistant";
   return "Search wizard assistant";
 }
 
 function draftResourceType(kind: AssistantCampaignKind): string {
   if (kind === "DISPLAY") return "DISPLAY_CAMPAIGN_DRAFT";
   if (kind === "PMAX") return "PERFORMANCE_MAX_CAMPAIGN_DRAFT";
+  if (kind === "DEMAND_GEN") return "DEMAND_GEN_CAMPAIGN_DRAFT";
   return "SEARCH_CAMPAIGN_DRAFT";
 }
 
 function boundDraftId(
-  row: { draftId: string | null; displayDraftId: string | null; pmaxDraftId: string | null },
+  row: {
+    draftId: string | null;
+    displayDraftId: string | null;
+    pmaxDraftId: string | null;
+    demandGenDraftId: string | null;
+  },
   kind: AssistantCampaignKind,
 ): string | null {
   if (kind === "DISPLAY") return row.displayDraftId;
   if (kind === "PMAX") return row.pmaxDraftId;
+  if (kind === "DEMAND_GEN") return row.demandGenDraftId;
   return row.draftId;
 }
 
@@ -126,7 +144,7 @@ async function loadThreadOrThrow(id: string): Promise<AssistantThreadView> {
   if (!row) {
     throw Object.assign(new Error("Assistant thread not found."), {
       status: 404,
-      info: { kind: "validation", hint: "Start a thread from the Search, Display, or Performance Max wizard assistant." },
+      info: { kind: "validation", hint: "Start a thread from the Search, Display, Performance Max, or Demand Gen wizard assistant." },
     });
   }
   return {
@@ -136,6 +154,7 @@ async function loadThreadOrThrow(id: string): Promise<AssistantThreadView> {
     draftId: row.draftId,
     displayDraftId: row.displayDraftId,
     pmaxDraftId: row.pmaxDraftId,
+    demandGenDraftId: row.demandGenDraftId,
     kind: threadKind(row),
     createdById: row.createdById,
     title: row.title,
@@ -173,6 +192,19 @@ async function assertDraftInScope(draftId: string, kind: AssistantCampaignKind =
     }
     return draft;
   }
+  if (kind === "DEMAND_GEN") {
+    const draft = await prisma().demandGenCampaignDraft.findFirst({
+      where: { id: draftId, organizationId: ctx.org.id, clientId: ctx.client.id },
+      select: { id: true, name: true },
+    });
+    if (!draft) {
+      throw Object.assign(new Error("Demand Gen campaign draft not found for this client."), {
+        status: 404,
+        info: { kind: "rbac", hint: "Assistant threads cannot read another client's drafts." },
+      });
+    }
+    return draft;
+  }
   const draft = await prisma().searchCampaignDraft.findFirst({
     where: { id: draftId, organizationId: ctx.org.id, clientId: ctx.client.id },
     select: { id: true, name: true },
@@ -202,7 +234,9 @@ export async function listAssistantThreads(input?: {
           ? { displayDraftId: input.draftId }
           : kind === "PMAX"
             ? { pmaxDraftId: input.draftId }
-            : { draftId: input.draftId }
+            : kind === "DEMAND_GEN"
+              ? { demandGenDraftId: input.draftId }
+              : { draftId: input.draftId }
         : {}),
     },
     include: { messages: { orderBy: { createdAt: "asc" } } },
@@ -216,6 +250,7 @@ export async function listAssistantThreads(input?: {
     draftId: row.draftId,
     displayDraftId: row.displayDraftId,
     pmaxDraftId: row.pmaxDraftId,
+    demandGenDraftId: row.demandGenDraftId,
     kind: threadKind(row),
     createdById: row.createdById,
     title: row.title,
@@ -245,6 +280,7 @@ export async function createAssistantThread(input: {
       draftId: kind === "SEARCH" ? input.draftId ?? null : null,
       displayDraftId: kind === "DISPLAY" ? input.draftId ?? null : null,
       pmaxDraftId: kind === "PMAX" ? input.draftId ?? null : null,
+      demandGenDraftId: kind === "DEMAND_GEN" ? input.draftId ?? null : null,
       createdById: ctx.user.id,
       title: input.title?.trim() || assistantTitle(kind),
     },
@@ -324,7 +360,7 @@ export async function buildAssistantContextPack(input: {
   const ctx = await requireScopedContext();
   const provider = await requireProvider(GOOGLE_ADS_SLUG);
   const kind = input.kind ?? "SEARCH";
-  const [accounts, entities, searchDrafts, displayDrafts, pmaxDrafts, memory, thread] = await Promise.all([
+  const [accounts, entities, searchDrafts, displayDrafts, pmaxDrafts, demandGenDrafts, memory, thread] = await Promise.all([
     prisma().externalAccount.findMany({
       where: { organizationId: ctx.org.id, clientId: ctx.client.id, providerId: provider.id },
       orderBy: { updatedAt: "desc" },
@@ -351,6 +387,11 @@ export async function buildAssistantContextPack(input: {
       take: 20,
     }),
     prisma().performanceMaxCampaignDraft.findMany({
+      where: { organizationId: ctx.org.id, clientId: ctx.client.id },
+      orderBy: { updatedAt: "desc" },
+      take: 20,
+    }),
+    prisma().demandGenCampaignDraft.findMany({
       where: { organizationId: ctx.org.id, clientId: ctx.client.id },
       orderBy: { updatedAt: "desc" },
       take: 20,
@@ -392,6 +433,14 @@ export async function buildAssistantContextPack(input: {
       settings: draft.biddingStrategy,
       source: "pmax_draft" as const,
     })),
+    ...demandGenDrafts.map((draft) => ({
+      name: draft.name,
+      type: "DEMAND_GEN_DRAFT",
+      status: draft.statusDraft,
+      budgetHint: draft.dailyBudgetMicros.toString(),
+      settings: draft.biddingStrategy,
+      source: "demand_gen_draft" as const,
+    })),
   ];
 
   let draftTree: AssistantContextPack["draft"] = null;
@@ -402,7 +451,9 @@ export async function buildAssistantContextPack(input: {
         ? displayDraftViewToTree(await getDisplayDraft(scoped.id))
         : kind === "PMAX"
           ? pmaxDraftViewToTree(await getPmaxDraft(scoped.id))
-          : searchDraftViewToTree(await getSearchDraft(scoped.id));
+          : kind === "DEMAND_GEN"
+            ? demandGenDraftViewToTree(await getDemandGenDraft(scoped.id))
+            : searchDraftViewToTree(await getSearchDraft(scoped.id));
   }
 
   return {
@@ -464,6 +515,15 @@ export async function runAssistantTurn(input: {
         status: "PAUSED",
       });
       draftId = created.id;
+    } else if (kind === "DEMAND_GEN") {
+      const created = await createDemandGenDraft({
+        customerId: input.customerId,
+        name: "Adrunr paused Demand Gen",
+        dailyBudgetMicros: 1_000_000,
+        biddingStrategy: "MAXIMIZE_CONVERSIONS",
+        status: "PAUSED",
+      });
+      draftId = created.id;
     } else {
       const created = await createSearchDraft({
         customerId: input.customerId,
@@ -494,7 +554,9 @@ export async function runAssistantTurn(input: {
             ? { displayDraftId: draftId }
             : kind === "PMAX"
               ? { pmaxDraftId: draftId }
-              : { draftId },
+              : kind === "DEMAND_GEN"
+                ? { demandGenDraftId: draftId }
+                : { draftId },
       });
     }
     draftId = draftId ?? boundId;
@@ -529,12 +591,14 @@ export async function runAssistantTurn(input: {
       }
     : await planAssistantTurn({ message, pack });
 
-  let draft: SearchDraftView | DisplayDraftView | PmaxDraftView | null = draftId
+  let draft: SearchDraftView | DisplayDraftView | PmaxDraftView | DemandGenDraftView | null = draftId
     ? kind === "DISPLAY"
       ? await getDisplayDraft(draftId)
       : kind === "PMAX"
         ? await getPmaxDraft(draftId)
-        : await getSearchDraft(draftId)
+        : kind === "DEMAND_GEN"
+          ? await getDemandGenDraft(draftId)
+          : await getSearchDraft(draftId)
     : null;
   let patchedFields: string[] = [];
   if (plan.update_draft_fields && draftId && !refused) {
@@ -548,6 +612,11 @@ export async function runAssistantTurn(input: {
       draft = await patchPmaxDraft(draftId, plan.update_draft_fields);
       const after = pmaxDraftViewToTree(draft);
       patchedFields = diffPmaxDraftFields(before, after);
+    } else if (kind === "DEMAND_GEN") {
+      const before = demandGenDraftViewToTree((draft as DemandGenDraftView) ?? (await getDemandGenDraft(draftId)));
+      draft = await patchDemandGenDraft(draftId, plan.update_draft_fields);
+      const after = demandGenDraftViewToTree(draft);
+      patchedFields = diffDemandGenDraftFields(before, after);
     } else {
       const before = searchDraftViewToTree((draft as SearchDraftView) ?? (await getSearchDraft(draftId)));
       draft = await patchSearchDraft(draftId, plan.update_draft_fields);

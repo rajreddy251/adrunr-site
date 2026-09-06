@@ -15,7 +15,9 @@ export async function GET(request: Request) {
           ? "DISPLAY"
           : url.searchParams.get("kind") === "PMAX"
             ? "PMAX"
-            : "SEARCH",
+            : url.searchParams.get("kind") === "DEMAND_GEN"
+              ? "DEMAND_GEN"
+              : "SEARCH",
     });
     return Response.json({ ok: true, threads });
   } catch (error) {
@@ -29,11 +31,18 @@ export async function POST(request: Request) {
       clientId?: string;
       draftId?: string;
       title?: string;
-      kind?: "SEARCH" | "DISPLAY" | "PMAX";
+      kind?: "SEARCH" | "DISPLAY" | "PMAX" | "DEMAND_GEN";
     };
     const thread = await createAssistantThread({
       ...body,
-      kind: body.kind === "DISPLAY" ? "DISPLAY" : body.kind === "PMAX" ? "PMAX" : "SEARCH",
+      kind:
+        body.kind === "DISPLAY"
+          ? "DISPLAY"
+          : body.kind === "PMAX"
+            ? "PMAX"
+            : body.kind === "DEMAND_GEN"
+              ? "DEMAND_GEN"
+              : "SEARCH",
     });
     return Response.json({ ok: true, thread });
   } catch (error) {

@@ -33,6 +33,10 @@ const v16Migration = readFileSync(
   resolve(process.cwd(), "prisma/migrations/20260906220000_schema_v1_6/migration.sql"),
   "utf8",
 );
+const v17Migration = readFileSync(
+  resolve(process.cwd(), "prisma/migrations/20260906230000_schema_v1_7/migration.sql"),
+  "utf8",
+);
 
 describe("schema v1.2 locks", () => {
   it("does not use JSONB / Prisma Json types", () => {
@@ -71,6 +75,12 @@ describe("schema v1.2 locks", () => {
       "PerformanceMaxSignalDraft",
       "PerformanceMaxListingDraft",
       "PerformanceMaxTargetDraft",
+      "DemandGenCampaignDraft",
+      "DemandGenAdGroupDraft",
+      "DemandGenAdDraft",
+      "DemandGenAssetDraft",
+      "DemandGenAudienceDraft",
+      "DemandGenTargetDraft",
       "DryRunJob",
       "ChangeRequest",
       "AuditEvent",
@@ -107,11 +117,17 @@ describe("schema v1.2 locks", () => {
       "TIKTOK_CAMPAIGN_CREATE",
       "LINKEDIN_CAMPAIGN_CREATE",
       "GENERIC_MUTATE",
+      "DEMAND_GEN_CREATE",
     ]);
     for (const kind of CAMPAIGN_OP_KINDS) {
       expect(enumBlock).toContain(kind);
     }
-    expect(IMPLEMENTED_CAMPAIGN_OP_KINDS).toEqual(["SEARCH_CREATE", "DISPLAY_CREATE", "PMAX_CREATE"]);
+    expect(IMPLEMENTED_CAMPAIGN_OP_KINDS).toEqual([
+      "SEARCH_CREATE",
+      "DISPLAY_CREATE",
+      "PMAX_CREATE",
+      "DEMAND_GEN_CREATE",
+    ]);
   });
 
   it("wires AgentClientAssignment to Organization, Client, and User", () => {
@@ -238,6 +254,33 @@ describe("schema v1.6 locks", () => {
   });
 });
 
+describe("schema v1.7 locks", () => {
+  it("adds Demand Gen draft models and DEMAND_GEN_CAMPAIGN_DRAFT without JSONB", () => {
+    expect(schema).toContain("enum DemandGenDraftStatus");
+    expect(schema).toContain("enum DemandGenAudienceKind");
+    expect(schema).toContain("enum DemandGenAssetKind");
+    expect(schema).toContain("DEMAND_GEN_CAMPAIGN_DRAFT");
+    expect(schema).toContain("DEMAND_GEN_CREATE");
+    expect(schema).toContain("demandGenCampaignDraftId");
+    expect(schema).toContain("demandGenDraftId");
+    expect(schema).toContain("youtubeInStream");
+    expect(schema).toContain("callToActionText");
+    expect(schema).not.toMatch(/\bJson\b/);
+    expect(v17Migration).toContain('ALTER TYPE "PermissionResource" ADD VALUE \'DEMAND_GEN_CAMPAIGN_DRAFT\'');
+    expect(v17Migration).toContain('ALTER TYPE "CampaignOpKind" ADD VALUE \'DEMAND_GEN_CREATE\'');
+    expect(v17Migration).toContain('CREATE TABLE "DemandGenCampaignDraft"');
+    expect(v17Migration).toContain('CREATE TABLE "DemandGenAdGroupDraft"');
+    expect(v17Migration).toContain('CREATE TABLE "DemandGenAdDraft"');
+    expect(v17Migration).toContain('CREATE TABLE "DemandGenAssetDraft"');
+    expect(v17Migration).toContain('CREATE TABLE "DemandGenAudienceDraft"');
+    expect(v17Migration).toContain('CREATE TABLE "DemandGenTargetDraft"');
+    expect(v17Migration).toContain("CampaignOp_demandGenCampaignDraftId_fkey");
+    expect(v17Migration).toContain("AssistantThread_demandGenDraftId_fkey");
+    expect(v17Migration).not.toMatch(/DROP TABLE/i);
+    expect(v17Migration).not.toMatch(/jsonb/i);
+  });
+});
+
 describe("seeded provider registry", () => {
   it("includes the required slugs", () => {
     expect(SEED_PROVIDERS.map((p) => p.slug)).toEqual([
@@ -270,7 +313,7 @@ describe("role permissions", () => {
 describe("client role permissions", () => {
   it("seeds READ/LIST defaults without mutating agency RolePermission", () => {
     const rows = buildClientRolePermissionRows();
-    expect(rows).toHaveLength(32);
+    expect(rows).toHaveLength(38);
     expect(rows.every((row) => row.action === "READ" || row.action === "LIST")).toBe(true);
 
     expect(clientRoleHasPermission("CLIENT_ADMIN", "AUDIT_EVENT", "READ")).toBe(true);
@@ -293,6 +336,9 @@ describe("client role permissions", () => {
       expect(clientRoleHasPermission(role, "PERFORMANCE_MAX_CAMPAIGN_DRAFT", "READ")).toBe(true);
       expect(clientRoleHasPermission(role, "PERFORMANCE_MAX_CAMPAIGN_DRAFT", "LIST")).toBe(true);
       expect(clientRoleHasPermission(role, "PERFORMANCE_MAX_CAMPAIGN_DRAFT", "APPLY_PAUSED")).toBe(false);
+      expect(clientRoleHasPermission(role, "DEMAND_GEN_CAMPAIGN_DRAFT", "READ")).toBe(true);
+      expect(clientRoleHasPermission(role, "DEMAND_GEN_CAMPAIGN_DRAFT", "LIST")).toBe(true);
+      expect(clientRoleHasPermission(role, "DEMAND_GEN_CAMPAIGN_DRAFT", "APPLY_PAUSED")).toBe(false);
     }
   });
 });

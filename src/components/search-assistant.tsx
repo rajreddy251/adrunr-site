@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent, type RefObject } from "react";
 
+import type { DemandGenWizardHandle } from "@/components/demand-gen-wizard";
 import type { DisplayWizardHandle } from "@/components/display-wizard";
 import type { PmaxWizardHandle } from "@/components/pmax-wizard";
 import type { SearchWizardHandle } from "@/components/search-wizard";
@@ -10,6 +11,7 @@ import type {
   AssistantMessageView,
   AssistantQuestion,
   AssistantThreadView,
+  DemandGenDraftClientView,
   DisplayDraftClientView,
   PmaxDraftClientView,
   SearchDraftClientView,
@@ -18,7 +20,7 @@ import type {
 type TurnResponse = {
   ok: boolean;
   thread?: AssistantThreadView;
-  draft?: SearchDraftClientView | DisplayDraftClientView | PmaxDraftClientView | null;
+  draft?: SearchDraftClientView | DisplayDraftClientView | PmaxDraftClientView | DemandGenDraftClientView | null;
   questions?: AssistantQuestion[];
   patchedFields?: string[];
   source?: "mock" | "llm";
@@ -33,7 +35,7 @@ export function SearchAssistant({
   connected,
   kind = "SEARCH",
 }: {
-  wizard: RefObject<SearchWizardHandle | DisplayWizardHandle | PmaxWizardHandle | null>;
+  wizard: RefObject<SearchWizardHandle | DisplayWizardHandle | PmaxWizardHandle | DemandGenWizardHandle | null>;
   connected: boolean;
   kind?: AssistantCampaignKind;
 }) {
@@ -91,7 +93,12 @@ export function SearchAssistant({
     setPatched(json.patchedFields ?? []);
     setSource(json.source ?? null);
     if (json.draft) {
-      handle?.applyDraft(json.draft as SearchDraftClientView & DisplayDraftClientView & PmaxDraftClientView);
+      handle?.applyDraft(
+        json.draft as SearchDraftClientView &
+          DisplayDraftClientView &
+          PmaxDraftClientView &
+          DemandGenDraftClientView,
+      );
     }
     setInput("");
     setBusy(false);
@@ -100,16 +107,34 @@ export function SearchAssistant({
   return (
     <aside
       className="flex min-h-[32rem] flex-col rounded-2xl border border-ink-700 bg-ink-900 p-5"
-      data-testid={kind === "DISPLAY" ? "display-assistant" : kind === "PMAX" ? "pmax-assistant" : "search-assistant"}
+      data-testid={
+        kind === "DISPLAY"
+          ? "display-assistant"
+          : kind === "PMAX"
+            ? "pmax-assistant"
+            : kind === "DEMAND_GEN"
+              ? "demand-gen-assistant"
+              : "search-assistant"
+      }
     >
       <h2 className="text-lg text-white">
-        {kind === "DISPLAY" ? "Display" : kind === "PMAX" ? "Performance Max" : "Search"} assistant
+        {kind === "DISPLAY"
+          ? "Display"
+          : kind === "PMAX"
+            ? "Performance Max"
+            : kind === "DEMAND_GEN"
+              ? "Demand Gen"
+              : "Search"}{" "}
+        assistant
       </h2>
       <p className="mt-1 text-sm text-moss-400">
         Paste a URL or brief. I fill the draft first, then ask only for gaps. Chat cannot Validate,
         Create PAUSED, or enable.
         {kind === "DISPLAY" ? " Remarketing is a Display audience, not a campaign type." : ""}
         {kind === "PMAX" ? " Asset groups and search-theme signals — listings are optional storage only." : ""}
+        {kind === "DEMAND_GEN"
+          ? " Ad groups and Demand Gen multi-asset ads — USER_LIST audiences, not a separate campaign type."
+          : ""}
       </p>
       {source ? (
         <p className="mt-2 font-mono text-xs text-moss-500">

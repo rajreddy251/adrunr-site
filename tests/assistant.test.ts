@@ -6,9 +6,11 @@ import {
   detectForbiddenAssistantIntent,
   diffDisplayDraftFields,
   diffDraftFields,
+  diffDemandGenDraftFields,
   diffPmaxDraftFields,
   extractBudgetMicros,
   extractUrlFromText,
+  mergeDemandGenDraftPatch,
   mergeDisplayDraftPatch,
   mergeDraftPatch,
   mergePmaxDraftPatch,
@@ -16,13 +18,20 @@ import {
   parseAssistantTurnPlan,
   type AssistantContextPack,
 } from "@/lib/assistant";
+import { defaultDemandGenDraftTree, parseDemandGenDraftWrite } from "@/lib/demand-gen-draft";
+import { hydrateDemandGenWizardFromDraft } from "@/lib/demand-gen-wizard-map";
 import { defaultDisplayDraftTree, parseDisplayDraftWrite } from "@/lib/display-draft";
 import { hydrateDisplayWizardFromDraft } from "@/lib/display-wizard-map";
 import { defaultPmaxDraftTree, parsePmaxDraftWrite } from "@/lib/pmax-draft";
 import { hydratePmaxWizardFromDraft } from "@/lib/pmax-wizard-map";
 import { defaultSearchDraftTree, parseSearchDraftWrite } from "@/lib/search-draft";
 import { hydrateWizardFromDraft } from "@/lib/search-wizard-map";
-import type { DisplayDraftClientView, PmaxDraftClientView, SearchDraftClientView } from "@/lib/types";
+import type {
+  DemandGenDraftClientView,
+  DisplayDraftClientView,
+  PmaxDraftClientView,
+  SearchDraftClientView,
+} from "@/lib/types";
 
 const emptyPack = (draft = defaultSearchDraftTree({ customerId: "1234567890" })): AssistantContextPack => ({
   kind: "SEARCH",
@@ -459,6 +468,146 @@ describe("performance max assistant fill-first", () => {
   });
 });
 
+const emptyDemandGenPack = (
+  draft = defaultDemandGenDraftTree({ customerId: "1234567890" }),
+): AssistantContextPack => ({
+  kind: "DEMAND_GEN",
+  org: { id: "org", name: "Adrunr", slug: "adrunr" },
+  client: { id: "client-default", name: "Default client", slug: "default" },
+  accounts: [{ id: "acc", externalId: "1234567890", displayName: "Demo", status: "ENABLED", isManager: false }],
+  campaigns: [],
+  draft,
+  draftId: "demand-gen-1",
+  messages: [],
+  memory: [],
+});
+
+describe("demand gen assistant fill-first", () => {
+  it("fills Demand Gen draft fields from a URL before asking optional gaps", () => {
+    const plan = mockAssistantTurn({
+      message: "https://acmeboots.com/hiking",
+      pack: emptyDemandGenPack(),
+    });
+    expect(plan.update_draft_fields).toBeTruthy();
+    expect(String(plan.update_draft_fields?.name)).toMatch(/Acmeboots/i);
+    const groups = plan.update_draft_fields?.adGroups as Array<{
+      ads: Array<{ finalUrl: string; headlines: string[]; assets: Array<{ kind: string }> }>;
+    }>;
+    expect(groups[0].ads[0].finalUrl).toContain("acmeboots.com");
+    expect(groups[0].ads[0].headlines.length).toBeGreaterThanOrEqual(3);
+    expect(groups[0].ads[0].assets.some((asset) => asset.kind === "MARKETING_IMAGE")).toBe(true);
+    expect(groups[0].ads[0].assets.some((asset) => asset.kind === "SQUARE_MARKETING_IMAGE")).toBe(true);
+    const audiences = plan.update_draft_fields?.audiences as Array<{ kind: string }>;
+    expect(audiences.some((audience) => audience.kind === "USER_LIST")).toBe(true);
+    const required = plan.ask_questions.filter((question) => !question.optional);
+    expect(required).toHaveLength(0);
+    expect(plan.assistant_message.toLowerCase()).toMatch(/filled/);
+  });
+
+  it("refuses validate / apply / enable on Demand Gen without emitting draft mutate actions", () => {
+    for (const message of ["Validate this", "Apply CREATE PAUSED", "enable and go live"]) {
+      const plan = mockAssistantTurn({ message, pack: emptyDemandGenPack() });
+      expect(plan.update_draft_fields).toBeNull();
+      expect(plan.refusedAction).toBeTruthy();
+    }
+  });
+
+  it("merges structured patches onto the existing Demand Gen draft tree", () => {
+    const current = parseDemandGenDraftWrite({
+      customerId: "1234567890",
+      name: "Keep me",
+      dailyBudgetMicros: 1_000_000,
+      adGroups: [{ name: "Existing", ads: [] }],
+    });
+    const merged = mergeDemandGenDraftPatch(current, { name: "Patched demand gen", dailyBudgetMicros: 5_000_000 });
+    expect(merged.name).toBe("Patched demand gen");
+    expect(merged.dailyBudgetMicros).toBe(5_000_000);
+    expect(merged.adGroups[0].name).toBe("Existing");
+    expect(diffDemandGenDraftFields(current, merged)).toEqual(["name", "dailyBudgetMicros"]);
+  });
+
+  it("hydrates Demand Gen wizard fields from a draft view", () => {
+    const draft: DemandGenDraftClientView = {
+      id: "d1",
+      customerId: "1234567890",
+      externalAccountId: "ea1",
+      name: "Hydrated Demand Gen",
+      dailyBudgetMicros: "25000000",
+      biddingStrategy: "MAXIMIZE_CONVERSIONS",
+      targetCpaMicros: null,
+      targetRoasText: null,
+      youtubeInStream: true,
+      youtubeInFeed: true,
+      youtubeShorts: false,
+      discover: true,
+      gmail: true,
+      display: true,
+      startDate: null,
+      endDate: null,
+      statusDraft: "DRAFT",
+      googleCampaignResourceName: null,
+      campaignOpId: null,
+      notesText: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      adGroups: [
+        {
+          id: "g1",
+          name: "Coffee",
+          defaultBidMicros: "2000000",
+          sortOrder: 0,
+          googleAdGroupResourceName: null,
+          ads: [
+            {
+              id: "a1",
+              headlines: ["One", "Two", "Three"],
+              descriptions: ["Desc one"],
+              businessName: "Acme",
+              finalUrl: "https://example.com",
+              callToActionText: "LEARN_MORE",
+              googleAdResourceName: null,
+              assets: [
+                {
+                  id: "as1",
+                  kind: "MARKETING_IMAGE",
+                  urlText: "https://placehold.co/1200x628/png",
+                  assetResourceName: null,
+                  sortOrder: 0,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      targets: [
+        {
+          id: "t1",
+          type: "GEO",
+          valueText: "Canada",
+          criterionText: "geoTargetConstants/2124",
+          included: true,
+        },
+      ],
+      audiences: [
+        {
+          id: "au1",
+          kind: "USER_LIST",
+          valueText: "Website visitors (Demand Gen audience)",
+          criterionText: "customers/1234567890/userLists/111",
+          included: true,
+        },
+      ],
+    };
+    const state = hydrateDemandGenWizardFromDraft(draft);
+    expect(state.name).toBe("Hydrated Demand Gen");
+    expect(state.budgetDollars).toBe("25.00");
+    expect(state.groups[0].ads[0].businessName).toBe("Acme");
+    expect(state.targets[0].valueText).toBe("Canada");
+    expect(state.audiences[0].kind).toBe("USER_LIST");
+    expect(state.youtubeShorts).toBe(false);
+  });
+});
+
 describe("assistant safety source locks", () => {
   it("does not call validate or apply endpoints from assistant server modules", () => {
     const ops = readFileSync(resolve(process.cwd(), "src/lib/assistant-ops.ts"), "utf8");
@@ -468,12 +617,15 @@ describe("assistant safety source locks", () => {
       expect(source).not.toMatch(/validateOrApplySearchDraft/);
       expect(source).not.toMatch(/validateOrApplyDisplayDraft/);
       expect(source).not.toMatch(/validateOrApplyPmaxDraft/);
+      expect(source).not.toMatch(/validateOrApplyDemandGenDraft/);
       expect(source).not.toMatch(/\/api\/ads\/search\/drafts\/.+\/validate/);
       expect(source).not.toMatch(/\/api\/ads\/search\/drafts\/.+\/apply/);
       expect(source).not.toMatch(/\/api\/ads\/display\/drafts\/.+\/validate/);
       expect(source).not.toMatch(/\/api\/ads\/display\/drafts\/.+\/apply/);
       expect(source).not.toMatch(/\/api\/ads\/pmax\/drafts\/.+\/validate/);
       expect(source).not.toMatch(/\/api\/ads\/pmax\/drafts\/.+\/apply/);
+      expect(source).not.toMatch(/\/api\/ads\/demand-gen\/drafts\/.+\/validate/);
+      expect(source).not.toMatch(/\/api\/ads\/demand-gen\/drafts\/.+\/apply/);
     }
   });
 });
