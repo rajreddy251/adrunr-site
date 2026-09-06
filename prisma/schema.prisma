@@ -77,6 +77,7 @@ enum CampaignOpKind {
   LINKEDIN_CAMPAIGN_CREATE
   GENERIC_MUTATE
   DEMAND_GEN_CREATE
+  VIDEO_CREATE
 }
 
 enum CampaignOpStatus {
@@ -109,6 +110,7 @@ enum PermissionResource {
   DISPLAY_CAMPAIGN_DRAFT
   PERFORMANCE_MAX_CAMPAIGN_DRAFT
   DEMAND_GEN_CAMPAIGN_DRAFT
+  VIDEO_CAMPAIGN_DRAFT
   SYNC_JOB
   AUDIT_EVENT
   BILLING
@@ -250,6 +252,38 @@ enum DemandGenAssetKind {
   YOUTUBE_VIDEO
 }
 
+enum VideoDraftStatus {
+  DRAFT
+  VALIDATED
+  APPLIED
+  FAILED
+}
+
+enum VideoBiddingStrategy {
+  MANUAL_CPV
+  TARGET_CPM
+  MAXIMIZE_CONVERSIONS
+  TARGET_CPA
+}
+
+enum VideoTargetType {
+  GEO
+  LANGUAGE
+}
+
+enum VideoAudienceKind {
+  USER_LIST
+  AFFINITY
+  IN_MARKET
+  CUSTOM
+}
+
+enum VideoAssetKind {
+  YOUTUBE_VIDEO
+  COMPANION_BANNER
+  MARKETING_IMAGE
+}
+
 enum AssistantMessageRole {
   USER
   ASSISTANT
@@ -290,6 +324,7 @@ model Organization {
   displayDrafts    DisplayCampaignDraft[]
   pmaxDrafts       PerformanceMaxCampaignDraft[]
   demandGenDrafts  DemandGenCampaignDraft[]
+  videoDrafts      VideoCampaignDraft[]
   syncJobs         SyncJob[]
   auditEvents      AuditEvent[]
   agentAssignments AgentClientAssignment[]
@@ -314,6 +349,7 @@ model User {
   displayDrafts     DisplayCampaignDraft[]
   pmaxDrafts        PerformanceMaxCampaignDraft[]
   demandGenDrafts   DemandGenCampaignDraft[]
+  videoDrafts       VideoCampaignDraft[]
   changeRequests    ChangeRequest[]
   auditEvents       AuditEvent[]
   agentAssignments  AgentClientAssignment[]
@@ -371,6 +407,7 @@ model Client {
   displayDrafts    DisplayCampaignDraft[]
   pmaxDrafts       PerformanceMaxCampaignDraft[]
   demandGenDrafts  DemandGenCampaignDraft[]
+  videoDrafts      VideoCampaignDraft[]
   agentAssignments AgentClientAssignment[]
   assistantThreads AssistantThread[]
   clientMemories   ClientMemory[]
@@ -497,6 +534,7 @@ model ExternalAccount {
   displayDrafts   DisplayCampaignDraft[]
   pmaxDrafts      PerformanceMaxCampaignDraft[]
   demandGenDrafts DemandGenCampaignDraft[]
+  videoDrafts     VideoCampaignDraft[]
   dryRunJobs      DryRunJob[]
   syncJobs        SyncJob[]
 
@@ -548,6 +586,7 @@ model CampaignOp {
   displayCampaignDraftId     String?
   pmaxCampaignDraftId        String?
   demandGenCampaignDraftId   String?
+  videoCampaignDraftId       String?
   errorMessage               String?
   createdAt                  DateTime         @default(now())
   updatedAt                  DateTime         @updatedAt
@@ -563,6 +602,7 @@ model CampaignOp {
   displayCampaignDraft     DisplayCampaignDraft?         @relation(fields: [displayCampaignDraftId], references: [id], onDelete: SetNull)
   pmaxCampaignDraft        PerformanceMaxCampaignDraft?  @relation(fields: [pmaxCampaignDraftId], references: [id], onDelete: SetNull)
   demandGenCampaignDraft   DemandGenCampaignDraft?       @relation(fields: [demandGenCampaignDraftId], references: [id], onDelete: SetNull)
+  videoCampaignDraft       VideoCampaignDraft?           @relation(fields: [videoCampaignDraftId], references: [id], onDelete: SetNull)
   dryRunJobs               DryRunJob[]
   changeRequests           ChangeRequest[]
 
@@ -573,6 +613,7 @@ model CampaignOp {
   @@index([displayCampaignDraftId])
   @@index([pmaxCampaignDraftId])
   @@index([demandGenCampaignDraftId])
+  @@index([videoCampaignDraftId])
 }
 
 model SearchCampaignDraft {
@@ -1037,6 +1078,127 @@ model DemandGenTargetDraft {
   @@index([draftId, type])
 }
 
+model VideoCampaignDraft {
+  id                         String               @id @default(cuid())
+  organizationId             String
+  clientId                   String
+  externalAccountId          String
+  createdById                String
+  name                       String
+  dailyBudgetMicros          BigInt
+  biddingStrategy            VideoBiddingStrategy @default(MANUAL_CPV)
+  maxCpvMicros               BigInt?
+  targetCpmMicros            BigInt?
+  targetCpaMicros            BigInt?
+  inStream                   Boolean              @default(true)
+  bumper                     Boolean              @default(false)
+  inFeed                     Boolean              @default(true)
+  shorts                     Boolean              @default(true)
+  outstream                  Boolean              @default(false)
+  startDate                  String?
+  endDate                    String?
+  statusDraft                VideoDraftStatus     @default(DRAFT)
+  googleCampaignResourceName String?
+  campaignOpId               String?
+  notesText                  String?
+  createdAt                  DateTime             @default(now())
+  updatedAt                  DateTime             @updatedAt
+
+  organization     Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client           Client               @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  externalAccount  ExternalAccount      @relation(fields: [externalAccountId], references: [id], onDelete: Restrict)
+  createdBy        User                 @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  campaignOps      CampaignOp[]
+  adGroups         VideoAdGroupDraft[]
+  targets          VideoTargetDraft[]
+  audiences        VideoAudienceDraft[]
+  assistantThreads AssistantThread[]
+
+  @@index([organizationId, statusDraft])
+  @@index([clientId])
+  @@index([externalAccountId])
+  @@index([createdById])
+}
+
+model VideoAdGroupDraft {
+  id                        String   @id @default(cuid())
+  draftId                   String
+  name                      String
+  defaultBidMicros          BigInt
+  sortOrder                 Int      @default(0)
+  googleAdGroupResourceName String?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  draft VideoCampaignDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  ads   VideoAdDraft[]
+
+  @@index([draftId, sortOrder])
+}
+
+model VideoAdDraft {
+  id                   String   @id @default(cuid())
+  adGroupDraftId       String
+  headlinesText        String
+  descriptionsText     String
+  longHeadline         String?
+  finalUrl             String
+  callToActionText     String?
+  googleAdResourceName String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  adGroup VideoAdGroupDraft  @relation(fields: [adGroupDraftId], references: [id], onDelete: Cascade)
+  assets  VideoAssetDraft[]
+
+  @@index([adGroupDraftId])
+}
+
+model VideoAssetDraft {
+  id                String         @id @default(cuid())
+  adDraftId         String
+  kind              VideoAssetKind
+  urlText           String
+  assetResourceName String?
+  sortOrder         Int            @default(0)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  ad VideoAdDraft @relation(fields: [adDraftId], references: [id], onDelete: Cascade)
+
+  @@index([adDraftId, kind])
+}
+
+model VideoAudienceDraft {
+  id            String            @id @default(cuid())
+  draftId       String
+  kind          VideoAudienceKind
+  valueText     String
+  criterionText String
+  included      Boolean           @default(true)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  draft VideoCampaignDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@index([draftId, kind])
+}
+
+model VideoTargetDraft {
+  id            String          @id @default(cuid())
+  draftId       String
+  type          VideoTargetType
+  valueText     String
+  criterionText String
+  included      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  draft VideoCampaignDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@index([draftId, type])
+}
+
 model DryRunJob {
   id                String   @id @default(cuid())
   organizationId    String
@@ -1146,6 +1308,7 @@ model AssistantThread {
   displayDraftId   String?
   pmaxDraftId      String?
   demandGenDraftId String?
+  videoDraftId     String?
   createdById      String
   title          String?
   createdAt      DateTime @default(now())
@@ -1157,6 +1320,7 @@ model AssistantThread {
   displayDraft   DisplayCampaignDraft?         @relation(fields: [displayDraftId], references: [id], onDelete: SetNull)
   pmaxDraft      PerformanceMaxCampaignDraft?  @relation(fields: [pmaxDraftId], references: [id], onDelete: SetNull)
   demandGenDraft DemandGenCampaignDraft?       @relation(fields: [demandGenDraftId], references: [id], onDelete: SetNull)
+  videoDraft     VideoCampaignDraft?           @relation(fields: [videoDraftId], references: [id], onDelete: SetNull)
   createdBy      User                          @relation(fields: [createdById], references: [id], onDelete: Restrict)
   messages       AssistantMessage[]
 
@@ -1165,6 +1329,7 @@ model AssistantThread {
   @@index([clientId, displayDraftId])
   @@index([clientId, pmaxDraftId])
   @@index([clientId, demandGenDraftId])
+  @@index([clientId, videoDraftId])
   @@index([createdById])
 }
 

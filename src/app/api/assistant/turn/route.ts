@@ -12,7 +12,7 @@ export async function POST(request: Request) {
       draftId?: string;
       clientId?: string;
       customerId?: string;
-      kind?: "SEARCH" | "DISPLAY" | "PMAX" | "DEMAND_GEN";
+      kind?: "SEARCH" | "DISPLAY" | "PMAX" | "DEMAND_GEN" | "VIDEO";
     };
     const kind =
       body.kind === "DISPLAY"
@@ -21,7 +21,9 @@ export async function POST(request: Request) {
           ? "PMAX"
           : body.kind === "DEMAND_GEN"
             ? "DEMAND_GEN"
-            : "SEARCH";
+            : body.kind === "VIDEO"
+              ? "VIDEO"
+              : "SEARCH";
     const label =
       kind === "DISPLAY"
         ? "Display"
@@ -29,7 +31,9 @@ export async function POST(request: Request) {
           ? "Performance Max"
           : kind === "DEMAND_GEN"
             ? "Demand Gen"
-            : "Search";
+            : kind === "VIDEO"
+              ? "Video"
+              : "Search";
     const result = await runAssistantTurn({
       message: String(body.message ?? ""),
       threadId: body.threadId,

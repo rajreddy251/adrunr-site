@@ -280,7 +280,69 @@ export type DemandGenDraftClientView = {
   }>;
 };
 
-export type AssistantCampaignKind = "SEARCH" | "DISPLAY" | "PMAX" | "DEMAND_GEN";
+export type VideoDraftClientView = {
+  id: string;
+  customerId: string;
+  externalAccountId: string;
+  name: string;
+  dailyBudgetMicros: string;
+  biddingStrategy: string;
+  maxCpvMicros: string | null;
+  targetCpmMicros: string | null;
+  targetCpaMicros: string | null;
+  inStream: boolean;
+  bumper: boolean;
+  inFeed: boolean;
+  shorts: boolean;
+  outstream: boolean;
+  startDate: string | null;
+  endDate: string | null;
+  statusDraft: string;
+  googleCampaignResourceName: string | null;
+  campaignOpId: string | null;
+  notesText: string | null;
+  createdAt: string;
+  updatedAt: string;
+  adGroups: Array<{
+    id: string;
+    name: string;
+    defaultBidMicros: string;
+    sortOrder: number;
+    googleAdGroupResourceName: string | null;
+    ads: Array<{
+      id: string;
+      headlines: string[];
+      descriptions: string[];
+      longHeadline: string | null;
+      finalUrl: string;
+      callToActionText: string | null;
+      googleAdResourceName: string | null;
+      assets: Array<{
+        id: string;
+        kind: string;
+        urlText: string;
+        assetResourceName: string | null;
+        sortOrder: number;
+      }>;
+    }>;
+  }>;
+  targets: Array<{
+    id: string;
+    type: string;
+    valueText: string;
+    criterionText: string;
+    included: boolean;
+  }>;
+  audiences: Array<{
+    id: string;
+    kind: string;
+    valueText: string;
+    criterionText: string;
+    included: boolean;
+  }>;
+};
+
+export type AssistantCampaignKind = "SEARCH" | "DISPLAY" | "PMAX" | "DEMAND_GEN" | "VIDEO";
 
 export type AssistantMessageView = {
   id: string;
@@ -299,6 +361,7 @@ export type AssistantThreadView = {
   displayDraftId: string | null;
   pmaxDraftId: string | null;
   demandGenDraftId: string | null;
+  videoDraftId: string | null;
   kind: AssistantCampaignKind;
   createdById: string;
   title: string | null;

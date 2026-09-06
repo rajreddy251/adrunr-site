@@ -37,6 +37,10 @@ const v17Migration = readFileSync(
   resolve(process.cwd(), "prisma/migrations/20260906230000_schema_v1_7/migration.sql"),
   "utf8",
 );
+const v18Migration = readFileSync(
+  resolve(process.cwd(), "prisma/migrations/20260906240000_schema_v1_8/migration.sql"),
+  "utf8",
+);
 
 describe("schema v1.2 locks", () => {
   it("does not use JSONB / Prisma Json types", () => {
@@ -81,6 +85,12 @@ describe("schema v1.2 locks", () => {
       "DemandGenAssetDraft",
       "DemandGenAudienceDraft",
       "DemandGenTargetDraft",
+      "VideoCampaignDraft",
+      "VideoAdGroupDraft",
+      "VideoAdDraft",
+      "VideoAssetDraft",
+      "VideoAudienceDraft",
+      "VideoTargetDraft",
       "DryRunJob",
       "ChangeRequest",
       "AuditEvent",
@@ -118,6 +128,7 @@ describe("schema v1.2 locks", () => {
       "LINKEDIN_CAMPAIGN_CREATE",
       "GENERIC_MUTATE",
       "DEMAND_GEN_CREATE",
+      "VIDEO_CREATE",
     ]);
     for (const kind of CAMPAIGN_OP_KINDS) {
       expect(enumBlock).toContain(kind);
@@ -127,6 +138,7 @@ describe("schema v1.2 locks", () => {
       "DISPLAY_CREATE",
       "PMAX_CREATE",
       "DEMAND_GEN_CREATE",
+      "VIDEO_CREATE",
     ]);
   });
 
@@ -281,6 +293,33 @@ describe("schema v1.7 locks", () => {
   });
 });
 
+describe("schema v1.8 locks", () => {
+  it("adds Video draft models and VIDEO_CAMPAIGN_DRAFT without JSONB", () => {
+    expect(schema).toContain("enum VideoDraftStatus");
+    expect(schema).toContain("enum VideoAudienceKind");
+    expect(schema).toContain("enum VideoAssetKind");
+    expect(schema).toContain("VIDEO_CAMPAIGN_DRAFT");
+    expect(schema).toContain("VIDEO_CREATE");
+    expect(schema).toContain("videoCampaignDraftId");
+    expect(schema).toContain("videoDraftId");
+    expect(schema).toContain("inStream");
+    expect(schema).toContain("MANUAL_CPV");
+    expect(schema).not.toMatch(/\bJson\b/);
+    expect(v18Migration).toContain('ALTER TYPE "PermissionResource" ADD VALUE \'VIDEO_CAMPAIGN_DRAFT\'');
+    expect(v18Migration).toContain('ALTER TYPE "CampaignOpKind" ADD VALUE \'VIDEO_CREATE\'');
+    expect(v18Migration).toContain('CREATE TABLE "VideoCampaignDraft"');
+    expect(v18Migration).toContain('CREATE TABLE "VideoAdGroupDraft"');
+    expect(v18Migration).toContain('CREATE TABLE "VideoAdDraft"');
+    expect(v18Migration).toContain('CREATE TABLE "VideoAssetDraft"');
+    expect(v18Migration).toContain('CREATE TABLE "VideoAudienceDraft"');
+    expect(v18Migration).toContain('CREATE TABLE "VideoTargetDraft"');
+    expect(v18Migration).toContain("CampaignOp_videoCampaignDraftId_fkey");
+    expect(v18Migration).toContain("AssistantThread_videoDraftId_fkey");
+    expect(v18Migration).not.toMatch(/DROP TABLE/i);
+    expect(v18Migration).not.toMatch(/jsonb/i);
+  });
+});
+
 describe("seeded provider registry", () => {
   it("includes the required slugs", () => {
     expect(SEED_PROVIDERS.map((p) => p.slug)).toEqual([
@@ -313,7 +352,7 @@ describe("role permissions", () => {
 describe("client role permissions", () => {
   it("seeds READ/LIST defaults without mutating agency RolePermission", () => {
     const rows = buildClientRolePermissionRows();
-    expect(rows).toHaveLength(38);
+    expect(rows).toHaveLength(44);
     expect(rows.every((row) => row.action === "READ" || row.action === "LIST")).toBe(true);
 
     expect(clientRoleHasPermission("CLIENT_ADMIN", "AUDIT_EVENT", "READ")).toBe(true);
@@ -339,6 +378,9 @@ describe("client role permissions", () => {
       expect(clientRoleHasPermission(role, "DEMAND_GEN_CAMPAIGN_DRAFT", "READ")).toBe(true);
       expect(clientRoleHasPermission(role, "DEMAND_GEN_CAMPAIGN_DRAFT", "LIST")).toBe(true);
       expect(clientRoleHasPermission(role, "DEMAND_GEN_CAMPAIGN_DRAFT", "APPLY_PAUSED")).toBe(false);
+      expect(clientRoleHasPermission(role, "VIDEO_CAMPAIGN_DRAFT", "READ")).toBe(true);
+      expect(clientRoleHasPermission(role, "VIDEO_CAMPAIGN_DRAFT", "LIST")).toBe(true);
+      expect(clientRoleHasPermission(role, "VIDEO_CAMPAIGN_DRAFT", "APPLY_PAUSED")).toBe(false);
     }
   });
 });

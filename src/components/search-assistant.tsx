@@ -6,6 +6,7 @@ import type { DemandGenWizardHandle } from "@/components/demand-gen-wizard";
 import type { DisplayWizardHandle } from "@/components/display-wizard";
 import type { PmaxWizardHandle } from "@/components/pmax-wizard";
 import type { SearchWizardHandle } from "@/components/search-wizard";
+import type { VideoWizardHandle } from "@/components/video-wizard";
 import type {
   AssistantCampaignKind,
   AssistantMessageView,
@@ -15,12 +16,19 @@ import type {
   DisplayDraftClientView,
   PmaxDraftClientView,
   SearchDraftClientView,
+  VideoDraftClientView,
 } from "@/lib/types";
 
 type TurnResponse = {
   ok: boolean;
   thread?: AssistantThreadView;
-  draft?: SearchDraftClientView | DisplayDraftClientView | PmaxDraftClientView | DemandGenDraftClientView | null;
+  draft?:
+    | SearchDraftClientView
+    | DisplayDraftClientView
+    | PmaxDraftClientView
+    | DemandGenDraftClientView
+    | VideoDraftClientView
+    | null;
   questions?: AssistantQuestion[];
   patchedFields?: string[];
   source?: "mock" | "llm";
@@ -35,7 +43,9 @@ export function SearchAssistant({
   connected,
   kind = "SEARCH",
 }: {
-  wizard: RefObject<SearchWizardHandle | DisplayWizardHandle | PmaxWizardHandle | DemandGenWizardHandle | null>;
+  wizard: RefObject<
+    SearchWizardHandle | DisplayWizardHandle | PmaxWizardHandle | DemandGenWizardHandle | VideoWizardHandle | null
+  >;
   connected: boolean;
   kind?: AssistantCampaignKind;
 }) {
@@ -97,7 +107,8 @@ export function SearchAssistant({
         json.draft as SearchDraftClientView &
           DisplayDraftClientView &
           PmaxDraftClientView &
-          DemandGenDraftClientView,
+          DemandGenDraftClientView &
+          VideoDraftClientView,
       );
     }
     setInput("");
@@ -114,7 +125,9 @@ export function SearchAssistant({
             ? "pmax-assistant"
             : kind === "DEMAND_GEN"
               ? "demand-gen-assistant"
-              : "search-assistant"
+              : kind === "VIDEO"
+                ? "video-assistant"
+                : "search-assistant"
       }
     >
       <h2 className="text-lg text-white">
@@ -124,7 +137,9 @@ export function SearchAssistant({
             ? "Performance Max"
             : kind === "DEMAND_GEN"
               ? "Demand Gen"
-              : "Search"}{" "}
+              : kind === "VIDEO"
+                ? "Video"
+                : "Search"}{" "}
         assistant
       </h2>
       <p className="mt-1 text-sm text-moss-400">
@@ -134,6 +149,9 @@ export function SearchAssistant({
         {kind === "PMAX" ? " Asset groups and search-theme signals — listings are optional storage only." : ""}
         {kind === "DEMAND_GEN"
           ? " Ad groups and Demand Gen multi-asset ads — USER_LIST audiences, not a separate campaign type."
+          : ""}
+        {kind === "VIDEO"
+          ? " Ad groups and YouTube video responsive ads — USER_LIST audiences, not a separate campaign type."
           : ""}
       </p>
       {source ? (

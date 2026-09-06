@@ -9,13 +9,14 @@ const schema = readFileSync(resolve(process.cwd(), "prisma/schema.prisma"), "utf
 const envExample = readFileSync(resolve(process.cwd(), ".env.example"), "utf8");
 const gitignore = readFileSync(resolve(process.cwd(), ".gitignore"), "utf8");
 
-describe("P3 Demand Gen safety checklist", () => {
-  it("keeps Search, Display, Performance Max, and Demand Gen create implemented and never enables spend", () => {
+describe("P4 Video safety checklist", () => {
+  it("keeps Search, Display, Performance Max, Demand Gen, and Video create implemented and never enables spend", () => {
     expect(IMPLEMENTED_CAMPAIGN_OP_KINDS).toEqual([
       "SEARCH_CREATE",
       "DISPLAY_CREATE",
       "PMAX_CREATE",
       "DEMAND_GEN_CREATE",
+      "VIDEO_CREATE",
     ]);
     expect(CONFIRM_PAUSED_PHRASE).toBe("CREATE PAUSED");
     expect(() => assertPausedOnly("ENABLED")).toThrow(/enable path/);
@@ -46,6 +47,16 @@ describe("P3 Demand Gen safety checklist", () => {
     expect(schema).toContain("model DemandGenAudienceDraft");
     expect(schema).toContain("youtubeInStream");
     expect(schema).toContain("callToActionText");
+    expect(schema).not.toMatch(/\bJson\b/);
+  });
+
+  it("stores Video drafts as TEXT children with ad groups, ads, YouTube assets, and audiences", () => {
+    expect(schema).toContain("model VideoCampaignDraft");
+    expect(schema).toContain("model VideoAdGroupDraft");
+    expect(schema).toContain("model VideoAdDraft");
+    expect(schema).toContain("model VideoAudienceDraft");
+    expect(schema).toContain("inStream");
+    expect(schema).toContain("MANUAL_CPV");
     expect(schema).not.toMatch(/\bJson\b/);
   });
 
