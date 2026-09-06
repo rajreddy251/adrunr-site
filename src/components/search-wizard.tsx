@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
 
 import { CONFIRM_PAUSED_PHRASE } from "@/lib/safety";
 import {
@@ -108,15 +108,14 @@ export function SearchWizard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmPhrase, setConfirmPhrase] = useState("");
+  const confirmRef = useRef<HTMLInputElement>(null);
   const [result, setResult] = useState<WizardResult | null>(null);
 
   const selectable = useMemo(
     () => accounts.filter((account) => !account.manager),
     [accounts],
   );
-  const [customerId, setCustomerId] = useState(
-    () => selectable.find((account) => !account.warning)?.customerId ?? "",
-  );
+  const [customerId, setCustomerId] = useState("");
   const [name, setName] = useState("Adrunr paused search");
   const [budgetDollars, setBudgetDollars] = useState("1.00");
   const [startDate, setStartDate] = useState("");
@@ -127,6 +126,12 @@ export function SearchWizard({
     { type: "LANGUAGE", valueText: "English", criterionText: "languageConstants/1000", included: true },
   ]);
   const [enhancedCpc, setEnhancedCpc] = useState(false);
+
+  useEffect(() => {
+    if (customerId) return;
+    const next = selectable.find((account) => !account.warning)?.customerId;
+    if (next) setCustomerId(next);
+  }, [customerId, selectable]);
 
   const selected = accounts.find((account) => account.customerId === customerId) ?? null;
 
@@ -181,12 +186,14 @@ export function SearchWizard({
   }
 
   async function runAction(kind: "validate" | "apply") {
-    if (kind === "apply" && confirmPhrase.trim() !== CONFIRM_PAUSED_PHRASE) {
+    const typedPhrase = (confirmRef.current?.value ?? confirmPhrase).trim();
+    if (kind === "apply" && typedPhrase !== CONFIRM_PAUSED_PHRASE) {
       setError(`Type ${CONFIRM_PAUSED_PHRASE} to apply a PAUSED campaign. Validate is preferred.`);
       return;
     }
     setBusy(true);
-    const id = await persistDraft();
+    setError(null);
+    const id = draftId ?? (await persistDraft());
     if (!id) {
       setBusy(false);
       return;
@@ -195,7 +202,7 @@ export function SearchWizard({
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        confirmPhrase: kind === "apply" ? confirmPhrase : undefined,
+        confirmPhrase: kind === "apply" ? typedPhrase : undefined,
         status: "PAUSED",
       }),
     });
@@ -252,7 +259,11 @@ export function SearchWizard({
         ))}
       </ol>
 
-      {error ? <p className="mt-4 text-sm text-coral-400">{error}</p> : null}
+      {error ? (
+        <p className="mt-4 text-sm text-coral-400" role="alert">
+          {error}
+        </p>
+      ) : null}
 
       <div className="mt-5">
         {step === 0 ? (
@@ -299,6 +310,7 @@ export function SearchWizard({
             startDate={startDate}
             endDate={endDate}
             confirmPhrase={confirmPhrase}
+            confirmRef={confirmRef}
             onConfirm={setConfirmPhrase}
           />
         ) : null}
@@ -329,6 +341,7 @@ export function SearchWizard({
           <>
             <button
               type="button"
+              data-testid="wizard-validate"
               onClick={() => void runAction("validate")}
               disabled={!connected || busy}
               className="rounded-lg bg-lime-400 px-4 py-2 text-sm font-medium text-ink-950 hover:bg-lime-500 disabled:opacity-40"
@@ -337,11 +350,12 @@ export function SearchWizard({
             </button>
             <button
               type="button"
+              data-testid="wizard-apply"
               onClick={() => void runAction("apply")}
               disabled={!connected || busy}
               className="rounded-lg border border-amber-400/40 px-4 py-2 text-sm text-amber-400 hover:bg-amber-400/10 disabled:opacity-40"
             >
-              Create PAUSED
+              {busy ? "Applying PAUSED…" : "Create PAUSED"}
             </button>
           </>
         ) : null}
@@ -808,6 +822,7 @@ function ReviewStep({
   startDate,
   endDate,
   confirmPhrase,
+  confirmRef,
   onConfirm,
 }: {
   customerId: string;
@@ -820,6 +835,7 @@ function ReviewStep({
   startDate: string;
   endDate: string;
   confirmPhrase: string;
+  confirmRef: RefObject<HTMLInputElement | null>;
   onConfirm: (value: string) => void;
 }) {
   return (
@@ -867,6 +883,8 @@ function ReviewStep({
           Type {CONFIRM_PAUSED_PHRASE} only if you are applying. Validate does not need this.
         </span>
         <input
+          ref={confirmRef}
+          data-testid="wizard-confirm"
           value={confirmPhrase}
           onChange={(event) => onConfirm(event.target.value)}
           className="input mt-1 font-mono"
