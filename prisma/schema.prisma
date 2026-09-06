@@ -139,6 +139,12 @@ enum SearchBiddingStrategy {
   TARGET_ROAS
 }
 
+enum AssistantMessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
 enum PermissionAction {
   CREATE
   READ
@@ -173,6 +179,7 @@ model Organization {
   syncJobs         SyncJob[]
   auditEvents      AuditEvent[]
   agentAssignments AgentClientAssignment[]
+  assistantThreads AssistantThread[]
 }
 
 model User {
@@ -193,6 +200,7 @@ model User {
   changeRequests    ChangeRequest[]
   auditEvents       AuditEvent[]
   agentAssignments  AgentClientAssignment[]
+  assistantThreads  AssistantThread[]
 }
 
 model Membership {
@@ -244,6 +252,8 @@ model Client {
   campaignOps      CampaignOp[]
   searchDrafts     SearchCampaignDraft[]
   agentAssignments AgentClientAssignment[]
+  assistantThreads AssistantThread[]
+  clientMemories   ClientMemory[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -462,9 +472,10 @@ model SearchCampaignDraft {
   client          Client               @relation(fields: [clientId], references: [id], onDelete: Cascade)
   externalAccount ExternalAccount      @relation(fields: [externalAccountId], references: [id], onDelete: Restrict)
   createdBy       User                 @relation(fields: [createdById], references: [id], onDelete: Restrict)
-  campaignOps     CampaignOp[]
-  adGroups        SearchAdGroupDraft[]
-  targets         SearchTargetDraft[]
+  campaignOps      CampaignOp[]
+  adGroups         SearchAdGroupDraft[]
+  targets          SearchTargetDraft[]
+  assistantThreads AssistantThread[]
 
   @@index([organizationId, statusDraft])
   @@index([clientId])
@@ -636,4 +647,53 @@ model ClientRolePermission {
 
   @@unique([role, resource, action])
   @@index([role])
+}
+
+model AssistantThread {
+  id             String   @id @default(cuid())
+  organizationId String
+  clientId       String
+  draftId        String?
+  createdById    String
+  title          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client               @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  draft        SearchCampaignDraft? @relation(fields: [draftId], references: [id], onDelete: SetNull)
+  createdBy    User                 @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  messages     AssistantMessage[]
+
+  @@index([organizationId, clientId])
+  @@index([clientId, draftId])
+  @@index([createdById])
+}
+
+model AssistantMessage {
+  id           String               @id @default(cuid())
+  threadId     String
+  role         AssistantMessageRole
+  content      String
+  metadataText String?
+  createdAt    DateTime             @default(now())
+
+  thread AssistantThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
+}
+
+model ClientMemory {
+  id        String   @id @default(cuid())
+  clientId  String
+  key       String
+  value     String
+  source    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, key])
+  @@index([clientId])
 }

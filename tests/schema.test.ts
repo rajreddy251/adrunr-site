@@ -21,6 +21,10 @@ const v13Migration = readFileSync(
   resolve(process.cwd(), "prisma/migrations/20260906160000_schema_v1_3/migration.sql"),
   "utf8",
 );
+const v14Migration = readFileSync(
+  resolve(process.cwd(), "prisma/migrations/20260906180000_schema_v1_4/migration.sql"),
+  "utf8",
+);
 
 describe("schema v1.2 locks", () => {
   it("does not use JSONB / Prisma Json types", () => {
@@ -53,6 +57,9 @@ describe("schema v1.2 locks", () => {
       "RolePermission",
       "ClientRolePermission",
       "AgentClientAssignment",
+      "AssistantThread",
+      "AssistantMessage",
+      "ClientMemory",
     ]) {
       expect(schema).toContain(`model ${model}`);
     }
@@ -139,6 +146,25 @@ describe("schema v1.3 locks", () => {
     expect(v13Migration).toContain("CampaignOp_searchCampaignDraftId_fkey");
     expect(v13Migration).not.toMatch(/DROP TABLE/i);
     expect(v13Migration).not.toMatch(/jsonb/i);
+  });
+});
+
+describe("schema v1.4 locks", () => {
+  it("adds assistant thread/message and client memory without JSONB", () => {
+    expect(schema).toContain("enum AssistantMessageRole");
+    expect(schema).toContain("model AssistantThread");
+    expect(schema).toContain("model AssistantMessage");
+    expect(schema).toContain("model ClientMemory");
+    expect(schema).toContain("metadataText");
+    expect(schema).not.toMatch(/\bJson\b/);
+    expect(v14Migration).toContain('CREATE TABLE "AssistantThread"');
+    expect(v14Migration).toContain('CREATE TABLE "AssistantMessage"');
+    expect(v14Migration).toContain('CREATE TABLE "ClientMemory"');
+    expect(v14Migration).toContain("AssistantThread_clientId_fkey");
+    expect(v14Migration).toContain("AssistantThread_draftId_fkey");
+    expect(v14Migration).toContain('CREATE UNIQUE INDEX "ClientMemory_clientId_key_key"');
+    expect(v14Migration).not.toMatch(/DROP TABLE/i);
+    expect(v14Migration).not.toMatch(/jsonb/i);
   });
 });
 

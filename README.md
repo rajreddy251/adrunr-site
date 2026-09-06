@@ -2,7 +2,7 @@
 
 Ads operations platform: marketing site (`/`, `/privacy`, `/terms`) plus an ops console at `/ops`.
 
-This repo is the **single production codebase**. Behavior is ported from the validated MVP (`rajreddy251/adrunr` @ `493d52c`) and evolved onto **Neon Postgres + Prisma Schema v1.3** (provider-agnostic). There is no `.data/tokens.json` path.
+This repo is the **single production codebase**. Behavior is ported from the validated MVP (`rajreddy251/adrunr` @ `493d52c`) and evolved onto **Neon Postgres + Prisma Schema v1.4** (provider-agnostic). There is no `.data/tokens.json` path.
 
 ## Safety (read first)
 
@@ -18,16 +18,18 @@ Platform notes (not secrets): GCP project `adrunr-ads-ops`, MCC `857-080-5596`. 
 
 - Next.js 15 App Router + TypeScript
 - **Neon Postgres only** (no Vercel Postgres, no Supabase)
-- **Prisma only** (Schema v1.3)
+- **Prisma only** (Schema v1.4)
 - Encrypted OAuth columns (`accessTokenEncrypted`, `refreshTokenEncrypted`) via `TOKEN_ENCRYPTION_KEY`
 - TEXT payloads (`requestPayload`, `responsePayload`, `requestBody`, `responseBody`, `metadataText`) — **no JSONB**
 - Official [`googleapis`](https://github.com/googleapis/google-api-nodejs-client) + Google Ads REST
 
-## Schema v1.3
+## Schema v1.4
 
-Core models: Organization, User, Membership, Invitation, Client, ClientMembership, AgentClientAssignment, Workspace, **IntegrationProvider**, OAuthConnection, **ExternalAccount**, ExternalEntity, CampaignOp, **SearchCampaignDraft**, **SearchAdGroupDraft**, **SearchKeywordDraft**, **SearchAdDraft**, **SearchTargetDraft**, DryRunJob, ChangeRequest, **SyncJob**, AuditEvent, RolePermission, **ClientRolePermission**.
+Core models: Organization, User, Membership, Invitation, Client, ClientMembership, AgentClientAssignment, Workspace, **IntegrationProvider**, OAuthConnection, **ExternalAccount**, ExternalEntity, CampaignOp, **SearchCampaignDraft**, **SearchAdGroupDraft**, **SearchKeywordDraft**, **SearchAdDraft**, **SearchTargetDraft**, DryRunJob, ChangeRequest, **SyncJob**, AuditEvent, RolePermission, **ClientRolePermission**, **AssistantThread**, **AssistantMessage**, **ClientMemory**.
 
 Search drafts store the in-app wizard tree (campaign, ad groups, keywords, RSA, geo/language targeting). `CampaignOp.searchCampaignDraftId` and `CampaignOp.googleCampaignResourceName` are optional. `PermissionResource` includes `SEARCH_CAMPAIGN_DRAFT`. Audiences, schedules, devices, and tROAS bidding columns are schema-ready; Phase 2 apply uses Manual CPC + geo/language only.
+
+Assistant threads are tenant + client scoped (`orgId`, `clientId`, optional `draftId`). Messages store `role` + `content` + optional `metadataText`. `ClientMemory` keeps short facts (`clientId`, `key`, `value`, `source`) from prior chats. AI draft patches write `AuditEvent` rows (`assistant.draft_patched`) against the Search draft. TEXT only — no JSONB.
 
 `AgentClientAssignment` has Prisma relations to Organization, Client, and User (`onDelete: Cascade`). Client RBAC lives in `ClientRolePermission` and is not overloaded onto agency `RolePermission`.
 
@@ -62,7 +64,7 @@ ADRUNR_MOCK=1 npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) (marketing) and [http://localhost:3000/ops](http://localhost:3000/ops).
 
-`ADRUNR_MOCK=1` demos **Connect → list accounts → Search wizard (S0–S8) → validateOnly / Create PAUSED → audit trail** without live Google Ads. Tokens, drafts, and accounts still persist in Neon.
+`ADRUNR_MOCK=1` demos **Connect → list accounts → Search wizard (S0–S8) + fill-first assistant → validateOnly / Create PAUSED → audit trail** without live Google Ads or an LLM key. Tokens, drafts, threads, and accounts still persist in Neon.
 
 ### Environment
 
@@ -79,7 +81,10 @@ Open [http://localhost:3000](http://localhost:3000) (marketing) and [http://loca
 | `GOOGLE_ADS_API_VERSION` | optional | REST version, default `v19` |
 | `GA4_PROPERTY_ID` | optional | GA4 Data API property. Soft-fails if unset |
 | `APP_BASE_URL` | optional | Default `http://localhost:3000` |
-| `ADRUNR_MOCK` | optional | `1` = local/CI demo, no live Google calls |
+| `ADRUNR_MOCK` | optional | `1` = local/CI demo, no live Google or LLM calls |
+| `ADRUNR_LLM_API_KEY` | live assistant | Server-side LLM key (never commit). Mock mode ignores this |
+| `ADRUNR_LLM_BASE_URL` | live assistant | OpenAI-compatible chat completions base. Default `https://ai-gateway.vercel.sh/v1` |
+| `ADRUNR_LLM_MODEL` | live assistant | Model id. Default `openai/gpt-5.4` |
 
 `.env.example` is the only env template in git. Never commit real secrets.
 
@@ -119,9 +124,10 @@ Seed RolePermission + ClientRolePermission + platform org + the eight Integratio
 1. **Connect** — `/api/auth/google` starts the OAuth web flow (or mock connect). Callback writes encrypted tokens to `OAuthConnection` for `google_ads` (and `google_analytics` when the Analytics scope is present).
 2. **List accounts** — `GET /api/ads/accounts` queries `customer_client` under the MCC, falls back to `listAccessibleCustomers`, upserts `ExternalAccount` rows, and writes a `SyncJob` + `AuditEvent`.
 3. **Search wizard (Phase 2)** — `/ops` S0 account → S1 basics → S2 ad groups → S3 keywords → S4 RSA → S5 geo/language → S6 Manual CPC → S7 review → Validate / Create PAUSED → S8 result. Drafts persist as `SearchCampaignDraft` (+ child rows). Validate is a full-tree `validateOnly` dry-run. Apply is **PAUSED only** and requires `confirmPhrase` exactly `CREATE PAUSED`.
-4. **Paused / dry-run shell (Phase 1)** — `POST /api/ads/campaigns` with `{ customerId, name, dailyBudgetMicros, dryRun, confirmPhrase }` still works. Always `status: PAUSED`. `dryRun` (default `true`) sets `validateOnly`. `dryRun: false` still creates PAUSED only and **requires** `confirmPhrase` exactly `CREATE PAUSED`. Persists `CampaignOp` + `DryRunJob` (and `ChangeRequest` on apply).
-5. **GA4 stub** — `GET /api/ga4/report` runs a 7-day sessions + conversions sample and upserts a `google_analytics` ExternalAccount. Soft-fails if property id, scope, or API is missing.
-6. **Other providers** — seeded only. Connect buttons are disabled stubs. There is **no Phase 3 AI suggest** in this app.
+4. **Search assistant (Phase 3)** — panel beside the wizard. Paste a URL or brief; the turn builds a client-scoped context pack (org, client, ExternalAccounts, ExternalEntity/Search drafts, current draft, thread, ClientMemory) and either patches `Search*Draft` fields and/or asks gap questions. Fill first — not a questionnaire. Chat **cannot** Validate, Apply, or enable and never calls those endpoints. `ADRUNR_MOCK=1` uses a heuristic fill when no LLM key is set.
+5. **Paused / dry-run shell (Phase 1)** — `POST /api/ads/campaigns` with `{ customerId, name, dailyBudgetMicros, dryRun, confirmPhrase }` still works. Always `status: PAUSED`. `dryRun` (default `true`) sets `validateOnly`. `dryRun: false` still creates PAUSED only and **requires** `confirmPhrase` exactly `CREATE PAUSED`. Persists `CampaignOp` + `DryRunJob` (and `ChangeRequest` on apply).
+6. **GA4 stub** — `GET /api/ga4/report` runs a 7-day sessions + conversions sample and upserts a `google_analytics` ExternalAccount. Soft-fails if property id, scope, or API is missing.
+7. **Other providers** — seeded only. Connect buttons are disabled stubs.
 
 ## Scripts
 
@@ -151,6 +157,10 @@ CI runs those plus `npm run build` with `ADRUNR_MOCK=1` and a dummy `DATABASE_UR
 - `POST /api/ads/search/drafts/:id/validate` — full-tree validateOnly
 - `POST /api/ads/search/drafts/:id/apply` — PAUSED + `CREATE PAUSED`
 - `GET /api/ads/search/drafts/:id/result`
+- `GET|POST /api/assistant/threads` — client/draft scoped threads
+- `GET /api/assistant/threads/:id`
+- `GET|POST /api/assistant/threads/:id/messages`
+- `POST /api/assistant/turn` — context pack → fill draft and/or ask gaps (no validate/apply)
 - `GET /api/ga4/report`
 - `GET /api/audit`
 - `GET /api/providers`

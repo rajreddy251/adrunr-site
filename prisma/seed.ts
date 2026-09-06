@@ -92,6 +92,17 @@ async function main() {
     });
   }
 
+  await prisma.clientMemory.upsert({
+    where: { clientId_key: { clientId: client.id, key: "ops_tone" } },
+    create: {
+      clientId: client.id,
+      key: "ops_tone",
+      value: "Prefers PAUSED Search drafts. Dry-run before apply. Chat never validates or enables.",
+      source: "seed",
+    },
+    update: {},
+  });
+
   const providerCount = await prisma.integrationProvider.count();
   const permissionCount = await prisma.rolePermission.count();
   const clientPermissionCount = await prisma.clientRolePermission.count();

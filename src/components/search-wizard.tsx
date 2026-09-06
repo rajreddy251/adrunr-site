@@ -1,6 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 
 import { CONFIRM_PAUSED_PHRASE } from "@/lib/safety";
 import {
@@ -10,7 +20,8 @@ import {
   LANGUAGE_PRESETS,
   SEARCH_KEYWORD_MATCH_TYPES,
 } from "@/lib/search-draft";
-import type { AdsAccountView } from "@/lib/types";
+import { hydrateWizardFromDraft } from "@/lib/search-wizard-map";
+import type { AdsAccountView, SearchDraftClientView } from "@/lib/types";
 
 type WizardKeyword = {
   text: string;
@@ -94,15 +105,21 @@ function emptyGroup(index: number): WizardAdGroup {
   };
 }
 
-export function SearchWizard({
-  accounts,
-  connected,
-  onFinished,
-}: {
-  accounts: AdsAccountView[];
-  connected: boolean;
-  onFinished: () => Promise<void> | void;
-}) {
+export type SearchWizardHandle = {
+  getCustomerId: () => string;
+  getDraftId: () => string | null;
+  persist: () => Promise<string | null>;
+  applyDraft: (draft: SearchDraftClientView) => void;
+};
+
+export const SearchWizard = forwardRef<
+  SearchWizardHandle,
+  {
+    accounts: AdsAccountView[];
+    connected: boolean;
+    onFinished: () => Promise<void> | void;
+  }
+>(function SearchWizard({ accounts, connected, onFinished }, ref) {
   const [step, setStep] = useState(0);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -155,6 +172,34 @@ export function SearchWizard({
       targets,
     };
   }
+
+  function applyDraft(draft: SearchDraftClientView) {
+    const next = hydrateWizardFromDraft(draft);
+    setDraftId(next.draftId);
+    setCustomerId(next.customerId);
+    setName(next.name);
+    setBudgetDollars(next.budgetDollars);
+    setStartDate(next.startDate);
+    setEndDate(next.endDate);
+    setGroups(next.groups);
+    setTargets(next.targets.length ? next.targets : targets);
+    setEnhancedCpc(next.enhancedCpc);
+    setStep((current) => (current === 0 ? 1 : current));
+    setError(null);
+  }
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      getCustomerId: () => customerId,
+      getDraftId: () => draftId,
+      persist: persistDraft,
+      applyDraft,
+    }),
+    // persistDraft closes over current wizard fields
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [customerId, draftId, name, budgetDollars, startDate, endDate, groups, targets, enhancedCpc],
+  );
 
   async function persistDraft(): Promise<string | null> {
     const body = payload();
@@ -232,7 +277,7 @@ export function SearchWizard({
     <section className="rounded-2xl border border-ink-700 bg-ink-900 p-5">
       <h2 className="text-lg text-white">Search campaign wizard (PAUSED)</h2>
       <p className="mt-1 text-sm text-moss-400">
-        Schema v1.3 drafts in Neon. Validate is a full-tree{" "}
+        Schema v1.4 drafts in Neon. The assistant can fill fields; Validate is a full-tree{" "}
         <code className="font-mono text-moss-300">validateOnly</code> dry-run. Apply still creates
         PAUSED only — there is no enable path.
       </p>
@@ -371,7 +416,7 @@ export function SearchWizard({
       </div>
     </section>
   );
-}
+});
 
 function AccountStep({
   accounts,
