@@ -2,7 +2,7 @@
 
 Ads operations platform: marketing site (`/`, `/privacy`, `/terms`) plus an ops console at `/ops`.
 
-This repo is the **single production codebase**. Behavior is ported from the validated MVP (`rajreddy251/adrunr` @ `493d52c`) and evolved onto **Neon Postgres + Prisma Schema v1.2** (provider-agnostic). There is no `.data/tokens.json` path.
+This repo is the **single production codebase**. Behavior is ported from the validated MVP (`rajreddy251/adrunr` @ `493d52c`) and evolved onto **Neon Postgres + Prisma Schema v1.3** (provider-agnostic). There is no `.data/tokens.json` path.
 
 ## Safety (read first)
 
@@ -18,14 +18,16 @@ Platform notes (not secrets): GCP project `adrunr-ads-ops`, MCC `857-080-5596`. 
 
 - Next.js 15 App Router + TypeScript
 - **Neon Postgres only** (no Vercel Postgres, no Supabase)
-- **Prisma only** (Schema v1.2)
+- **Prisma only** (Schema v1.3)
 - Encrypted OAuth columns (`accessTokenEncrypted`, `refreshTokenEncrypted`) via `TOKEN_ENCRYPTION_KEY`
 - TEXT payloads (`requestPayload`, `responsePayload`, `requestBody`, `responseBody`, `metadataText`) — **no JSONB**
 - Official [`googleapis`](https://github.com/googleapis/google-api-nodejs-client) + Google Ads REST
 
-## Schema v1.2
+## Schema v1.3
 
-Core models: Organization, User, Membership, Invitation, Client, ClientMembership, AgentClientAssignment, Workspace, **IntegrationProvider**, OAuthConnection, **ExternalAccount**, ExternalEntity, CampaignOp, DryRunJob, ChangeRequest, **SyncJob**, AuditEvent, RolePermission, **ClientRolePermission**.
+Core models: Organization, User, Membership, Invitation, Client, ClientMembership, AgentClientAssignment, Workspace, **IntegrationProvider**, OAuthConnection, **ExternalAccount**, ExternalEntity, CampaignOp, **SearchCampaignDraft**, **SearchAdGroupDraft**, **SearchKeywordDraft**, **SearchAdDraft**, **SearchTargetDraft**, DryRunJob, ChangeRequest, **SyncJob**, AuditEvent, RolePermission, **ClientRolePermission**.
+
+Search drafts store the in-app wizard tree (campaign, ad groups, keywords, RSA, geo/language targeting). `CampaignOp.searchCampaignDraftId` and `CampaignOp.googleCampaignResourceName` are optional. `PermissionResource` includes `SEARCH_CAMPAIGN_DRAFT`. Audiences, schedules, devices, and tROAS bidding columns are schema-ready; Phase 2 apply uses Manual CPC + geo/language only.
 
 `AgentClientAssignment` has Prisma relations to Organization, Client, and User (`onDelete: Cascade`). Client RBAC lives in `ClientRolePermission` and is not overloaded onto agency `RolePermission`.
 
@@ -60,7 +62,7 @@ ADRUNR_MOCK=1 npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) (marketing) and [http://localhost:3000/ops](http://localhost:3000/ops).
 
-`ADRUNR_MOCK=1` demos **Connect → list accounts → create paused campaign (dry-run default) → audit trail** without live Google Ads. Tokens and accounts still persist in Neon.
+`ADRUNR_MOCK=1` demos **Connect → list accounts → Search wizard (S0–S8) → validateOnly / Create PAUSED → audit trail** without live Google Ads. Tokens, drafts, and accounts still persist in Neon.
 
 ### Environment
 
@@ -116,9 +118,10 @@ Seed RolePermission + ClientRolePermission + platform org + the eight Integratio
 
 1. **Connect** — `/api/auth/google` starts the OAuth web flow (or mock connect). Callback writes encrypted tokens to `OAuthConnection` for `google_ads` (and `google_analytics` when the Analytics scope is present).
 2. **List accounts** — `GET /api/ads/accounts` queries `customer_client` under the MCC, falls back to `listAccessibleCustomers`, upserts `ExternalAccount` rows, and writes a `SyncJob` + `AuditEvent`.
-3. **Paused / dry-run create** — `POST /api/ads/campaigns` with `{ customerId, name, dailyBudgetMicros, dryRun, confirmPhrase }`. Always `status: PAUSED`. `dryRun` (default `true`) sets `validateOnly`. `dryRun: false` still creates PAUSED only and **requires** `confirmPhrase` exactly `CREATE PAUSED`. Persists `CampaignOp` + `DryRunJob` (and `ChangeRequest` on apply).
-4. **GA4 stub** — `GET /api/ga4/report` runs a 7-day sessions + conversions sample and upserts a `google_analytics` ExternalAccount. Soft-fails if property id, scope, or API is missing.
-5. **Other providers** — seeded only. Connect buttons are disabled stubs.
+3. **Search wizard (Phase 2)** — `/ops` S0 account → S1 basics → S2 ad groups → S3 keywords → S4 RSA → S5 geo/language → S6 Manual CPC → S7 review → Validate / Create PAUSED → S8 result. Drafts persist as `SearchCampaignDraft` (+ child rows). Validate is a full-tree `validateOnly` dry-run. Apply is **PAUSED only** and requires `confirmPhrase` exactly `CREATE PAUSED`.
+4. **Paused / dry-run shell (Phase 1)** — `POST /api/ads/campaigns` with `{ customerId, name, dailyBudgetMicros, dryRun, confirmPhrase }` still works. Always `status: PAUSED`. `dryRun` (default `true`) sets `validateOnly`. `dryRun: false` still creates PAUSED only and **requires** `confirmPhrase` exactly `CREATE PAUSED`. Persists `CampaignOp` + `DryRunJob` (and `ChangeRequest` on apply).
+5. **GA4 stub** — `GET /api/ga4/report` runs a 7-day sessions + conversions sample and upserts a `google_analytics` ExternalAccount. Soft-fails if property id, scope, or API is missing.
+6. **Other providers** — seeded only. Connect buttons are disabled stubs. There is **no Phase 3 AI suggest** in this app.
 
 ## Scripts
 
@@ -141,7 +144,13 @@ CI runs those plus `npm run build` with `ADRUNR_MOCK=1` and a dummy `DATABASE_UR
 - `GET /api/auth/google/callback` — exchange code, persist encrypted tokens
 - `POST /api/auth/disconnect` — revoke `OAuthConnection` rows
 - `GET /api/ads/accounts`
-- `POST /api/ads/campaigns`
+- `POST /api/ads/campaigns` — Phase 1 Search create shell
+- `GET /api/ads/campaigns/:id` — CampaignOp + DryRunJob detail
+- `GET|POST /api/ads/search/drafts`
+- `GET|PATCH|PUT|DELETE /api/ads/search/drafts/:id`
+- `POST /api/ads/search/drafts/:id/validate` — full-tree validateOnly
+- `POST /api/ads/search/drafts/:id/apply` — PAUSED + `CREATE PAUSED`
+- `GET /api/ads/search/drafts/:id/result`
 - `GET /api/ga4/report`
 - `GET /api/audit`
 - `GET /api/providers`

@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import { CONFIRM_PAUSED_PHRASE, SAFETY_COPY } from "@/lib/safety";
+import { SearchWizard } from "@/components/search-wizard";
+import { SAFETY_COPY } from "@/lib/safety";
 import { formatCustomerId, PLATFORM_MCC_DISPLAY } from "@/lib/ids";
 import type { AdsAccountView, AuditEventView, ConnectionStatusView, ProviderView } from "@/lib/types";
 
@@ -15,19 +16,6 @@ type AccountsResponse = {
   error?: string;
   hint?: string;
   kind?: string;
-};
-
-type CampaignResponse = {
-  ok: boolean;
-  dryRun?: boolean;
-  applied?: boolean;
-  status?: string;
-  request?: unknown;
-  response?: unknown;
-  campaignOpId?: string;
-  safety?: { note?: string };
-  error?: string;
-  hint?: string;
 };
 
 type Ga4Response = {
@@ -64,11 +52,6 @@ export function OpsConsole() {
   const [accountWarnings, setAccountWarnings] = useState<string[]>([]);
   const [accountError, setAccountError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState("");
-  const [campaignName, setCampaignName] = useState("Adrunr paused search");
-  const [budgetDollars, setBudgetDollars] = useState("1.00");
-  const [dryRun, setDryRun] = useState(true);
-  const [confirmPhrase, setConfirmPhrase] = useState("");
-  const [campaignResult, setCampaignResult] = useState<CampaignResponse | null>(null);
   const [ga4, setGa4] = useState<Ga4Response | null>(null);
   const [audit, setAudit] = useState<AuditEventView[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -133,49 +116,12 @@ export function OpsConsole() {
     })();
   }, [loadAccounts, loadAudit, loadGa4, loadStatus]);
 
-  const selected = useMemo(
-    () => accounts.find((account) => account.customerId === selectedId) ?? null,
-    [accounts, selectedId],
-  );
-
   async function disconnect() {
     setBusy("disconnect");
     await fetch("/api/auth/disconnect", { method: "POST" });
     setBanner("Disconnected. OAuth connections revoked in Postgres.");
     const next = await loadStatus();
     await Promise.all([loadAccounts(next.connected), loadAudit()]);
-    setBusy(null);
-  }
-
-  async function createCampaign(event: FormEvent) {
-    event.preventDefault();
-    if (!selectedId) {
-      setCampaignResult({ ok: false, error: "Select a customer first." });
-      return;
-    }
-    if (!dryRun && confirmPhrase.trim() !== CONFIRM_PAUSED_PHRASE) {
-      setCampaignResult({
-        ok: false,
-        error: `Type ${CONFIRM_PAUSED_PHRASE} to apply a PAUSED campaign. Dry-run is preferred.`,
-      });
-      return;
-    }
-    const dailyBudgetMicros = Math.round(Number(budgetDollars) * 1_000_000);
-    setBusy("campaign");
-    const res = await fetch("/api/ads/campaigns", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        customerId: selectedId,
-        name: campaignName,
-        dailyBudgetMicros,
-        dryRun,
-        confirmPhrase,
-        status: "PAUSED",
-      }),
-    });
-    setCampaignResult((await res.json()) as CampaignResponse);
-    await loadAudit();
     setBusy(null);
   }
 
@@ -186,9 +132,10 @@ export function OpsConsole() {
           <p className="font-mono text-xs uppercase tracking-[0.2em] text-lime-400">Adrunr · ads ops</p>
           <h1 className="mt-1 text-3xl font-medium text-white">Campaign tools, not autopilot.</h1>
           <p className="mt-2 max-w-2xl text-sm text-moss-400">
-            Provider-agnostic foundation (Schema v1.1). Google Ads is live; other providers are
-            seeded stubs. MCC <span className="font-mono text-moss-300">{PLATFORM_MCC_DISPLAY}</span>{" "}
-            · GCP <span className="font-mono text-moss-300">adrunr-ads-ops</span> · Neon + Prisma
+            Provider-agnostic foundation (Schema v1.3). Google Ads Search wizard is live; other
+            providers are seeded stubs. MCC{" "}
+            <span className="font-mono text-moss-300">{PLATFORM_MCC_DISPLAY}</span> · GCP{" "}
+            <span className="font-mono text-moss-300">adrunr-ads-ops</span> · Neon + Prisma
           </p>
         </div>
         <div className="flex flex-col items-end gap-2">
@@ -398,72 +345,7 @@ export function OpsConsole() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-ink-700 bg-ink-900 p-5">
-        <h2 className="text-lg text-white">Create Search campaign (PAUSED)</h2>
-        <p className="mt-1 text-sm text-moss-400">
-          Writes CampaignOp + DryRunJob. Dry-run sends{" "}
-          <code className="font-mono text-moss-300">validateOnly</code> and returns the mutate
-          payload without applying spend. Unchecking dry-run still creates PAUSED only — there is no
-          enable path.
-        </p>
-        <form onSubmit={(event) => void createCampaign(event)} className="mt-4 grid gap-4 md:grid-cols-2">
-          <label className="block text-sm">
-            <span className="text-moss-500">Campaign name</span>
-            <input
-              value={campaignName}
-              onChange={(event) => setCampaignName(event.target.value)}
-              className="mt-1 w-full rounded-lg border border-ink-700 bg-ink-950 px-3 py-2 text-white outline-none focus:border-lime-400"
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="text-moss-500">Daily budget (USD, required by API — campaign stays paused)</span>
-            <input
-              value={budgetDollars}
-              onChange={(event) => setBudgetDollars(event.target.value)}
-              inputMode="decimal"
-              className="mt-1 w-full rounded-lg border border-ink-700 bg-ink-950 px-3 py-2 font-mono text-white outline-none focus:border-lime-400"
-            />
-          </label>
-          <label className="flex items-center gap-2 text-sm text-moss-300">
-            <input
-              type="checkbox"
-              className="accent-lime-400"
-              checked={dryRun}
-              onChange={(event) => {
-                setDryRun(event.target.checked);
-                if (event.target.checked) setConfirmPhrase("");
-              }}
-            />
-            Dry-run (preferred) — validate payload, do not apply
-          </label>
-          {!dryRun ? (
-            <label className="block text-sm md:col-span-2">
-              <span className="text-amber-400">
-                Type {CONFIRM_PAUSED_PHRASE} to apply a PAUSED campaign. This still cannot spend.
-              </span>
-              <input
-                value={confirmPhrase}
-                onChange={(event) => setConfirmPhrase(event.target.value)}
-                className="mt-1 w-full rounded-lg border border-amber-400/40 bg-ink-950 px-3 py-2 font-mono text-white outline-none focus:border-amber-400"
-              />
-            </label>
-          ) : null}
-          <div className="md:col-span-2">
-            <button
-              type="submit"
-              disabled={!status.connected || busy === "campaign" || !selected || Boolean(selected.warning)}
-              className="rounded-lg bg-lime-400 px-4 py-2 text-sm font-medium text-ink-950 hover:bg-lime-500 disabled:opacity-40"
-            >
-              {dryRun ? "Validate paused campaign" : "Create paused campaign"}
-            </button>
-          </div>
-        </form>
-        {campaignResult ? (
-          <pre className="mt-4 max-h-80 overflow-auto rounded-xl border border-ink-700 bg-ink-950 p-4 font-mono text-xs text-moss-300">
-            {JSON.stringify(campaignResult, null, 2)}
-          </pre>
-        ) : null}
-      </section>
+      <SearchWizard accounts={accounts} connected={status.connected} onFinished={loadAudit} />
 
       <section className="rounded-2xl border border-ink-700 bg-ink-900 p-5">
         <h2 className="text-lg text-white">Audit trail</h2>
@@ -490,7 +372,7 @@ export function OpsConsole() {
       </section>
 
       <footer className="pb-8 text-xs text-moss-500">
-        Adrunr · Schema v1.1 · Neon Postgres + Prisma · encrypted OAuth columns · no file tokens · no
+        Adrunr · Schema v1.3 · Neon Postgres + Prisma · encrypted OAuth columns · no file tokens · no
         JSONB · no spend/enable path
       </footer>
     </div>
