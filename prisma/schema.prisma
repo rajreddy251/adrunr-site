@@ -78,6 +78,7 @@ enum CampaignOpKind {
   GENERIC_MUTATE
   DEMAND_GEN_CREATE
   VIDEO_CREATE
+  SHOPPING_CREATE
 }
 
 enum CampaignOpStatus {
@@ -111,6 +112,7 @@ enum PermissionResource {
   PERFORMANCE_MAX_CAMPAIGN_DRAFT
   DEMAND_GEN_CAMPAIGN_DRAFT
   VIDEO_CAMPAIGN_DRAFT
+  SHOPPING_CAMPAIGN_DRAFT
   SYNC_JOB
   AUDIT_EVENT
   BILLING
@@ -284,6 +286,42 @@ enum VideoAssetKind {
   MARKETING_IMAGE
 }
 
+enum ShoppingDraftStatus {
+  DRAFT
+  VALIDATED
+  APPLIED
+  FAILED
+}
+
+enum ShoppingBiddingStrategy {
+  MANUAL_CPC
+  MAXIMIZE_CLICKS
+  MAXIMIZE_CONVERSION_VALUE
+  TARGET_ROAS
+}
+
+enum ShoppingTargetType {
+  GEO
+  LANGUAGE
+}
+
+enum ShoppingPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ShoppingProductGroupKind {
+  ALL_PRODUCTS
+  UNIT
+  SUBDIVISION
+}
+
+enum ShoppingListingKind {
+  ALL_PRODUCTS
+  UNIT
+}
+
 enum AssistantMessageRole {
   USER
   ASSISTANT
@@ -325,6 +363,7 @@ model Organization {
   pmaxDrafts       PerformanceMaxCampaignDraft[]
   demandGenDrafts  DemandGenCampaignDraft[]
   videoDrafts      VideoCampaignDraft[]
+  shoppingDrafts   ShoppingCampaignDraft[]
   syncJobs         SyncJob[]
   auditEvents      AuditEvent[]
   agentAssignments AgentClientAssignment[]
@@ -350,6 +389,7 @@ model User {
   pmaxDrafts        PerformanceMaxCampaignDraft[]
   demandGenDrafts   DemandGenCampaignDraft[]
   videoDrafts       VideoCampaignDraft[]
+  shoppingDrafts    ShoppingCampaignDraft[]
   changeRequests    ChangeRequest[]
   auditEvents       AuditEvent[]
   agentAssignments  AgentClientAssignment[]
@@ -408,6 +448,7 @@ model Client {
   pmaxDrafts       PerformanceMaxCampaignDraft[]
   demandGenDrafts  DemandGenCampaignDraft[]
   videoDrafts      VideoCampaignDraft[]
+  shoppingDrafts   ShoppingCampaignDraft[]
   agentAssignments AgentClientAssignment[]
   assistantThreads AssistantThread[]
   clientMemories   ClientMemory[]
@@ -535,6 +576,7 @@ model ExternalAccount {
   pmaxDrafts      PerformanceMaxCampaignDraft[]
   demandGenDrafts DemandGenCampaignDraft[]
   videoDrafts     VideoCampaignDraft[]
+  shoppingDrafts  ShoppingCampaignDraft[]
   dryRunJobs      DryRunJob[]
   syncJobs        SyncJob[]
 
@@ -587,6 +629,7 @@ model CampaignOp {
   pmaxCampaignDraftId        String?
   demandGenCampaignDraftId   String?
   videoCampaignDraftId       String?
+  shoppingCampaignDraftId    String?
   errorMessage               String?
   createdAt                  DateTime         @default(now())
   updatedAt                  DateTime         @updatedAt
@@ -603,6 +646,7 @@ model CampaignOp {
   pmaxCampaignDraft        PerformanceMaxCampaignDraft?  @relation(fields: [pmaxCampaignDraftId], references: [id], onDelete: SetNull)
   demandGenCampaignDraft   DemandGenCampaignDraft?       @relation(fields: [demandGenCampaignDraftId], references: [id], onDelete: SetNull)
   videoCampaignDraft       VideoCampaignDraft?           @relation(fields: [videoCampaignDraftId], references: [id], onDelete: SetNull)
+  shoppingCampaignDraft    ShoppingCampaignDraft?        @relation(fields: [shoppingCampaignDraftId], references: [id], onDelete: SetNull)
   dryRunJobs               DryRunJob[]
   changeRequests           ChangeRequest[]
 
@@ -614,6 +658,7 @@ model CampaignOp {
   @@index([pmaxCampaignDraftId])
   @@index([demandGenCampaignDraftId])
   @@index([videoCampaignDraftId])
+  @@index([shoppingCampaignDraftId])
 }
 
 model SearchCampaignDraft {
@@ -1199,6 +1244,108 @@ model VideoTargetDraft {
   @@index([draftId, type])
 }
 
+model ShoppingCampaignDraft {
+  id                         String                   @id @default(cuid())
+  organizationId             String
+  clientId                   String
+  externalAccountId          String
+  createdById                String
+  name                       String
+  dailyBudgetMicros          BigInt
+  biddingStrategy            ShoppingBiddingStrategy  @default(MANUAL_CPC)
+  merchantCenterId           String?
+  salesCountry               String                   @default("US")
+  campaignPriority           ShoppingPriority         @default(LOW)
+  enableLocal                Boolean                  @default(false)
+  targetRoasText             String?
+  startDate                  String?
+  endDate                    String?
+  statusDraft                ShoppingDraftStatus      @default(DRAFT)
+  googleCampaignResourceName String?
+  campaignOpId               String?
+  notesText                  String?
+  createdAt                  DateTime                 @default(now())
+  updatedAt                  DateTime                 @updatedAt
+
+  organization     Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client           Client                    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  externalAccount  ExternalAccount           @relation(fields: [externalAccountId], references: [id], onDelete: Restrict)
+  createdBy        User                      @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  campaignOps      CampaignOp[]
+  adGroups         ShoppingAdGroupDraft[]
+  targets          ShoppingTargetDraft[]
+  assistantThreads AssistantThread[]
+
+  @@index([organizationId, statusDraft])
+  @@index([clientId])
+  @@index([externalAccountId])
+  @@index([createdById])
+}
+
+model ShoppingAdGroupDraft {
+  id                        String   @id @default(cuid())
+  draftId                   String
+  name                      String
+  defaultBidMicros          BigInt
+  sortOrder                 Int      @default(0)
+  googleAdGroupResourceName String?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  draft         ShoppingCampaignDraft      @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  productGroups ShoppingProductGroupDraft[]
+  listings      ShoppingListingDraft[]
+
+  @@index([draftId, sortOrder])
+}
+
+model ShoppingProductGroupDraft {
+  id                              String                   @id @default(cuid())
+  adGroupDraftId                  String
+  kind                            ShoppingProductGroupKind
+  valueText                       String
+  dimensionText                   String
+  included                        Boolean                  @default(true)
+  sortOrder                       Int                      @default(0)
+  googleListingGroupResourceName  String?
+  createdAt                       DateTime                 @default(now())
+  updatedAt                       DateTime                 @updatedAt
+
+  adGroup ShoppingAdGroupDraft @relation(fields: [adGroupDraftId], references: [id], onDelete: Cascade)
+
+  @@index([adGroupDraftId, kind])
+}
+
+model ShoppingListingDraft {
+  id             String              @id @default(cuid())
+  adGroupDraftId String
+  kind           ShoppingListingKind
+  valueText      String
+  dimensionText  String
+  included       Boolean             @default(true)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  adGroup ShoppingAdGroupDraft @relation(fields: [adGroupDraftId], references: [id], onDelete: Cascade)
+
+  @@index([adGroupDraftId, kind])
+}
+
+model ShoppingTargetDraft {
+  id            String             @id @default(cuid())
+  draftId       String
+  type          ShoppingTargetType
+  valueText     String
+  criterionText String
+  included      Boolean            @default(true)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  draft ShoppingCampaignDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@index([draftId, type])
+}
+
 model DryRunJob {
   id                String   @id @default(cuid())
   organizationId    String
@@ -1309,6 +1456,7 @@ model AssistantThread {
   pmaxDraftId      String?
   demandGenDraftId String?
   videoDraftId     String?
+  shoppingDraftId  String?
   createdById      String
   title          String?
   createdAt      DateTime @default(now())
@@ -1321,6 +1469,7 @@ model AssistantThread {
   pmaxDraft      PerformanceMaxCampaignDraft?  @relation(fields: [pmaxDraftId], references: [id], onDelete: SetNull)
   demandGenDraft DemandGenCampaignDraft?       @relation(fields: [demandGenDraftId], references: [id], onDelete: SetNull)
   videoDraft     VideoCampaignDraft?           @relation(fields: [videoDraftId], references: [id], onDelete: SetNull)
+  shoppingDraft  ShoppingCampaignDraft?        @relation(fields: [shoppingDraftId], references: [id], onDelete: SetNull)
   createdBy      User                          @relation(fields: [createdById], references: [id], onDelete: Restrict)
   messages       AssistantMessage[]
 
@@ -1330,6 +1479,7 @@ model AssistantThread {
   @@index([clientId, pmaxDraftId])
   @@index([clientId, demandGenDraftId])
   @@index([clientId, videoDraftId])
+  @@index([clientId, shoppingDraftId])
   @@index([createdById])
 }
 

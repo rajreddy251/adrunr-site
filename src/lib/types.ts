@@ -342,7 +342,59 @@ export type VideoDraftClientView = {
   }>;
 };
 
-export type AssistantCampaignKind = "SEARCH" | "DISPLAY" | "PMAX" | "DEMAND_GEN" | "VIDEO";
+export type ShoppingDraftClientView = {
+  id: string;
+  customerId: string;
+  externalAccountId: string;
+  name: string;
+  dailyBudgetMicros: string;
+  biddingStrategy: string;
+  merchantCenterId: string | null;
+  salesCountry: string;
+  campaignPriority: string;
+  enableLocal: boolean;
+  targetRoasText: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  statusDraft: string;
+  googleCampaignResourceName: string | null;
+  campaignOpId: string | null;
+  notesText: string | null;
+  createdAt: string;
+  updatedAt: string;
+  adGroups: Array<{
+    id: string;
+    name: string;
+    defaultBidMicros: string;
+    sortOrder: number;
+    googleAdGroupResourceName: string | null;
+    productGroups: Array<{
+      id: string;
+      kind: string;
+      valueText: string;
+      dimensionText: string;
+      included: boolean;
+      sortOrder: number;
+      googleListingGroupResourceName: string | null;
+    }>;
+    listings: Array<{
+      id: string;
+      kind: string;
+      valueText: string;
+      dimensionText: string;
+      included: boolean;
+    }>;
+  }>;
+  targets: Array<{
+    id: string;
+    type: string;
+    valueText: string;
+    criterionText: string;
+    included: boolean;
+  }>;
+};
+
+export type AssistantCampaignKind = "SEARCH" | "DISPLAY" | "PMAX" | "DEMAND_GEN" | "VIDEO" | "SHOPPING";
 
 export type AssistantMessageView = {
   id: string;
@@ -362,6 +414,7 @@ export type AssistantThreadView = {
   pmaxDraftId: string | null;
   demandGenDraftId: string | null;
   videoDraftId: string | null;
+  shoppingDraftId: string | null;
   kind: AssistantCampaignKind;
   createdById: string;
   title: string | null;

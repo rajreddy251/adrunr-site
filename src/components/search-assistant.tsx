@@ -6,6 +6,7 @@ import type { DemandGenWizardHandle } from "@/components/demand-gen-wizard";
 import type { DisplayWizardHandle } from "@/components/display-wizard";
 import type { PmaxWizardHandle } from "@/components/pmax-wizard";
 import type { SearchWizardHandle } from "@/components/search-wizard";
+import type { ShoppingWizardHandle } from "@/components/shopping-wizard";
 import type { VideoWizardHandle } from "@/components/video-wizard";
 import type {
   AssistantCampaignKind,
@@ -16,6 +17,7 @@ import type {
   DisplayDraftClientView,
   PmaxDraftClientView,
   SearchDraftClientView,
+  ShoppingDraftClientView,
   VideoDraftClientView,
 } from "@/lib/types";
 
@@ -28,6 +30,7 @@ type TurnResponse = {
     | PmaxDraftClientView
     | DemandGenDraftClientView
     | VideoDraftClientView
+    | ShoppingDraftClientView
     | null;
   questions?: AssistantQuestion[];
   patchedFields?: string[];
@@ -44,7 +47,13 @@ export function SearchAssistant({
   kind = "SEARCH",
 }: {
   wizard: RefObject<
-    SearchWizardHandle | DisplayWizardHandle | PmaxWizardHandle | DemandGenWizardHandle | VideoWizardHandle | null
+    | SearchWizardHandle
+    | DisplayWizardHandle
+    | PmaxWizardHandle
+    | DemandGenWizardHandle
+    | VideoWizardHandle
+    | ShoppingWizardHandle
+    | null
   >;
   connected: boolean;
   kind?: AssistantCampaignKind;
@@ -108,7 +117,8 @@ export function SearchAssistant({
           DisplayDraftClientView &
           PmaxDraftClientView &
           DemandGenDraftClientView &
-          VideoDraftClientView,
+          VideoDraftClientView &
+          ShoppingDraftClientView,
       );
     }
     setInput("");
@@ -127,7 +137,9 @@ export function SearchAssistant({
               ? "demand-gen-assistant"
               : kind === "VIDEO"
                 ? "video-assistant"
-                : "search-assistant"
+                : kind === "SHOPPING"
+                  ? "shopping-assistant"
+                  : "search-assistant"
       }
     >
       <h2 className="text-lg text-white">
@@ -139,7 +151,9 @@ export function SearchAssistant({
               ? "Demand Gen"
               : kind === "VIDEO"
                 ? "Video"
-                : "Search"}{" "}
+                : kind === "SHOPPING"
+                  ? "Shopping"
+                  : "Search"}{" "}
         assistant
       </h2>
       <p className="mt-1 text-sm text-moss-400">
@@ -152,6 +166,9 @@ export function SearchAssistant({
           : ""}
         {kind === "VIDEO"
           ? " Ad groups and YouTube video responsive ads — USER_LIST audiences, not a separate campaign type."
+          : ""}
+        {kind === "SHOPPING"
+          ? " Merchant Center + ALL_PRODUCTS product groups — listings are optional storage only."
           : ""}
       </p>
       {source ? (

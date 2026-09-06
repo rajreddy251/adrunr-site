@@ -38,6 +38,11 @@ import {
   parseVideoDraftWrite,
   type VideoDraftTree,
 } from "./video-draft";
+import {
+  DEFAULT_MERCHANT_CENTER_ID,
+  parseShoppingDraftWrite,
+  type ShoppingDraftTree,
+} from "./shopping-draft";
 import type { AssistantCampaignKind } from "./types";
 
 export const ASSISTANT_FORBIDDEN_ACTIONS = [
@@ -91,7 +96,7 @@ export type AssistantContextCampaign = {
   status: string | null;
   budgetHint: string | null;
   settings: string | null;
-  source: "external_entity" | "search_draft" | "display_draft" | "pmax_draft" | "demand_gen_draft" | "video_draft";
+  source: "external_entity" | "search_draft" | "display_draft" | "pmax_draft" | "demand_gen_draft" | "video_draft" | "shopping_draft";
 };
 
 export type AssistantContextPack = {
@@ -106,7 +111,7 @@ export type AssistantContextPack = {
     isManager: boolean;
   }>;
   campaigns: AssistantContextCampaign[];
-  draft: SearchDraftTree | DisplayDraftTree | PmaxDraftTree | DemandGenDraftTree | VideoDraftTree | null;
+  draft: SearchDraftTree | DisplayDraftTree | PmaxDraftTree | DemandGenDraftTree | VideoDraftTree | ShoppingDraftTree | null;
   draftId: string | null;
   messages: Array<{ role: string; content: string }>;
   memory: AssistantMemoryWrite[];
@@ -248,6 +253,18 @@ export function mergeVideoDraftPatch(current: VideoDraftTree, patch: unknown): V
   });
 }
 
+export function mergeShoppingDraftPatch(current: ShoppingDraftTree, patch: unknown): ShoppingDraftTree {
+  const raw = patch && typeof patch === "object" && !Array.isArray(patch) ? (patch as Record<string, unknown>) : {};
+  return parseShoppingDraftWrite({
+    ...current,
+    ...raw,
+    customerId: raw.customerId ?? current.customerId,
+    externalAccountId: raw.externalAccountId ?? current.externalAccountId,
+    adGroups: Array.isArray(raw.adGroups) && raw.adGroups.length > 0 ? raw.adGroups : current.adGroups,
+    targets: Array.isArray(raw.targets) && raw.targets.length > 0 ? raw.targets : current.targets,
+  });
+}
+
 export function diffDraftFields(before: SearchDraftTree, after: SearchDraftTree): string[] {
   const fields: string[] = [];
   const keys: Array<keyof SearchDraftTree> = [
@@ -364,6 +381,30 @@ export function diffVideoDraftFields(before: VideoDraftTree, after: VideoDraftTr
   if (JSON.stringify(before.adGroups) !== JSON.stringify(after.adGroups)) fields.push("adGroups");
   if (JSON.stringify(before.targets) !== JSON.stringify(after.targets)) fields.push("targets");
   if (JSON.stringify(before.audiences) !== JSON.stringify(after.audiences)) fields.push("audiences");
+  return fields;
+}
+
+export function diffShoppingDraftFields(before: ShoppingDraftTree, after: ShoppingDraftTree): string[] {
+  const fields: string[] = [];
+  const keys: Array<keyof ShoppingDraftTree> = [
+    "name",
+    "dailyBudgetMicros",
+    "biddingStrategy",
+    "merchantCenterId",
+    "salesCountry",
+    "campaignPriority",
+    "enableLocal",
+    "startDate",
+    "endDate",
+    "notesText",
+  ];
+  for (const key of keys) {
+    if (JSON.stringify(before[key] ?? null) !== JSON.stringify(after[key] ?? null)) {
+      fields.push(String(key));
+    }
+  }
+  if (JSON.stringify(before.adGroups) !== JSON.stringify(after.adGroups)) fields.push("adGroups");
+  if (JSON.stringify(before.targets) !== JSON.stringify(after.targets)) fields.push("targets");
   return fields;
 }
 
@@ -507,7 +548,7 @@ function draftLooksEmpty(draft: SearchDraftTree | null): boolean {
   return defaultish || defaultKw;
 }
 
-type AnyDraft = SearchDraftTree | DisplayDraftTree | PmaxDraftTree | DemandGenDraftTree | VideoDraftTree | null;
+type AnyDraft = SearchDraftTree | DisplayDraftTree | PmaxDraftTree | DemandGenDraftTree | VideoDraftTree | ShoppingDraftTree | null;
 
 function isSearchDraft(draft: AnyDraft): draft is SearchDraftTree {
   return Boolean(draft && Array.isArray((draft as SearchDraftTree).adGroups?.[0]?.keywords));
@@ -518,6 +559,16 @@ function isVideoDraft(draft: AnyDraft): draft is VideoDraftTree {
     draft &&
       typeof (draft as VideoDraftTree).inStream === "boolean" &&
       typeof (draft as VideoDraftTree).bumper === "boolean",
+  );
+}
+
+function isShoppingDraft(draft: AnyDraft): draft is ShoppingDraftTree {
+  return Boolean(
+    draft &&
+      typeof (draft as ShoppingDraftTree).salesCountry === "string" &&
+      typeof (draft as ShoppingDraftTree).campaignPriority === "string" &&
+      typeof (draft as ShoppingDraftTree).enableLocal === "boolean" &&
+      !Array.isArray((draft as PmaxDraftTree).assetGroups),
   );
 }
 
@@ -611,6 +662,9 @@ export function mockAssistantTurn(input: {
   }
   if (input.pack.kind === "VIDEO") {
     return mockVideoAssistantTurn(input);
+  }
+  if (input.pack.kind === "SHOPPING") {
+    return mockShoppingAssistantTurn(input);
   }
 
   const searchDraft = isSearchDraft(input.pack.draft) ? input.pack.draft : null;
@@ -1448,7 +1502,181 @@ function mockVideoAssistantTurn(input: {
   };
 }
 
+function extractMerchantId(text: string, memory: AssistantMemoryWrite[]): string | null {
+  const remembered = memory.find((item) => item.key === "merchant_center_id")?.value;
+  if (remembered && /^\d+$/.test(digitsOnlySafe(remembered))) return digitsOnlySafe(remembered);
+  const labeled = text.match(/merchant(?:\s*center)?(?:\s*id)?[:\s#]+(\d{3,})/i);
+  if (labeled) return labeled[1];
+  return null;
+}
+
+function digitsOnlySafe(value: string): string {
+  return value.replace(/\D/g, "");
+}
+
+function shoppingDraftLooksEmpty(draft: ShoppingDraftTree | null): boolean {
+  if (!draft) return true;
+  return /untitled|adrunr paused shopping/i.test(draft.name);
+}
+
+function mockShoppingAssistantTurn(input: {
+  message: string;
+  pack: AssistantContextPack;
+}): AssistantTurnPlan {
+  const shoppingDraft = isShoppingDraft(input.pack.draft) ? input.pack.draft : null;
+  const url =
+    extractUrlFromText(input.message) ??
+    input.pack.memory.find((item) => item.key === "landing_url")?.value ??
+    null;
+  const budgetMicros =
+    extractBudgetMicros(input.message) ??
+    (input.pack.memory.find((item) => item.key === "daily_budget_micros")
+      ? Number(input.pack.memory.find((item) => item.key === "daily_budget_micros")?.value)
+      : null);
+  const brand = inferBrand(input.message, url, input.pack.memory);
+  const theme = pathTheme(url);
+  const geo = resolveGeo(input.message, input.pack.memory);
+  const merchantCenterId =
+    extractMerchantId(input.message, input.pack.memory) ??
+    shoppingDraft?.merchantCenterId ??
+    DEFAULT_MERCHANT_CENTER_ID;
+  const salesCountry = geo?.valueText === "Canada" ? "CA" : geo?.valueText === "United Kingdom" ? "GB" : "US";
+
+  const patch: Record<string, unknown> = {};
+  const questions: AssistantQuestion[] = [];
+  const memory: AssistantMemoryWrite[] = [];
+
+  if (url) memory.push({ key: "landing_url", value: url, source: "chat" });
+  if (brand) memory.push({ key: "brand", value: brand, source: "chat" });
+  if (budgetMicros) memory.push({ key: "daily_budget_micros", value: String(budgetMicros), source: "chat" });
+  if (geo) memory.push({ key: "geo", value: geo.valueText, source: "chat" });
+  memory.push({ key: "merchant_center_id", value: merchantCenterId, source: "chat" });
+
+  if (brand) {
+    patch.name = `${brand}${theme ? ` ${theme}` : ""} Shopping`;
+  }
+  if (budgetMicros) patch.dailyBudgetMicros = budgetMicros;
+  patch.biddingStrategy = "MANUAL_CPC";
+  patch.merchantCenterId = merchantCenterId;
+  patch.salesCountry = shoppingDraft?.salesCountry && shoppingDraft.salesCountry !== "US" ? shoppingDraft.salesCountry : salesCountry;
+  patch.campaignPriority = shoppingDraft?.campaignPriority ?? "LOW";
+  patch.enableLocal = shoppingDraft?.enableLocal ?? false;
+
+  const canFillTree = Boolean(
+    brand || url || (input.message.trim().length > 12 && shoppingDraftLooksEmpty(shoppingDraft)),
+  );
+  if (canFillTree) {
+    const shoppingBrand = brand ?? "Shopping";
+    patch.adGroups = [
+      {
+        name: theme ? `${shoppingBrand} · ${theme}` : `${shoppingBrand} product group`,
+        defaultBidMicros: shoppingDraft?.adGroups[0]?.defaultBidMicros ?? 1_000_000,
+        sortOrder: 0,
+        productGroups: [
+          {
+            kind: "ALL_PRODUCTS",
+            valueText: "All products",
+            dimensionText: "",
+            included: true,
+            sortOrder: 0,
+          },
+        ],
+        listings: [],
+      },
+    ];
+  }
+  if (geo || !shoppingDraft?.targets.length) {
+    patch.targets = [
+      geo ?? {
+        type: "GEO",
+        valueText: "United States",
+        criterionText: "geoTargetConstants/2840",
+        included: true,
+      },
+    ];
+  }
+
+  if (!extractMerchantId(input.message, input.pack.memory) && !shoppingDraft?.merchantCenterId) {
+    questions.push({
+      id: "merchant_center_id",
+      question: "Optional: confirm the Merchant Center id. I used a demo id so the draft can validate — replace it before a live apply.",
+      field: "merchantCenterId",
+      optional: true,
+    });
+  }
+  if (!budgetMicros) {
+    questions.push({
+      id: "daily_budget",
+      question: "Optional: what daily budget (USD) should I set? I left the current draft budget as a starting point.",
+      field: "dailyBudgetMicros",
+      optional: true,
+    });
+  }
+  if (!brand && !canFillTree) {
+    questions.push({
+      id: "brief",
+      question: "Paste a landing URL or a short brief (product + geo) and I will fill the Shopping draft first.",
+      field: "notesText",
+    });
+  }
+
+  const filled = Object.keys(patch);
+  const messageParts: string[] = [];
+  if (filled.length) {
+    messageParts.push(
+      `Filled the Shopping draft from your ${url ? "URL" : "brief"}: ${[
+        patch.name ? `name “${patch.name}”` : null,
+        budgetMicros ? `budget $${(budgetMicros / 1_000_000).toFixed(2)}/day` : null,
+        Array.isArray(patch.adGroups) ? "ad group / ALL_PRODUCTS product group" : null,
+        `Merchant Center ${merchantCenterId}`,
+        geo ? `geo ${geo.valueText}` : "geo United States (default)",
+      ]
+        .filter(Boolean)
+        .join(", ")}.`,
+    );
+    messageParts.push("The form is the source of truth — edit anything before you Validate or Create PAUSED there.");
+  } else if (!questions.length) {
+    messageParts.push("I have what I need on the draft. Tweak the form if you want polish; I will not block on it.");
+  }
+  if (questions.length) {
+    const required = questions.filter((item) => !item.optional);
+    const optional = questions.filter((item) => item.optional);
+    if (required.length) {
+      messageParts.push(required.map((item) => item.question).join(" "));
+    }
+    if (optional.length) {
+      messageParts.push(optional.map((item) => item.question).join(" "));
+    }
+  }
+
+  return {
+    update_draft_fields: filled.length ? patch : null,
+    ask_questions: questions,
+    memory,
+    assistant_message: messageParts.join(" "),
+  };
+}
+
 export function assistantSystemPrompt(kind: AssistantCampaignKind = "SEARCH"): string {
+  if (kind === "SHOPPING") {
+    return [
+      "You are the Adrunr Shopping wizard assistant.",
+      "Fill or suggest Shopping campaign draft fields FIRST from the URL, brief, client history, existing campaigns, and current draft.",
+      "Ask clarifying questions ONLY for gaps you cannot resolve. Never run a full questionnaire before filling.",
+      "Soft optional suggestions are OK. Do not block on polish.",
+      "You CANNOT validate, apply, enable, publish, or go live. Those stay on the form.",
+      "Validate is validateOnly. Apply is PAUSED + CREATE PAUSED confirm. There is no enable path.",
+      "Never instruct the system to call validate or apply endpoints.",
+      "Shopping uses Merchant Center + product groups / listings, not RSA creatives.",
+      "Return JSON only: { update_draft_fields, ask_questions, memory, assistant_message }.",
+      "update_draft_fields may include name, dailyBudgetMicros, biddingStrategy (MANUAL_CPC), merchantCenterId, salesCountry, campaignPriority, enableLocal, startDate, endDate, notesText, adGroups[], targets[].",
+      "adGroups: { name, defaultBidMicros, sortOrder, productGroups:[{kind,valueText,dimensionText,included}], listings:[] }.",
+      "targets: { type: GEO, valueText, criterionText, included }.",
+      "Use geoTargetConstants/2840 for United States when unspecified.",
+      "MVP apply uses ALL_PRODUCTS product groups and MANUAL_CPC. UNIT / SUBDIVISION and tROAS stay stored, not applied.",
+      "Scope is this organization + this client only. Never mention other clients.",
+    ].join(" ");
+  }
   if (kind === "VIDEO") {
     return [
       "You are the Adrunr Video wizard assistant.",

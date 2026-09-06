@@ -41,6 +41,10 @@ const v18Migration = readFileSync(
   resolve(process.cwd(), "prisma/migrations/20260906240000_schema_v1_8/migration.sql"),
   "utf8",
 );
+const v19Migration = readFileSync(
+  resolve(process.cwd(), "prisma/migrations/20260906250000_schema_v1_9/migration.sql"),
+  "utf8",
+);
 
 describe("schema v1.2 locks", () => {
   it("does not use JSONB / Prisma Json types", () => {
@@ -91,6 +95,11 @@ describe("schema v1.2 locks", () => {
       "VideoAssetDraft",
       "VideoAudienceDraft",
       "VideoTargetDraft",
+      "ShoppingCampaignDraft",
+      "ShoppingAdGroupDraft",
+      "ShoppingProductGroupDraft",
+      "ShoppingListingDraft",
+      "ShoppingTargetDraft",
       "DryRunJob",
       "ChangeRequest",
       "AuditEvent",
@@ -129,6 +138,7 @@ describe("schema v1.2 locks", () => {
       "GENERIC_MUTATE",
       "DEMAND_GEN_CREATE",
       "VIDEO_CREATE",
+      "SHOPPING_CREATE",
     ]);
     for (const kind of CAMPAIGN_OP_KINDS) {
       expect(enumBlock).toContain(kind);
@@ -139,6 +149,7 @@ describe("schema v1.2 locks", () => {
       "PMAX_CREATE",
       "DEMAND_GEN_CREATE",
       "VIDEO_CREATE",
+      "SHOPPING_CREATE",
     ]);
   });
 
@@ -320,6 +331,32 @@ describe("schema v1.8 locks", () => {
   });
 });
 
+describe("schema v1.9 locks", () => {
+  it("adds Shopping draft models and SHOPPING_CAMPAIGN_DRAFT without JSONB", () => {
+    expect(schema).toContain("enum ShoppingDraftStatus");
+    expect(schema).toContain("enum ShoppingProductGroupKind");
+    expect(schema).toContain("enum ShoppingListingKind");
+    expect(schema).toContain("SHOPPING_CAMPAIGN_DRAFT");
+    expect(schema).toContain("SHOPPING_CREATE");
+    expect(schema).toContain("shoppingCampaignDraftId");
+    expect(schema).toContain("shoppingDraftId");
+    expect(schema).toContain("merchantCenterId");
+    expect(schema).toContain("campaignPriority");
+    expect(schema).not.toMatch(/\bJson\b/);
+    expect(v19Migration).toContain('ALTER TYPE "PermissionResource" ADD VALUE \'SHOPPING_CAMPAIGN_DRAFT\'');
+    expect(v19Migration).toContain('ALTER TYPE "CampaignOpKind" ADD VALUE \'SHOPPING_CREATE\'');
+    expect(v19Migration).toContain('CREATE TABLE "ShoppingCampaignDraft"');
+    expect(v19Migration).toContain('CREATE TABLE "ShoppingAdGroupDraft"');
+    expect(v19Migration).toContain('CREATE TABLE "ShoppingProductGroupDraft"');
+    expect(v19Migration).toContain('CREATE TABLE "ShoppingListingDraft"');
+    expect(v19Migration).toContain('CREATE TABLE "ShoppingTargetDraft"');
+    expect(v19Migration).toContain("CampaignOp_shoppingCampaignDraftId_fkey");
+    expect(v19Migration).toContain("AssistantThread_shoppingDraftId_fkey");
+    expect(v19Migration).not.toMatch(/DROP TABLE/i);
+    expect(v19Migration).not.toMatch(/jsonb/i);
+  });
+});
+
 describe("seeded provider registry", () => {
   it("includes the required slugs", () => {
     expect(SEED_PROVIDERS.map((p) => p.slug)).toEqual([
@@ -352,7 +389,7 @@ describe("role permissions", () => {
 describe("client role permissions", () => {
   it("seeds READ/LIST defaults without mutating agency RolePermission", () => {
     const rows = buildClientRolePermissionRows();
-    expect(rows).toHaveLength(44);
+    expect(rows).toHaveLength(50);
     expect(rows.every((row) => row.action === "READ" || row.action === "LIST")).toBe(true);
 
     expect(clientRoleHasPermission("CLIENT_ADMIN", "AUDIT_EVENT", "READ")).toBe(true);
@@ -381,6 +418,9 @@ describe("client role permissions", () => {
       expect(clientRoleHasPermission(role, "VIDEO_CAMPAIGN_DRAFT", "READ")).toBe(true);
       expect(clientRoleHasPermission(role, "VIDEO_CAMPAIGN_DRAFT", "LIST")).toBe(true);
       expect(clientRoleHasPermission(role, "VIDEO_CAMPAIGN_DRAFT", "APPLY_PAUSED")).toBe(false);
+      expect(clientRoleHasPermission(role, "SHOPPING_CAMPAIGN_DRAFT", "READ")).toBe(true);
+      expect(clientRoleHasPermission(role, "SHOPPING_CAMPAIGN_DRAFT", "LIST")).toBe(true);
+      expect(clientRoleHasPermission(role, "SHOPPING_CAMPAIGN_DRAFT", "APPLY_PAUSED")).toBe(false);
     }
   });
 });

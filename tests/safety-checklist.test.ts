@@ -9,14 +9,15 @@ const schema = readFileSync(resolve(process.cwd(), "prisma/schema.prisma"), "utf
 const envExample = readFileSync(resolve(process.cwd(), ".env.example"), "utf8");
 const gitignore = readFileSync(resolve(process.cwd(), ".gitignore"), "utf8");
 
-describe("P4 Video safety checklist", () => {
-  it("keeps Search, Display, Performance Max, Demand Gen, and Video create implemented and never enables spend", () => {
+describe("P5 Shopping safety checklist", () => {
+  it("keeps Search, Display, Performance Max, Demand Gen, Video, and Shopping create implemented and never enables spend", () => {
     expect(IMPLEMENTED_CAMPAIGN_OP_KINDS).toEqual([
       "SEARCH_CREATE",
       "DISPLAY_CREATE",
       "PMAX_CREATE",
       "DEMAND_GEN_CREATE",
       "VIDEO_CREATE",
+      "SHOPPING_CREATE",
     ]);
     expect(CONFIRM_PAUSED_PHRASE).toBe("CREATE PAUSED");
     expect(() => assertPausedOnly("ENABLED")).toThrow(/enable path/);
@@ -57,6 +58,16 @@ describe("P4 Video safety checklist", () => {
     expect(schema).toContain("model VideoAudienceDraft");
     expect(schema).toContain("inStream");
     expect(schema).toContain("MANUAL_CPV");
+    expect(schema).not.toMatch(/\bJson\b/);
+  });
+
+  it("stores Shopping drafts as TEXT children with product groups and listings", () => {
+    expect(schema).toContain("model ShoppingCampaignDraft");
+    expect(schema).toContain("model ShoppingAdGroupDraft");
+    expect(schema).toContain("model ShoppingProductGroupDraft");
+    expect(schema).toContain("model ShoppingListingDraft");
+    expect(schema).toContain("merchantCenterId");
+    expect(schema).toContain("ALL_PRODUCTS");
     expect(schema).not.toMatch(/\bJson\b/);
   });
 
