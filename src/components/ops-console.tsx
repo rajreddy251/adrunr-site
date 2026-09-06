@@ -9,6 +9,9 @@ import { PmaxWizard, type PmaxWizardHandle } from "@/components/pmax-wizard";
 import { SearchAssistant } from "@/components/search-assistant";
 import { SearchWizard, type SearchWizardHandle } from "@/components/search-wizard";
 import { AppWizard, type AppWizardHandle } from "@/components/app-wizard";
+import { HotelWizard, type HotelWizardHandle } from "@/components/hotel-wizard";
+import { LocalServicesWizard, type LocalServicesWizardHandle } from "@/components/local-services-wizard";
+import { LocalWizard, type LocalWizardHandle } from "@/components/local-wizard";
 import { ShoppingWizard, type ShoppingWizardHandle } from "@/components/shopping-wizard";
 import { VideoWizard, type VideoWizardHandle } from "@/components/video-wizard";
 import { SAFETY_COPY } from "@/lib/safety";
@@ -145,8 +148,8 @@ export function OpsConsole() {
           <p className="font-mono text-xs uppercase tracking-[0.2em] text-lime-400">Adrunr · ads ops</p>
           <h1 className="mt-1 text-3xl font-medium text-white">Campaign tools, not autopilot.</h1>
           <p className="mt-2 max-w-2xl text-sm text-moss-400">
-            Provider-agnostic foundation (Schema v1.10). Google Ads Search + Display + Performance Max
-            + Demand Gen + Video + Shopping + App wizards + fill-first assistant; other providers are seeded stubs. MCC{" "}
+            Provider-agnostic foundation (Schema v1.11). Google Ads Search + Display + Performance Max
+            + Demand Gen + Video + Shopping + App + Hotel + Local + Local Services wizards + fill-first assistant; other providers are seeded stubs. MCC{" "}
             <span className="font-mono text-moss-300">{PLATFORM_MCC_DISPLAY}</span> · GCP{" "}
             <span className="font-mono text-moss-300">adrunr-ads-ops</span> · Neon + Prisma
           </p>
@@ -385,7 +388,7 @@ export function OpsConsole() {
       </section>
 
       <footer className="pb-8 text-xs text-moss-500">
-        Adrunr · Schema v1.10 · Neon Postgres + Prisma · encrypted OAuth columns · no file tokens · no
+        Adrunr · Schema v1.11 · Neon Postgres + Prisma · encrypted OAuth columns · no file tokens · no
         JSONB · no spend/enable path
       </footer>
     </div>
@@ -409,6 +412,9 @@ function SearchWorkspace({
   const videoRef = useRef<VideoWizardHandle>(null);
   const shoppingRef = useRef<ShoppingWizardHandle>(null);
   const appRef = useRef<AppWizardHandle>(null);
+  const hotelRef = useRef<HotelWizardHandle>(null);
+  const localRef = useRef<LocalWizardHandle>(null);
+  const localServicesRef = useRef<LocalServicesWizardHandle>(null);
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap gap-2" role="tablist" aria-label="Campaign type">
@@ -496,6 +502,42 @@ function SearchWorkspace({
         >
           App
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={kind === "HOTEL"}
+          data-testid="ops-kind-hotel"
+          onClick={() => setKind("HOTEL")}
+          className={`rounded-full px-4 py-1.5 font-mono text-xs ${
+            kind === "HOTEL" ? "bg-lime-400 text-ink-950" : "border border-ink-700 text-moss-400"
+          }`}
+        >
+          Hotel
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={kind === "LOCAL"}
+          data-testid="ops-kind-local"
+          onClick={() => setKind("LOCAL")}
+          className={`rounded-full px-4 py-1.5 font-mono text-xs ${
+            kind === "LOCAL" ? "bg-lime-400 text-ink-950" : "border border-ink-700 text-moss-400"
+          }`}
+        >
+          Local
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={kind === "LOCAL_SERVICES"}
+          data-testid="ops-kind-local-services"
+          onClick={() => setKind("LOCAL_SERVICES")}
+          className={`rounded-full px-4 py-1.5 font-mono text-xs ${
+            kind === "LOCAL_SERVICES" ? "bg-lime-400 text-ink-950" : "border border-ink-700 text-moss-400"
+          }`}
+        >
+          Local Services
+        </button>
       </div>
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)]">
         {kind === "SEARCH" ? (
@@ -528,10 +570,25 @@ function SearchWorkspace({
             <ShoppingWizard ref={shoppingRef} accounts={accounts} connected={connected} onFinished={onFinished} />
             <SearchAssistant wizard={shoppingRef} connected={connected} kind="SHOPPING" />
           </>
-        ) : (
+        ) : kind === "APP" ? (
           <>
             <AppWizard ref={appRef} accounts={accounts} connected={connected} onFinished={onFinished} />
             <SearchAssistant wizard={appRef} connected={connected} kind="APP" />
+          </>
+        ) : kind === "HOTEL" ? (
+          <>
+            <HotelWizard ref={hotelRef} accounts={accounts} connected={connected} onFinished={onFinished} />
+            <SearchAssistant wizard={hotelRef} connected={connected} kind="HOTEL" />
+          </>
+        ) : kind === "LOCAL" ? (
+          <>
+            <LocalWizard ref={localRef} accounts={accounts} connected={connected} onFinished={onFinished} />
+            <SearchAssistant wizard={localRef} connected={connected} kind="LOCAL" />
+          </>
+        ) : (
+          <>
+            <LocalServicesWizard ref={localServicesRef} accounts={accounts} connected={connected} onFinished={onFinished} />
+            <SearchAssistant wizard={localServicesRef} connected={connected} kind="LOCAL_SERVICES" />
           </>
         )}
       </div>

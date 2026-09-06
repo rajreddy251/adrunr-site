@@ -448,7 +448,148 @@ export type AppDraftClientView = {
   }>;
 };
 
-export type AssistantCampaignKind = "SEARCH" | "DISPLAY" | "PMAX" | "DEMAND_GEN" | "VIDEO" | "SHOPPING" | "APP";
+export type HotelDraftClientView = {
+  id: string;
+  customerId: string;
+  externalAccountId: string;
+  name: string;
+  dailyBudgetMicros: string;
+  biddingStrategy: string;
+  hotelCenterId: string | null;
+  percentCpcCeilingMicros: string | null;
+  commissionRateText: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  statusDraft: string;
+  googleCampaignResourceName: string | null;
+  campaignOpId: string | null;
+  notesText: string | null;
+  createdAt: string;
+  updatedAt: string;
+  adGroups: Array<{
+    id: string;
+    name: string;
+    defaultBidMicros: string;
+    sortOrder: number;
+    googleAdGroupResourceName: string | null;
+    listings: Array<{
+      id: string;
+      kind: string;
+      valueText: string;
+      hotelIdText: string;
+      included: boolean;
+      sortOrder: number;
+    }>;
+  }>;
+  targets: Array<{
+    id: string;
+    type: string;
+    valueText: string;
+    criterionText: string;
+    included: boolean;
+  }>;
+};
+
+export type LocalDraftClientView = {
+  id: string;
+  customerId: string;
+  externalAccountId: string;
+  name: string;
+  dailyBudgetMicros: string;
+  biddingStrategy: string;
+  goal: string;
+  targetCpaMicros: string | null;
+  targetRoasText: string | null;
+  businessName: string | null;
+  finalUrl: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  statusDraft: string;
+  googleCampaignResourceName: string | null;
+  campaignOpId: string | null;
+  notesText: string | null;
+  createdAt: string;
+  updatedAt: string;
+  locations: Array<{
+    id: string;
+    kind: string;
+    valueText: string;
+    placeIdText: string;
+    addressText: string;
+    included: boolean;
+    sortOrder: number;
+  }>;
+  adGroups: Array<{
+    id: string;
+    name: string;
+    defaultBidMicros: string;
+    sortOrder: number;
+    googleAdGroupResourceName: string | null;
+    ads: Array<{
+      id: string;
+      headlines: string[];
+      descriptions: string[];
+      finalUrl: string;
+      googleAdResourceName: string | null;
+    }>;
+  }>;
+  targets: Array<{
+    id: string;
+    type: string;
+    valueText: string;
+    criterionText: string;
+    included: boolean;
+  }>;
+};
+
+export type LocalServicesDraftClientView = {
+  id: string;
+  customerId: string;
+  externalAccountId: string;
+  name: string;
+  dailyBudgetMicros: string;
+  biddingStrategy: string;
+  maxLeadBidMicros: string | null;
+  businessName: string | null;
+  licenseText: string | null;
+  insuranceText: string | null;
+  googleGuaranteed: boolean;
+  startDate: string | null;
+  endDate: string | null;
+  statusDraft: string;
+  googleCampaignResourceName: string | null;
+  campaignOpId: string | null;
+  notesText: string | null;
+  createdAt: string;
+  updatedAt: string;
+  categories: Array<{
+    id: string;
+    kind: string;
+    categoryId: string;
+    valueText: string;
+    included: boolean;
+    sortOrder: number;
+  }>;
+  targets: Array<{
+    id: string;
+    type: string;
+    valueText: string;
+    criterionText: string;
+    included: boolean;
+  }>;
+};
+
+export type AssistantCampaignKind =
+  | "SEARCH"
+  | "DISPLAY"
+  | "PMAX"
+  | "DEMAND_GEN"
+  | "VIDEO"
+  | "SHOPPING"
+  | "APP"
+  | "HOTEL"
+  | "LOCAL"
+  | "LOCAL_SERVICES";
 
 export type AssistantMessageView = {
   id: string;
@@ -470,6 +611,9 @@ export type AssistantThreadView = {
   videoDraftId: string | null;
   shoppingDraftId: string | null;
   appDraftId: string | null;
+  hotelDraftId: string | null;
+  localDraftId: string | null;
+  localServicesDraftId: string | null;
   kind: AssistantCampaignKind;
   createdById: string;
   title: string | null;

@@ -13,6 +13,9 @@ export const CAMPAIGN_OP_KINDS = [
   "VIDEO_CREATE",
   "SHOPPING_CREATE",
   "APP_CREATE",
+  "HOTEL_CREATE",
+  "LOCAL_CREATE",
+  "LOCAL_SERVICES_CREATE",
 ] as const;
 
 export type CampaignOpKindValue = (typeof CAMPAIGN_OP_KINDS)[number];
@@ -25,6 +28,9 @@ export const IMPLEMENTED_CAMPAIGN_OP_KINDS = [
   "VIDEO_CREATE",
   "SHOPPING_CREATE",
   "APP_CREATE",
+  "HOTEL_CREATE",
+  "LOCAL_CREATE",
+  "LOCAL_SERVICES_CREATE",
 ] as const;
 
 export type CampaignCreateInput = {
@@ -116,16 +122,52 @@ export function resolveCampaignOpKind(kind: unknown): CampaignOpKindValue {
       },
     );
   }
+  if (value === "HOTEL_CREATE") {
+    throw Object.assign(
+      new Error("HOTEL_CREATE uses the Hotel draft APIs, not the Phase 1 Search shell."),
+      {
+        status: 400,
+        info: {
+          kind: "validation",
+          hint: "POST /api/ads/hotel/drafts then validate / apply. POST /api/ads/campaigns stays SEARCH_CREATE.",
+        },
+      },
+    );
+  }
+  if (value === "LOCAL_CREATE") {
+    throw Object.assign(
+      new Error("LOCAL_CREATE uses the Local draft APIs, not the Phase 1 Search shell."),
+      {
+        status: 400,
+        info: {
+          kind: "validation",
+          hint: "POST /api/ads/local/drafts then validate / apply. POST /api/ads/campaigns stays SEARCH_CREATE.",
+        },
+      },
+    );
+  }
+  if (value === "LOCAL_SERVICES_CREATE") {
+    throw Object.assign(
+      new Error("LOCAL_SERVICES_CREATE uses the Local Services draft APIs, not the Phase 1 Search shell."),
+      {
+        status: 400,
+        info: {
+          kind: "validation",
+          hint: "POST /api/ads/local-services/drafts then validate / apply. POST /api/ads/campaigns stays SEARCH_CREATE.",
+        },
+      },
+    );
+  }
   if (value !== "SEARCH_CREATE") {
     throw Object.assign(
       new Error(
-        `${value} is schema-ready but not implemented. Google Search, Display, Performance Max, Demand Gen, Video, Shopping, and App create are the live paths.`,
+        `${value} is schema-ready but not implemented. Google Search, Display, Performance Max, Demand Gen, Video, Shopping, App, Hotel, Local, and Local Services create are the live paths.`,
       ),
       {
         status: 400,
         info: {
           kind: "validation",
-          hint: "Use SEARCH_CREATE on /api/ads/campaigns, or the Display / Performance Max / Demand Gen / Video / Shopping / App wizard drafts. Other CampaignOpKind values are stubs.",
+          hint: "Use SEARCH_CREATE on /api/ads/campaigns, or the Display / Performance Max / Demand Gen / Video / Shopping / App / Hotel / Local / Local Services wizard drafts. Other CampaignOpKind values are stubs.",
         },
       },
     );

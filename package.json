@@ -2,7 +2,7 @@
   "name": "adrunr-site",
   "version": "0.1.0",
   "private": true,
-  "description": "Adrunr marketing site + ads ops console (Neon Postgres + Prisma Schema v1.10)",
+  "description": "Adrunr marketing site + ads ops console (Neon Postgres + Prisma Schema v1.11)",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

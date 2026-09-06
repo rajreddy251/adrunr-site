@@ -7,6 +7,9 @@ import {
   diffDemandGenDraftFields,
   diffDisplayDraftFields,
   diffDraftFields,
+  diffHotelDraftFields,
+  diffLocalDraftFields,
+  diffLocalServicesDraftFields,
   diffPmaxDraftFields,
   diffAppDraftFields,
   diffShoppingDraftFields,
@@ -58,6 +61,27 @@ import {
   patchAppDraft,
   type AppDraftView,
 } from "./app-ops";
+import {
+  createHotelDraft,
+  getHotelDraft,
+  hotelDraftViewToTree,
+  patchHotelDraft,
+  type HotelDraftView,
+} from "./hotel-ops";
+import {
+  createLocalDraft,
+  getLocalDraft,
+  localDraftViewToTree,
+  patchLocalDraft,
+  type LocalDraftView,
+} from "./local-ops";
+import {
+  createLocalServicesDraft,
+  getLocalServicesDraft,
+  localServicesDraftViewToTree,
+  patchLocalServicesDraft,
+  type LocalServicesDraftView,
+} from "./local-services-ops";
 import { prisma } from "./prisma";
 import { GOOGLE_ADS_SLUG } from "./providers";
 import {
@@ -78,7 +102,18 @@ import type {
 
 export type AssistantTurnResult = {
   thread: AssistantThreadView;
-  draft: SearchDraftView | DisplayDraftView | PmaxDraftView | DemandGenDraftView | VideoDraftView | ShoppingDraftView | AppDraftView | null;
+  draft:
+    | SearchDraftView
+    | DisplayDraftView
+    | PmaxDraftView
+    | DemandGenDraftView
+    | VideoDraftView
+    | ShoppingDraftView
+    | AppDraftView
+    | HotelDraftView
+    | LocalDraftView
+    | LocalServicesDraftView
+    | null;
   questions: AssistantQuestion[];
   patchedFields: string[];
   source: "mock" | "llm";
@@ -93,7 +128,13 @@ function threadKind(row: {
   videoDraftId: string | null;
   shoppingDraftId: string | null;
   appDraftId: string | null;
+  hotelDraftId: string | null;
+  localDraftId: string | null;
+  localServicesDraftId: string | null;
 }): AssistantCampaignKind {
+  if (row.localServicesDraftId) return "LOCAL_SERVICES";
+  if (row.localDraftId) return "LOCAL";
+  if (row.hotelDraftId) return "HOTEL";
   if (row.appDraftId) return "APP";
   if (row.shoppingDraftId) return "SHOPPING";
   if (row.videoDraftId) return "VIDEO";
@@ -110,6 +151,9 @@ function assistantTitle(kind: AssistantCampaignKind): string {
   if (kind === "VIDEO") return "Video wizard assistant";
   if (kind === "SHOPPING") return "Shopping wizard assistant";
   if (kind === "APP") return "App wizard assistant";
+  if (kind === "HOTEL") return "Hotel wizard assistant";
+  if (kind === "LOCAL") return "Local wizard assistant";
+  if (kind === "LOCAL_SERVICES") return "Local Services wizard assistant";
   return "Search wizard assistant";
 }
 
@@ -120,6 +164,9 @@ function draftResourceType(kind: AssistantCampaignKind): string {
   if (kind === "VIDEO") return "VIDEO_CAMPAIGN_DRAFT";
   if (kind === "SHOPPING") return "SHOPPING_CAMPAIGN_DRAFT";
   if (kind === "APP") return "APP_CAMPAIGN_DRAFT";
+  if (kind === "HOTEL") return "HOTEL_CAMPAIGN_DRAFT";
+  if (kind === "LOCAL") return "LOCAL_CAMPAIGN_DRAFT";
+  if (kind === "LOCAL_SERVICES") return "LOCAL_SERVICES_CAMPAIGN_DRAFT";
   return "SEARCH_CAMPAIGN_DRAFT";
 }
 
@@ -132,6 +179,9 @@ function boundDraftId(
     videoDraftId: string | null;
     shoppingDraftId: string | null;
     appDraftId: string | null;
+    hotelDraftId: string | null;
+    localDraftId: string | null;
+    localServicesDraftId: string | null;
   },
   kind: AssistantCampaignKind,
 ): string | null {
@@ -141,6 +191,9 @@ function boundDraftId(
   if (kind === "VIDEO") return row.videoDraftId;
   if (kind === "SHOPPING") return row.shoppingDraftId;
   if (kind === "APP") return row.appDraftId;
+  if (kind === "HOTEL") return row.hotelDraftId;
+  if (kind === "LOCAL") return row.localDraftId;
+  if (kind === "LOCAL_SERVICES") return row.localServicesDraftId;
   return row.draftId;
 }
 
@@ -186,7 +239,7 @@ async function loadThreadOrThrow(id: string): Promise<AssistantThreadView> {
   if (!row) {
     throw Object.assign(new Error("Assistant thread not found."), {
       status: 404,
-      info: { kind: "validation", hint: "Start a thread from the Search, Display, Performance Max, Demand Gen, Video, Shopping, or App wizard assistant." },
+      info: { kind: "validation", hint: "Start a thread from the Search, Display, Performance Max, Demand Gen, Video, Shopping, App, Hotel, Local, or Local Services wizard assistant." },
     });
   }
   return {
@@ -200,6 +253,9 @@ async function loadThreadOrThrow(id: string): Promise<AssistantThreadView> {
     videoDraftId: row.videoDraftId,
     shoppingDraftId: row.shoppingDraftId,
     appDraftId: row.appDraftId,
+    hotelDraftId: row.hotelDraftId,
+    localDraftId: row.localDraftId,
+    localServicesDraftId: row.localServicesDraftId,
     kind: threadKind(row),
     createdById: row.createdById,
     title: row.title,
@@ -289,6 +345,45 @@ async function assertDraftInScope(draftId: string, kind: AssistantCampaignKind =
     }
     return draft;
   }
+  if (kind === "HOTEL") {
+    const draft = await prisma().hotelCampaignDraft.findFirst({
+      where: { id: draftId, organizationId: ctx.org.id, clientId: ctx.client.id },
+      select: { id: true, name: true },
+    });
+    if (!draft) {
+      throw Object.assign(new Error("Hotel campaign draft not found for this client."), {
+        status: 404,
+        info: { kind: "rbac", hint: "Assistant threads cannot read another client's drafts." },
+      });
+    }
+    return draft;
+  }
+  if (kind === "LOCAL") {
+    const draft = await prisma().localCampaignDraft.findFirst({
+      where: { id: draftId, organizationId: ctx.org.id, clientId: ctx.client.id },
+      select: { id: true, name: true },
+    });
+    if (!draft) {
+      throw Object.assign(new Error("Local campaign draft not found for this client."), {
+        status: 404,
+        info: { kind: "rbac", hint: "Assistant threads cannot read another client's drafts." },
+      });
+    }
+    return draft;
+  }
+  if (kind === "LOCAL_SERVICES") {
+    const draft = await prisma().localServicesCampaignDraft.findFirst({
+      where: { id: draftId, organizationId: ctx.org.id, clientId: ctx.client.id },
+      select: { id: true, name: true },
+    });
+    if (!draft) {
+      throw Object.assign(new Error("Local Services campaign draft not found for this client."), {
+        status: 404,
+        info: { kind: "rbac", hint: "Assistant threads cannot read another client's drafts." },
+      });
+    }
+    return draft;
+  }
   const draft = await prisma().searchCampaignDraft.findFirst({
     where: { id: draftId, organizationId: ctx.org.id, clientId: ctx.client.id },
     select: { id: true, name: true },
@@ -326,7 +421,13 @@ export async function listAssistantThreads(input?: {
                   ? { shoppingDraftId: input.draftId }
                   : kind === "APP"
                     ? { appDraftId: input.draftId }
-                    : { draftId: input.draftId }
+                    : kind === "HOTEL"
+                      ? { hotelDraftId: input.draftId }
+                      : kind === "LOCAL"
+                        ? { localDraftId: input.draftId }
+                        : kind === "LOCAL_SERVICES"
+                          ? { localServicesDraftId: input.draftId }
+                          : { draftId: input.draftId }
         : {}),
     },
     include: { messages: { orderBy: { createdAt: "asc" } } },
@@ -344,6 +445,9 @@ export async function listAssistantThreads(input?: {
     videoDraftId: row.videoDraftId,
     shoppingDraftId: row.shoppingDraftId,
     appDraftId: row.appDraftId,
+    hotelDraftId: row.hotelDraftId,
+    localDraftId: row.localDraftId,
+    localServicesDraftId: row.localServicesDraftId,
     kind: threadKind(row),
     createdById: row.createdById,
     title: row.title,
@@ -377,6 +481,9 @@ export async function createAssistantThread(input: {
       videoDraftId: kind === "VIDEO" ? input.draftId ?? null : null,
       shoppingDraftId: kind === "SHOPPING" ? input.draftId ?? null : null,
       appDraftId: kind === "APP" ? input.draftId ?? null : null,
+      hotelDraftId: kind === "HOTEL" ? input.draftId ?? null : null,
+      localDraftId: kind === "LOCAL" ? input.draftId ?? null : null,
+      localServicesDraftId: kind === "LOCAL_SERVICES" ? input.draftId ?? null : null,
       createdById: ctx.user.id,
       title: input.title?.trim() || assistantTitle(kind),
     },
@@ -456,7 +563,7 @@ export async function buildAssistantContextPack(input: {
   const ctx = await requireScopedContext();
   const provider = await requireProvider(GOOGLE_ADS_SLUG);
   const kind = input.kind ?? "SEARCH";
-  const [accounts, entities, searchDrafts, displayDrafts, pmaxDrafts, demandGenDrafts, videoDrafts, shoppingDrafts, appDrafts, memory, thread] = await Promise.all([
+  const [accounts, entities, searchDrafts, displayDrafts, pmaxDrafts, demandGenDrafts, videoDrafts, shoppingDrafts, appDrafts, hotelDrafts, localDrafts, localServicesDrafts, memory, thread] = await Promise.all([
     prisma().externalAccount.findMany({
       where: { organizationId: ctx.org.id, clientId: ctx.client.id, providerId: provider.id },
       orderBy: { updatedAt: "desc" },
@@ -503,6 +610,21 @@ export async function buildAssistantContextPack(input: {
       take: 20,
     }),
     prisma().appCampaignDraft.findMany({
+      where: { organizationId: ctx.org.id, clientId: ctx.client.id },
+      orderBy: { updatedAt: "desc" },
+      take: 20,
+    }),
+    prisma().hotelCampaignDraft.findMany({
+      where: { organizationId: ctx.org.id, clientId: ctx.client.id },
+      orderBy: { updatedAt: "desc" },
+      take: 20,
+    }),
+    prisma().localCampaignDraft.findMany({
+      where: { organizationId: ctx.org.id, clientId: ctx.client.id },
+      orderBy: { updatedAt: "desc" },
+      take: 20,
+    }),
+    prisma().localServicesCampaignDraft.findMany({
       where: { organizationId: ctx.org.id, clientId: ctx.client.id },
       orderBy: { updatedAt: "desc" },
       take: 20,
@@ -576,6 +698,30 @@ export async function buildAssistantContextPack(input: {
       settings: draft.biddingStrategy,
       source: "app_draft" as const,
     })),
+    ...hotelDrafts.map((draft) => ({
+      name: draft.name,
+      type: "HOTEL_DRAFT",
+      status: draft.statusDraft,
+      budgetHint: draft.dailyBudgetMicros.toString(),
+      settings: draft.biddingStrategy,
+      source: "hotel_draft" as const,
+    })),
+    ...localDrafts.map((draft) => ({
+      name: draft.name,
+      type: "LOCAL_DRAFT",
+      status: draft.statusDraft,
+      budgetHint: draft.dailyBudgetMicros.toString(),
+      settings: draft.biddingStrategy,
+      source: "local_draft" as const,
+    })),
+    ...localServicesDrafts.map((draft) => ({
+      name: draft.name,
+      type: "LOCAL_SERVICES_DRAFT",
+      status: draft.statusDraft,
+      budgetHint: draft.dailyBudgetMicros.toString(),
+      settings: draft.biddingStrategy,
+      source: "local_services_draft" as const,
+    })),
   ];
 
   let draftTree: AssistantContextPack["draft"] = null;
@@ -594,7 +740,13 @@ export async function buildAssistantContextPack(input: {
                 ? shoppingDraftViewToTree(await getShoppingDraft(scoped.id))
                 : kind === "APP"
                   ? appDraftViewToTree(await getAppDraft(scoped.id))
-                  : searchDraftViewToTree(await getSearchDraft(scoped.id));
+                  : kind === "HOTEL"
+                    ? hotelDraftViewToTree(await getHotelDraft(scoped.id))
+                    : kind === "LOCAL"
+                      ? localDraftViewToTree(await getLocalDraft(scoped.id))
+                      : kind === "LOCAL_SERVICES"
+                        ? localServicesDraftViewToTree(await getLocalServicesDraft(scoped.id))
+                        : searchDraftViewToTree(await getSearchDraft(scoped.id));
   }
 
   return {
@@ -696,6 +848,37 @@ export async function runAssistantTurn(input: {
         status: "PAUSED",
       });
       draftId = created.id;
+    } else if (kind === "HOTEL") {
+      const created = await createHotelDraft({
+        customerId: input.customerId,
+        name: "Adrunr paused Hotel",
+        dailyBudgetMicros: 1_000_000,
+        biddingStrategy: "PERCENT_CPC",
+        hotelCenterId: "123456789",
+        percentCpcCeilingMicros: 2_000_000,
+        status: "PAUSED",
+      });
+      draftId = created.id;
+    } else if (kind === "LOCAL") {
+      const created = await createLocalDraft({
+        customerId: input.customerId,
+        name: "Adrunr paused Local",
+        dailyBudgetMicros: 1_000_000,
+        biddingStrategy: "MAXIMIZE_CONVERSIONS",
+        goal: "STORE_VISITS",
+        status: "PAUSED",
+      });
+      draftId = created.id;
+    } else if (kind === "LOCAL_SERVICES") {
+      const created = await createLocalServicesDraft({
+        customerId: input.customerId,
+        name: "Adrunr paused Local Services",
+        dailyBudgetMicros: 1_000_000,
+        biddingStrategy: "MANUAL_CPC",
+        maxLeadBidMicros: 2_000_000,
+        status: "PAUSED",
+      });
+      draftId = created.id;
     } else {
       const created = await createSearchDraft({
         customerId: input.customerId,
@@ -734,7 +917,13 @@ export async function runAssistantTurn(input: {
                     ? { shoppingDraftId: draftId }
                     : kind === "APP"
                       ? { appDraftId: draftId }
-                      : { draftId },
+                      : kind === "HOTEL"
+                        ? { hotelDraftId: draftId }
+                        : kind === "LOCAL"
+                          ? { localDraftId: draftId }
+                          : kind === "LOCAL_SERVICES"
+                            ? { localServicesDraftId: draftId }
+                            : { draftId },
       });
     }
     draftId = draftId ?? boundId;
@@ -769,7 +958,18 @@ export async function runAssistantTurn(input: {
       }
     : await planAssistantTurn({ message, pack });
 
-  let draft: SearchDraftView | DisplayDraftView | PmaxDraftView | DemandGenDraftView | VideoDraftView | ShoppingDraftView | AppDraftView | null = draftId
+  let draft:
+    | SearchDraftView
+    | DisplayDraftView
+    | PmaxDraftView
+    | DemandGenDraftView
+    | VideoDraftView
+    | ShoppingDraftView
+    | AppDraftView
+    | HotelDraftView
+    | LocalDraftView
+    | LocalServicesDraftView
+    | null = draftId
     ? kind === "DISPLAY"
       ? await getDisplayDraft(draftId)
       : kind === "PMAX"
@@ -782,7 +982,13 @@ export async function runAssistantTurn(input: {
               ? await getShoppingDraft(draftId)
               : kind === "APP"
                 ? await getAppDraft(draftId)
-                : await getSearchDraft(draftId)
+                : kind === "HOTEL"
+                  ? await getHotelDraft(draftId)
+                  : kind === "LOCAL"
+                    ? await getLocalDraft(draftId)
+                    : kind === "LOCAL_SERVICES"
+                      ? await getLocalServicesDraft(draftId)
+                      : await getSearchDraft(draftId)
     : null;
   let patchedFields: string[] = [];
   if (plan.update_draft_fields && draftId && !refused) {
@@ -816,6 +1022,21 @@ export async function runAssistantTurn(input: {
       draft = await patchAppDraft(draftId, plan.update_draft_fields);
       const after = appDraftViewToTree(draft);
       patchedFields = diffAppDraftFields(before, after);
+    } else if (kind === "HOTEL") {
+      const before = hotelDraftViewToTree((draft as HotelDraftView) ?? (await getHotelDraft(draftId)));
+      draft = await patchHotelDraft(draftId, plan.update_draft_fields);
+      const after = hotelDraftViewToTree(draft);
+      patchedFields = diffHotelDraftFields(before, after);
+    } else if (kind === "LOCAL") {
+      const before = localDraftViewToTree((draft as LocalDraftView) ?? (await getLocalDraft(draftId)));
+      draft = await patchLocalDraft(draftId, plan.update_draft_fields);
+      const after = localDraftViewToTree(draft);
+      patchedFields = diffLocalDraftFields(before, after);
+    } else if (kind === "LOCAL_SERVICES") {
+      const before = localServicesDraftViewToTree((draft as LocalServicesDraftView) ?? (await getLocalServicesDraft(draftId)));
+      draft = await patchLocalServicesDraft(draftId, plan.update_draft_fields);
+      const after = localServicesDraftViewToTree(draft);
+      patchedFields = diffLocalServicesDraftFields(before, after);
     } else {
       const before = searchDraftViewToTree((draft as SearchDraftView) ?? (await getSearchDraft(draftId)));
       draft = await patchSearchDraft(draftId, plan.update_draft_fields);

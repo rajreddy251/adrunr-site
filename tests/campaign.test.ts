@@ -126,6 +126,9 @@ describe("paused campaign payload", () => {
     expect(() => resolveCampaignOpKind("VIDEO_CREATE")).toThrow(/Video draft APIs/);
     expect(() => resolveCampaignOpKind("SHOPPING_CREATE")).toThrow(/Shopping draft APIs/);
     expect(() => resolveCampaignOpKind("APP_CREATE")).toThrow(/App draft APIs/);
+    expect(() => resolveCampaignOpKind("HOTEL_CREATE")).toThrow(/Hotel draft APIs/);
+    expect(() => resolveCampaignOpKind("LOCAL_CREATE")).toThrow(/Local draft APIs/);
+    expect(() => resolveCampaignOpKind("LOCAL_SERVICES_CREATE")).toThrow(/Local Services draft APIs/);
     expect(() => resolveCampaignOpKind("META_CAMPAIGN_CREATE")).toThrow(
       /schema-ready but not implemented/,
     );

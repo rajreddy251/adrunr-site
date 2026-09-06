@@ -97,7 +97,7 @@ async function main() {
     create: {
       clientId: client.id,
       key: "ops_tone",
-      value: "Prefers PAUSED Search, Display, Performance Max, Demand Gen, Video, Shopping, and App drafts. Dry-run before apply. Chat never validates or enables. Remarketing is a Display audience. PMax uses asset groups and search-theme signals. Demand Gen uses ad groups, multi-asset ads, and USER_LIST audiences. Video uses ad groups, YouTube video responsive ads, format inventory, and USER_LIST audiences. Shopping uses Merchant Center, ALL_PRODUCTS product groups, and optional listings. App uses Android / iOS app ids and INSTALLS (downloads) with TARGET_CPA.",
+      value: "Prefers PAUSED Search, Display, Performance Max, Demand Gen, Video, Shopping, App, Hotel, Local, and Local Services drafts. Dry-run before apply. Chat never validates or enables. Remarketing is a Display audience. PMax uses asset groups and search-theme signals. Demand Gen uses ad groups, multi-asset ads, and USER_LIST audiences. Video uses ad groups, YouTube video responsive ads, format inventory, and USER_LIST audiences. Shopping uses Merchant Center, ALL_PRODUCTS product groups, and optional listings. App uses Android / iOS app ids and INSTALLS (downloads) with TARGET_CPA. Hotel uses Hotel Center, percent CPC, and ALL_HOTELS listings. Local uses store visits, a business location, and one local ad. Local Services uses a PRIMARY category and a max bid per lead.",
       source: "seed",
     },
     update: {},

@@ -80,6 +80,9 @@ enum CampaignOpKind {
   VIDEO_CREATE
   SHOPPING_CREATE
   APP_CREATE
+  HOTEL_CREATE
+  LOCAL_CREATE
+  LOCAL_SERVICES_CREATE
 }
 
 enum CampaignOpStatus {
@@ -115,6 +118,9 @@ enum PermissionResource {
   VIDEO_CAMPAIGN_DRAFT
   SHOPPING_CAMPAIGN_DRAFT
   APP_CAMPAIGN_DRAFT
+  HOTEL_CAMPAIGN_DRAFT
+  LOCAL_CAMPAIGN_DRAFT
+  LOCAL_SERVICES_CAMPAIGN_DRAFT
   SYNC_JOB
   AUDIT_EVENT
   BILLING
@@ -359,6 +365,81 @@ enum AppAssetKind {
   HTML5
 }
 
+enum HotelDraftStatus {
+  DRAFT
+  VALIDATED
+  APPLIED
+  FAILED
+}
+
+enum HotelBiddingStrategy {
+  PERCENT_CPC
+  COMMISSION
+  MANUAL_CPC
+  TARGET_ROAS
+}
+
+enum HotelTargetType {
+  GEO
+  LANGUAGE
+}
+
+enum HotelListingKind {
+  ALL_HOTELS
+  UNIT
+}
+
+enum LocalDraftStatus {
+  DRAFT
+  VALIDATED
+  APPLIED
+  FAILED
+}
+
+enum LocalBiddingStrategy {
+  MAXIMIZE_CONVERSIONS
+  TARGET_CPA
+  TARGET_ROAS
+}
+
+enum LocalTargetType {
+  GEO
+  LANGUAGE
+}
+
+enum LocalGoal {
+  STORE_VISITS
+  STORE_SALES
+}
+
+enum LocalLocationKind {
+  BUSINESS_PROFILE
+  PLACE_ID
+  ADDRESS
+}
+
+enum LocalServicesDraftStatus {
+  DRAFT
+  VALIDATED
+  APPLIED
+  FAILED
+}
+
+enum LocalServicesBiddingStrategy {
+  MANUAL_CPC
+  MAXIMIZE_CONVERSIONS
+}
+
+enum LocalServicesTargetType {
+  GEO
+  LANGUAGE
+}
+
+enum LocalServicesCategoryKind {
+  PRIMARY
+  ADDITIONAL
+}
+
 enum AssistantMessageRole {
   USER
   ASSISTANT
@@ -402,6 +483,9 @@ model Organization {
   videoDrafts      VideoCampaignDraft[]
   shoppingDrafts   ShoppingCampaignDraft[]
   appDrafts        AppCampaignDraft[]
+  hotelDrafts      HotelCampaignDraft[]
+  localDrafts      LocalCampaignDraft[]
+  localServicesDrafts LocalServicesCampaignDraft[]
   syncJobs         SyncJob[]
   auditEvents      AuditEvent[]
   agentAssignments AgentClientAssignment[]
@@ -429,6 +513,9 @@ model User {
   videoDrafts       VideoCampaignDraft[]
   shoppingDrafts    ShoppingCampaignDraft[]
   appDrafts         AppCampaignDraft[]
+  hotelDrafts       HotelCampaignDraft[]
+  localDrafts       LocalCampaignDraft[]
+  localServicesDrafts LocalServicesCampaignDraft[]
   changeRequests    ChangeRequest[]
   auditEvents       AuditEvent[]
   agentAssignments  AgentClientAssignment[]
@@ -489,6 +576,9 @@ model Client {
   videoDrafts      VideoCampaignDraft[]
   shoppingDrafts   ShoppingCampaignDraft[]
   appDrafts        AppCampaignDraft[]
+  hotelDrafts      HotelCampaignDraft[]
+  localDrafts      LocalCampaignDraft[]
+  localServicesDrafts LocalServicesCampaignDraft[]
   agentAssignments AgentClientAssignment[]
   assistantThreads AssistantThread[]
   clientMemories   ClientMemory[]
@@ -618,6 +708,9 @@ model ExternalAccount {
   videoDrafts     VideoCampaignDraft[]
   shoppingDrafts  ShoppingCampaignDraft[]
   appDrafts       AppCampaignDraft[]
+  hotelDrafts     HotelCampaignDraft[]
+  localDrafts     LocalCampaignDraft[]
+  localServicesDrafts LocalServicesCampaignDraft[]
   dryRunJobs      DryRunJob[]
   syncJobs        SyncJob[]
 
@@ -672,6 +765,9 @@ model CampaignOp {
   videoCampaignDraftId       String?
   shoppingCampaignDraftId    String?
   appCampaignDraftId         String?
+  hotelCampaignDraftId       String?
+  localCampaignDraftId       String?
+  localServicesCampaignDraftId String?
   errorMessage               String?
   createdAt                  DateTime         @default(now())
   updatedAt                  DateTime         @updatedAt
@@ -690,6 +786,9 @@ model CampaignOp {
   videoCampaignDraft       VideoCampaignDraft?           @relation(fields: [videoCampaignDraftId], references: [id], onDelete: SetNull)
   shoppingCampaignDraft    ShoppingCampaignDraft?        @relation(fields: [shoppingCampaignDraftId], references: [id], onDelete: SetNull)
   appCampaignDraft         AppCampaignDraft?             @relation(fields: [appCampaignDraftId], references: [id], onDelete: SetNull)
+  hotelCampaignDraft       HotelCampaignDraft?           @relation(fields: [hotelCampaignDraftId], references: [id], onDelete: SetNull)
+  localCampaignDraft       LocalCampaignDraft?           @relation(fields: [localCampaignDraftId], references: [id], onDelete: SetNull)
+  localServicesCampaignDraft LocalServicesCampaignDraft? @relation(fields: [localServicesCampaignDraftId], references: [id], onDelete: SetNull)
   dryRunJobs               DryRunJob[]
   changeRequests           ChangeRequest[]
 
@@ -703,6 +802,9 @@ model CampaignOp {
   @@index([videoCampaignDraftId])
   @@index([shoppingCampaignDraftId])
   @@index([appCampaignDraftId])
+  @@index([hotelCampaignDraftId])
+  @@index([localCampaignDraftId])
+  @@index([localServicesCampaignDraftId])
 }
 
 model SearchCampaignDraft {
@@ -1503,6 +1605,260 @@ model AppTargetDraft {
   @@index([draftId, type])
 }
 
+model HotelCampaignDraft {
+  id                         String               @id @default(cuid())
+  organizationId             String
+  clientId                   String
+  externalAccountId          String
+  createdById                String
+  name                       String
+  dailyBudgetMicros          BigInt
+  biddingStrategy            HotelBiddingStrategy @default(PERCENT_CPC)
+  hotelCenterId              String?
+  percentCpcCeilingMicros    BigInt?
+  commissionRateText         String?
+  startDate                  String?
+  endDate                    String?
+  statusDraft                HotelDraftStatus     @default(DRAFT)
+  googleCampaignResourceName String?
+  campaignOpId               String?
+  notesText                  String?
+  createdAt                  DateTime             @default(now())
+  updatedAt                  DateTime             @updatedAt
+
+  organization     Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client           Client               @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  externalAccount  ExternalAccount      @relation(fields: [externalAccountId], references: [id], onDelete: Restrict)
+  createdBy        User                 @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  campaignOps      CampaignOp[]
+  adGroups         HotelAdGroupDraft[]
+  targets          HotelTargetDraft[]
+  assistantThreads AssistantThread[]
+
+  @@index([organizationId, statusDraft])
+  @@index([clientId])
+  @@index([externalAccountId])
+  @@index([createdById])
+}
+
+model HotelAdGroupDraft {
+  id                        String   @id @default(cuid())
+  draftId                   String
+  name                      String
+  defaultBidMicros          BigInt
+  sortOrder                 Int      @default(0)
+  googleAdGroupResourceName String?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  draft    HotelCampaignDraft   @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  listings HotelListingDraft[]
+
+  @@index([draftId, sortOrder])
+}
+
+model HotelListingDraft {
+  id             String           @id @default(cuid())
+  adGroupDraftId String
+  kind           HotelListingKind
+  valueText      String
+  hotelIdText    String
+  included       Boolean          @default(true)
+  sortOrder      Int              @default(0)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  adGroup HotelAdGroupDraft @relation(fields: [adGroupDraftId], references: [id], onDelete: Cascade)
+
+  @@index([adGroupDraftId, kind])
+}
+
+model HotelTargetDraft {
+  id            String          @id @default(cuid())
+  draftId       String
+  type          HotelTargetType
+  valueText     String
+  criterionText String
+  included      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  draft HotelCampaignDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@index([draftId, type])
+}
+
+model LocalCampaignDraft {
+  id                         String               @id @default(cuid())
+  organizationId             String
+  clientId                   String
+  externalAccountId          String
+  createdById                String
+  name                       String
+  dailyBudgetMicros          BigInt
+  biddingStrategy            LocalBiddingStrategy @default(MAXIMIZE_CONVERSIONS)
+  goal                       LocalGoal            @default(STORE_VISITS)
+  targetCpaMicros            BigInt?
+  targetRoasText             String?
+  businessName               String?
+  finalUrl                   String?
+  startDate                  String?
+  endDate                    String?
+  statusDraft                LocalDraftStatus     @default(DRAFT)
+  googleCampaignResourceName String?
+  campaignOpId               String?
+  notesText                  String?
+  createdAt                  DateTime             @default(now())
+  updatedAt                  DateTime             @updatedAt
+
+  organization     Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client           Client                 @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  externalAccount  ExternalAccount        @relation(fields: [externalAccountId], references: [id], onDelete: Restrict)
+  createdBy        User                   @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  campaignOps      CampaignOp[]
+  locations        LocalLocationDraft[]
+  adGroups         LocalAdGroupDraft[]
+  targets          LocalTargetDraft[]
+  assistantThreads AssistantThread[]
+
+  @@index([organizationId, statusDraft])
+  @@index([clientId])
+  @@index([externalAccountId])
+  @@index([createdById])
+}
+
+model LocalLocationDraft {
+  id          String            @id @default(cuid())
+  draftId     String
+  kind        LocalLocationKind
+  valueText   String
+  placeIdText String
+  addressText String
+  included    Boolean           @default(true)
+  sortOrder   Int               @default(0)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  draft LocalCampaignDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@index([draftId, kind])
+}
+
+model LocalAdGroupDraft {
+  id                        String   @id @default(cuid())
+  draftId                   String
+  name                      String
+  defaultBidMicros          BigInt
+  sortOrder                 Int      @default(0)
+  googleAdGroupResourceName String?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  draft LocalCampaignDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  ads   LocalAdDraft[]
+
+  @@index([draftId, sortOrder])
+}
+
+model LocalAdDraft {
+  id                   String   @id @default(cuid())
+  adGroupDraftId       String
+  headlinesText        String
+  descriptionsText     String
+  finalUrl             String
+  googleAdResourceName String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  adGroup LocalAdGroupDraft @relation(fields: [adGroupDraftId], references: [id], onDelete: Cascade)
+
+  @@index([adGroupDraftId])
+}
+
+model LocalTargetDraft {
+  id            String          @id @default(cuid())
+  draftId       String
+  type          LocalTargetType
+  valueText     String
+  criterionText String
+  included      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  draft LocalCampaignDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@index([draftId, type])
+}
+
+model LocalServicesCampaignDraft {
+  id                         String                       @id @default(cuid())
+  organizationId             String
+  clientId                   String
+  externalAccountId          String
+  createdById                String
+  name                       String
+  dailyBudgetMicros          BigInt
+  biddingStrategy            LocalServicesBiddingStrategy @default(MANUAL_CPC)
+  maxLeadBidMicros           BigInt?
+  businessName               String?
+  licenseText                String?
+  insuranceText              String?
+  googleGuaranteed           Boolean                      @default(false)
+  startDate                  String?
+  endDate                    String?
+  statusDraft                LocalServicesDraftStatus     @default(DRAFT)
+  googleCampaignResourceName String?
+  campaignOpId               String?
+  notesText                  String?
+  createdAt                  DateTime                     @default(now())
+  updatedAt                  DateTime                     @updatedAt
+
+  organization     Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client           Client                        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  externalAccount  ExternalAccount               @relation(fields: [externalAccountId], references: [id], onDelete: Restrict)
+  createdBy        User                          @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  campaignOps      CampaignOp[]
+  categories       LocalServicesCategoryDraft[]
+  targets          LocalServicesTargetDraft[]
+  assistantThreads AssistantThread[]
+
+  @@index([organizationId, statusDraft])
+  @@index([clientId])
+  @@index([externalAccountId])
+  @@index([createdById])
+}
+
+model LocalServicesCategoryDraft {
+  id         String                     @id @default(cuid())
+  draftId    String
+  kind       LocalServicesCategoryKind
+  categoryId String
+  valueText  String
+  included   Boolean                    @default(true)
+  sortOrder  Int                        @default(0)
+  createdAt  DateTime                   @default(now())
+  updatedAt  DateTime                   @updatedAt
+
+  draft LocalServicesCampaignDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@index([draftId, kind])
+}
+
+model LocalServicesTargetDraft {
+  id            String                  @id @default(cuid())
+  draftId       String
+  type          LocalServicesTargetType
+  valueText     String
+  criterionText String
+  included      Boolean                 @default(true)
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+
+  draft LocalServicesCampaignDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@index([draftId, type])
+}
+
 model DryRunJob {
   id                String   @id @default(cuid())
   organizationId    String
@@ -1615,6 +1971,9 @@ model AssistantThread {
   videoDraftId     String?
   shoppingDraftId  String?
   appDraftId       String?
+  hotelDraftId     String?
+  localDraftId     String?
+  localServicesDraftId String?
   createdById      String
   title          String?
   createdAt      DateTime @default(now())
@@ -1629,6 +1988,9 @@ model AssistantThread {
   videoDraft     VideoCampaignDraft?           @relation(fields: [videoDraftId], references: [id], onDelete: SetNull)
   shoppingDraft  ShoppingCampaignDraft?        @relation(fields: [shoppingDraftId], references: [id], onDelete: SetNull)
   appDraft       AppCampaignDraft?             @relation(fields: [appDraftId], references: [id], onDelete: SetNull)
+  hotelDraft     HotelCampaignDraft?           @relation(fields: [hotelDraftId], references: [id], onDelete: SetNull)
+  localDraft     LocalCampaignDraft?           @relation(fields: [localDraftId], references: [id], onDelete: SetNull)
+  localServicesDraft LocalServicesCampaignDraft? @relation(fields: [localServicesDraftId], references: [id], onDelete: SetNull)
   createdBy      User                          @relation(fields: [createdById], references: [id], onDelete: Restrict)
   messages       AssistantMessage[]
 
@@ -1640,6 +2002,9 @@ model AssistantThread {
   @@index([clientId, videoDraftId])
   @@index([clientId, shoppingDraftId])
   @@index([clientId, appDraftId])
+  @@index([clientId, hotelDraftId])
+  @@index([clientId, localDraftId])
+  @@index([clientId, localServicesDraftId])
   @@index([createdById])
 }
 
