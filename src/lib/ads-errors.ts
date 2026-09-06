@@ -6,6 +6,7 @@ export type AdsErrorKind =
   | "auth"
   | "permission"
   | "not_connected"
+  | "token_decrypt"
   | "validation"
   | "database"
   | "config"

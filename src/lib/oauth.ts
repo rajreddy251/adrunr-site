@@ -2,7 +2,7 @@ import "server-only";
 
 import { google } from "googleapis";
 
-import { decryptSecret } from "./crypto";
+import { decryptOAuthTokenFields } from "./crypto";
 import { getEnv } from "./env";
 import { loadActiveConnection, saveGoogleTokens, type TokenBundle } from "./connections";
 import { GOOGLE_OAUTH_SCOPES } from "./providers";
@@ -78,10 +78,9 @@ export async function getAccessToken(): Promise<string> {
     return "mock-access-token";
   }
 
-  const refreshPlain = decryptSecret(loaded.connection.refreshTokenEncrypted);
-  const accessPlain = loaded.connection.accessTokenEncrypted
-    ? decryptSecret(loaded.connection.accessTokenEncrypted)
-    : undefined;
+  const { refreshToken: refreshPlain, accessToken: accessPlain } = decryptOAuthTokenFields(
+    loaded.connection,
+  );
   const client = createOAuthClient();
   const refreshToken = refreshPlain.startsWith("access-only:") ? undefined : refreshPlain;
 

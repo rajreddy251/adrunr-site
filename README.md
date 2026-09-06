@@ -71,7 +71,7 @@ Open [http://localhost:3000](http://localhost:3000) (marketing) and [http://loca
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `DATABASE_URL` | **yes** | Neon Postgres connection string |
-| `TOKEN_ENCRYPTION_KEY` | production | 32-byte key (64 hex chars or base64). Mock mode may omit |
+| `TOKEN_ENCRYPTION_KEY` | production | 32-byte key (64 hex chars or base64). Encrypt and decrypt use this same env var. Keep it stable — a mismatch makes stored tokens undecryptable until you restore the key or reconnect Google Ads. Mock mode may omit |
 | `GOOGLE_CLIENT_ID` | live OAuth | OAuth web client id (GCP `adrunr-ads-ops`) |
 | `GOOGLE_CLIENT_SECRET` | live OAuth | OAuth web client secret |
 | `GOOGLE_OAUTH_REDIRECT_URI` | live OAuth | Default `http://localhost:3000/api/auth/google/callback` |
@@ -92,7 +92,7 @@ Open [http://localhost:3000](http://localhost:3000) (marketing) and [http://loca
 
 1. Create a Neon project. Copy the connection string (`sslmode=require`).
 2. Import this repo into Vercel. Framework preset: Next.js.
-3. Set Vercel env vars: `DATABASE_URL`, `TOKEN_ENCRYPTION_KEY`, Google OAuth + Ads vars, `APP_BASE_URL=https://<your-domain>`, `GOOGLE_OAUTH_REDIRECT_URI=https://<your-domain>/api/auth/google/callback`.
+3. Set Vercel env vars: `DATABASE_URL`, `TOKEN_ENCRYPTION_KEY`, Google OAuth + Ads vars, `APP_BASE_URL=https://<your-domain>`, `GOOGLE_OAUTH_REDIRECT_URI=https://<your-domain>/api/auth/google/callback`. Keep `TOKEN_ENCRYPTION_KEY` stable across environments that share the same Neon database. A new key cannot decrypt existing `accessTokenEncrypted` / `refreshTokenEncrypted` rows — restore the previous key or Disconnect + Connect Google Ads.
 4. Add the same redirect URI to the GCP OAuth web client in project `adrunr-ads-ops`.
 5. Build command can stay `next build`. Run migrations once (Vercel build command or a one-off):
 
