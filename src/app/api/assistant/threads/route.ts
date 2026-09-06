@@ -10,6 +10,7 @@ export async function GET(request: Request) {
     const threads = await listAssistantThreads({
       clientId: url.searchParams.get("clientId"),
       draftId: url.searchParams.get("draftId"),
+      kind: url.searchParams.get("kind") === "DISPLAY" ? "DISPLAY" : "SEARCH",
     });
     return Response.json({ ok: true, threads });
   } catch (error) {
@@ -23,8 +24,12 @@ export async function POST(request: Request) {
       clientId?: string;
       draftId?: string;
       title?: string;
+      kind?: "SEARCH" | "DISPLAY";
     };
-    const thread = await createAssistantThread(body);
+    const thread = await createAssistantThread({
+      ...body,
+      kind: body.kind === "DISPLAY" ? "DISPLAY" : "SEARCH",
+    });
     return Response.json({ ok: true, thread });
   } catch (error) {
     return jsonError(error);

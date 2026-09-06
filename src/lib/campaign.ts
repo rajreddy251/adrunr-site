@@ -13,7 +13,7 @@ export const CAMPAIGN_OP_KINDS = [
 
 export type CampaignOpKindValue = (typeof CAMPAIGN_OP_KINDS)[number];
 
-export const IMPLEMENTED_CAMPAIGN_OP_KINDS = ["SEARCH_CREATE"] as const;
+export const IMPLEMENTED_CAMPAIGN_OP_KINDS = ["SEARCH_CREATE", "DISPLAY_CREATE"] as const;
 
 export type CampaignCreateInput = {
   customerId: string;
@@ -32,16 +32,28 @@ export function resolveCampaignOpKind(kind: unknown): CampaignOpKindValue {
       info: { kind: "validation", hint: `Supported kinds: ${CAMPAIGN_OP_KINDS.join(", ")}.` },
     });
   }
+  if (value === "DISPLAY_CREATE") {
+    throw Object.assign(
+      new Error("DISPLAY_CREATE uses the Display draft APIs, not the Phase 1 Search shell."),
+      {
+        status: 400,
+        info: {
+          kind: "validation",
+          hint: "POST /api/ads/display/drafts then validate / apply. POST /api/ads/campaigns stays SEARCH_CREATE.",
+        },
+      },
+    );
+  }
   if (value !== "SEARCH_CREATE") {
     throw Object.assign(
       new Error(
-        `${value} is schema-ready but not implemented. Google Search create is the only live path.`,
+        `${value} is schema-ready but not implemented. Google Search and Display create are the live paths.`,
       ),
       {
         status: 400,
         info: {
           kind: "validation",
-          hint: "Use SEARCH_CREATE. Other CampaignOpKind values are stubs until a later provider path lands.",
+          hint: "Use SEARCH_CREATE on /api/ads/campaigns, or the Display wizard drafts. Other CampaignOpKind values are stubs.",
         },
       },
     );

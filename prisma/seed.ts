@@ -97,7 +97,7 @@ async function main() {
     create: {
       clientId: client.id,
       key: "ops_tone",
-      value: "Prefers PAUSED Search drafts. Dry-run before apply. Chat never validates or enables.",
+      value: "Prefers PAUSED Search and Display drafts. Dry-run before apply. Chat never validates or enables. Remarketing is a Display audience.",
       source: "seed",
     },
     update: {},

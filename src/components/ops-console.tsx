@@ -3,11 +3,18 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { DisplayWizard, type DisplayWizardHandle } from "@/components/display-wizard";
 import { SearchAssistant } from "@/components/search-assistant";
 import { SearchWizard, type SearchWizardHandle } from "@/components/search-wizard";
 import { SAFETY_COPY } from "@/lib/safety";
 import { formatCustomerId, PLATFORM_MCC_DISPLAY } from "@/lib/ids";
-import type { AdsAccountView, AuditEventView, ConnectionStatusView, ProviderView } from "@/lib/types";
+import type {
+  AdsAccountView,
+  AssistantCampaignKind,
+  AuditEventView,
+  ConnectionStatusView,
+  ProviderView,
+} from "@/lib/types";
 
 type AccountsResponse = {
   ok: boolean;
@@ -133,8 +140,8 @@ export function OpsConsole() {
           <p className="font-mono text-xs uppercase tracking-[0.2em] text-lime-400">Adrunr · ads ops</p>
           <h1 className="mt-1 text-3xl font-medium text-white">Campaign tools, not autopilot.</h1>
           <p className="mt-2 max-w-2xl text-sm text-moss-400">
-            Provider-agnostic foundation (Schema v1.4). Google Ads Search wizard + fill-first
-            assistant; other providers are seeded stubs. MCC{" "}
+            Provider-agnostic foundation (Schema v1.5). Google Ads Search + Display wizards +
+            fill-first assistant; other providers are seeded stubs. MCC{" "}
             <span className="font-mono text-moss-300">{PLATFORM_MCC_DISPLAY}</span> · GCP{" "}
             <span className="font-mono text-moss-300">adrunr-ads-ops</span> · Neon + Prisma
           </p>
@@ -373,7 +380,7 @@ export function OpsConsole() {
       </section>
 
       <footer className="pb-8 text-xs text-moss-500">
-        Adrunr · Schema v1.4 · Neon Postgres + Prisma · encrypted OAuth columns · no file tokens · no
+        Adrunr · Schema v1.5 · Neon Postgres + Prisma · encrypted OAuth columns · no file tokens · no
         JSONB · no spend/enable path
       </footer>
     </div>
@@ -389,11 +396,50 @@ function SearchWorkspace({
   connected: boolean;
   onFinished: () => Promise<void> | void;
 }) {
-  const wizardRef = useRef<SearchWizardHandle>(null);
+  const [kind, setKind] = useState<AssistantCampaignKind>("SEARCH");
+  const searchRef = useRef<SearchWizardHandle>(null);
+  const displayRef = useRef<DisplayWizardHandle>(null);
   return (
-    <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)]">
-      <SearchWizard ref={wizardRef} accounts={accounts} connected={connected} onFinished={onFinished} />
-      <SearchAssistant wizard={wizardRef} connected={connected} />
+    <section className="space-y-4">
+      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Campaign type">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={kind === "SEARCH"}
+          data-testid="ops-kind-search"
+          onClick={() => setKind("SEARCH")}
+          className={`rounded-full px-4 py-1.5 font-mono text-xs ${
+            kind === "SEARCH" ? "bg-lime-400 text-ink-950" : "border border-ink-700 text-moss-400"
+          }`}
+        >
+          Search
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={kind === "DISPLAY"}
+          data-testid="ops-kind-display"
+          onClick={() => setKind("DISPLAY")}
+          className={`rounded-full px-4 py-1.5 font-mono text-xs ${
+            kind === "DISPLAY" ? "bg-lime-400 text-ink-950" : "border border-ink-700 text-moss-400"
+          }`}
+        >
+          Display
+        </button>
+      </div>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)]">
+        {kind === "SEARCH" ? (
+          <>
+            <SearchWizard ref={searchRef} accounts={accounts} connected={connected} onFinished={onFinished} />
+            <SearchAssistant wizard={searchRef} connected={connected} kind="SEARCH" />
+          </>
+        ) : (
+          <>
+            <DisplayWizard ref={displayRef} accounts={accounts} connected={connected} onFinished={onFinished} />
+            <SearchAssistant wizard={displayRef} connected={connected} kind="DISPLAY" />
+          </>
+        )}
+      </div>
     </section>
   );
 }

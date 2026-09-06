@@ -100,6 +100,65 @@ export type SearchDraftClientView = {
   }>;
 };
 
+export type DisplayDraftClientView = {
+  id: string;
+  customerId: string;
+  externalAccountId: string;
+  name: string;
+  dailyBudgetMicros: string;
+  biddingStrategy: string;
+  enhancedCpcEnabled: boolean;
+  targetCpaMicros: string | null;
+  targetRoasText: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  statusDraft: string;
+  googleCampaignResourceName: string | null;
+  campaignOpId: string | null;
+  notesText: string | null;
+  createdAt: string;
+  updatedAt: string;
+  adGroups: Array<{
+    id: string;
+    name: string;
+    defaultBidMicros: string;
+    sortOrder: number;
+    googleAdGroupResourceName: string | null;
+    ads: Array<{
+      id: string;
+      headlines: string[];
+      longHeadline: string;
+      descriptions: string[];
+      businessName: string;
+      finalUrl: string;
+      googleAdResourceName: string | null;
+      assets: Array<{
+        id: string;
+        kind: string;
+        urlText: string;
+        assetResourceName: string | null;
+        sortOrder: number;
+      }>;
+    }>;
+  }>;
+  targets: Array<{
+    id: string;
+    type: string;
+    valueText: string;
+    criterionText: string;
+    included: boolean;
+  }>;
+  audiences: Array<{
+    id: string;
+    kind: string;
+    valueText: string;
+    criterionText: string;
+    included: boolean;
+  }>;
+};
+
+export type AssistantCampaignKind = "SEARCH" | "DISPLAY";
+
 export type AssistantMessageView = {
   id: string;
   threadId: string;
@@ -114,6 +173,8 @@ export type AssistantThreadView = {
   organizationId: string;
   clientId: string;
   draftId: string | null;
+  displayDraftId: string | null;
+  kind: AssistantCampaignKind;
   createdById: string;
   title: string | null;
   createdAt: string;

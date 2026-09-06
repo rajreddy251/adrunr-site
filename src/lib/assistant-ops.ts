@@ -4,12 +4,20 @@ import type { AssistantMessageRole } from "@prisma/client";
 
 import {
   detectForbiddenAssistantIntent,
+  diffDisplayDraftFields,
   diffDraftFields,
   type AssistantContextPack,
   type AssistantTurnPlan,
 } from "./assistant";
 import { planAssistantTurn } from "./assistant-llm";
 import { writeAudit } from "./audit";
+import {
+  createDisplayDraft,
+  displayDraftViewToTree,
+  getDisplayDraft,
+  patchDisplayDraft,
+  type DisplayDraftView,
+} from "./display-ops";
 import { prisma } from "./prisma";
 import { GOOGLE_ADS_SLUG } from "./providers";
 import {
@@ -21,6 +29,7 @@ import {
 } from "./search-ops";
 import { ensurePlatformContext, requireProvider } from "./tenant";
 import type {
+  AssistantCampaignKind,
   AssistantMessageView,
   AssistantQuestion,
   AssistantThreadView,
@@ -29,12 +38,16 @@ import type {
 
 export type AssistantTurnResult = {
   thread: AssistantThreadView;
-  draft: SearchDraftView | null;
+  draft: SearchDraftView | DisplayDraftView | null;
   questions: AssistantQuestion[];
   patchedFields: string[];
   source: "mock" | "llm";
   refusedAction: string | null;
 };
+
+function threadKind(row: { draftId: string | null; displayDraftId: string | null }): AssistantCampaignKind {
+  return row.displayDraftId ? "DISPLAY" : "SEARCH";
+}
 
 function scopedClientError(): Error {
   return Object.assign(new Error("That client is outside this tenant scope."), {
@@ -78,7 +91,7 @@ async function loadThreadOrThrow(id: string): Promise<AssistantThreadView> {
   if (!row) {
     throw Object.assign(new Error("Assistant thread not found."), {
       status: 404,
-      info: { kind: "validation", hint: "Start a thread from the Search wizard assistant." },
+      info: { kind: "validation", hint: "Start a thread from the Search or Display wizard assistant." },
     });
   }
   return {
@@ -86,6 +99,8 @@ async function loadThreadOrThrow(id: string): Promise<AssistantThreadView> {
     organizationId: row.organizationId,
     clientId: row.clientId,
     draftId: row.draftId,
+    displayDraftId: row.displayDraftId,
+    kind: threadKind(row),
     createdById: row.createdById,
     title: row.title,
     createdAt: row.createdAt.toISOString(),
@@ -94,8 +109,21 @@ async function loadThreadOrThrow(id: string): Promise<AssistantThreadView> {
   };
 }
 
-async function assertDraftInScope(draftId: string) {
+async function assertDraftInScope(draftId: string, kind: AssistantCampaignKind = "SEARCH") {
   const ctx = await requireScopedContext();
+  if (kind === "DISPLAY") {
+    const draft = await prisma().displayCampaignDraft.findFirst({
+      where: { id: draftId, organizationId: ctx.org.id, clientId: ctx.client.id },
+      select: { id: true, name: true },
+    });
+    if (!draft) {
+      throw Object.assign(new Error("Display campaign draft not found for this client."), {
+        status: 404,
+        info: { kind: "rbac", hint: "Assistant threads cannot read another client's drafts." },
+      });
+    }
+    return draft;
+  }
   const draft = await prisma().searchCampaignDraft.findFirst({
     where: { id: draftId, organizationId: ctx.org.id, clientId: ctx.client.id },
     select: { id: true, name: true },
@@ -112,13 +140,19 @@ async function assertDraftInScope(draftId: string) {
 export async function listAssistantThreads(input?: {
   draftId?: string | null;
   clientId?: string | null;
+  kind?: AssistantCampaignKind | null;
 }): Promise<AssistantThreadView[]> {
   const ctx = await requireScopedContext(input?.clientId);
+  const kind = input?.kind ?? "SEARCH";
   const rows = await prisma().assistantThread.findMany({
     where: {
       organizationId: ctx.org.id,
       clientId: ctx.client.id,
-      ...(input?.draftId ? { draftId: input.draftId } : {}),
+      ...(input?.draftId
+        ? kind === "DISPLAY"
+          ? { displayDraftId: input.draftId }
+          : { draftId: input.draftId }
+        : {}),
     },
     include: { messages: { orderBy: { createdAt: "asc" } } },
     orderBy: { updatedAt: "desc" },
@@ -129,6 +163,8 @@ export async function listAssistantThreads(input?: {
     organizationId: row.organizationId,
     clientId: row.clientId,
     draftId: row.draftId,
+    displayDraftId: row.displayDraftId,
+    kind: threadKind(row),
     createdById: row.createdById,
     title: row.title,
     createdAt: row.createdAt.toISOString(),
@@ -145,16 +181,19 @@ export async function createAssistantThread(input: {
   draftId?: string | null;
   clientId?: string | null;
   title?: string | null;
+  kind?: AssistantCampaignKind | null;
 }): Promise<AssistantThreadView> {
   const ctx = await requireScopedContext(input.clientId);
-  if (input.draftId) await assertDraftInScope(input.draftId);
+  const kind = input.kind ?? "SEARCH";
+  if (input.draftId) await assertDraftInScope(input.draftId, kind);
   const row = await prisma().assistantThread.create({
     data: {
       organizationId: ctx.org.id,
       clientId: ctx.client.id,
-      draftId: input.draftId ?? null,
+      draftId: kind === "SEARCH" ? input.draftId ?? null : null,
+      displayDraftId: kind === "DISPLAY" ? input.draftId ?? null : null,
       createdById: ctx.user.id,
-      title: input.title?.trim() || "Search wizard assistant",
+      title: input.title?.trim() || (kind === "DISPLAY" ? "Display wizard assistant" : "Search wizard assistant"),
     },
     include: { messages: true },
   });
@@ -164,7 +203,7 @@ export async function createAssistantThread(input: {
     action: "assistant.thread_created",
     resourceType: "ASSISTANT_THREAD",
     resourceId: row.id,
-    metadata: { clientId: ctx.client.id, draftId: row.draftId },
+    metadata: { clientId: ctx.client.id, draftId: input.draftId, kind },
   });
   return loadThreadOrThrow(row.id);
 }
@@ -227,10 +266,12 @@ async function upsertClientMemory(facts: AssistantTurnPlan["memory"], clientId: 
 export async function buildAssistantContextPack(input: {
   draftId?: string | null;
   threadId?: string | null;
+  kind?: AssistantCampaignKind | null;
 }): Promise<AssistantContextPack> {
   const ctx = await requireScopedContext();
   const provider = await requireProvider(GOOGLE_ADS_SLUG);
-  const [accounts, entities, drafts, memory, thread] = await Promise.all([
+  const kind = input.kind ?? "SEARCH";
+  const [accounts, entities, searchDrafts, displayDrafts, memory, thread] = await Promise.all([
     prisma().externalAccount.findMany({
       where: { organizationId: ctx.org.id, clientId: ctx.client.id, providerId: provider.id },
       orderBy: { updatedAt: "desc" },
@@ -251,6 +292,11 @@ export async function buildAssistantContextPack(input: {
       orderBy: { updatedAt: "desc" },
       take: 20,
     }),
+    prisma().displayCampaignDraft.findMany({
+      where: { organizationId: ctx.org.id, clientId: ctx.client.id },
+      orderBy: { updatedAt: "desc" },
+      take: 20,
+    }),
     listClientMemory(ctx.client.id),
     input.threadId ? loadThreadOrThrow(input.threadId) : Promise.resolve(null),
   ]);
@@ -264,7 +310,7 @@ export async function buildAssistantContextPack(input: {
       settings: entity.attributesText,
       source: "external_entity" as const,
     })),
-    ...drafts.map((draft) => ({
+    ...searchDrafts.map((draft) => ({
       name: draft.name,
       type: "SEARCH_DRAFT",
       status: draft.statusDraft,
@@ -272,15 +318,27 @@ export async function buildAssistantContextPack(input: {
       settings: draft.biddingStrategy,
       source: "search_draft" as const,
     })),
+    ...displayDrafts.map((draft) => ({
+      name: draft.name,
+      type: "DISPLAY_DRAFT",
+      status: draft.statusDraft,
+      budgetHint: draft.dailyBudgetMicros.toString(),
+      settings: draft.biddingStrategy,
+      source: "display_draft" as const,
+    })),
   ];
 
   let draftTree: AssistantContextPack["draft"] = null;
   if (input.draftId) {
-    const scoped = await assertDraftInScope(input.draftId);
-    draftTree = searchDraftViewToTree(await getSearchDraft(scoped.id));
+    const scoped = await assertDraftInScope(input.draftId, kind);
+    draftTree =
+      kind === "DISPLAY"
+        ? displayDraftViewToTree(await getDisplayDraft(scoped.id))
+        : searchDraftViewToTree(await getSearchDraft(scoped.id));
   }
 
   return {
+    kind,
     org: { id: ctx.org.id, name: ctx.org.name, slug: ctx.org.slug },
     client: { id: ctx.client.id, name: ctx.client.name, slug: ctx.client.slug },
     accounts: accounts.map((account) => ({
@@ -304,8 +362,10 @@ export async function runAssistantTurn(input: {
   draftId?: string | null;
   clientId?: string | null;
   customerId?: string | null;
+  kind?: AssistantCampaignKind | null;
 }): Promise<AssistantTurnResult> {
   const ctx = await requireScopedContext(input.clientId);
+  const kind: AssistantCampaignKind = input.kind ?? "SEARCH";
   const message = input.message.trim();
   if (!message) {
     throw Object.assign(new Error("Message is required."), {
@@ -315,39 +375,52 @@ export async function runAssistantTurn(input: {
   }
 
   let draftId = input.draftId ?? null;
-  if (draftId) await assertDraftInScope(draftId);
+  if (draftId) await assertDraftInScope(draftId, kind);
 
   if (!draftId && input.customerId) {
-    const created = await createSearchDraft({
-      customerId: input.customerId,
-      name: "Adrunr paused search",
-      dailyBudgetMicros: 1_000_000,
-      biddingStrategy: "MANUAL_CPC",
-      status: "PAUSED",
-    });
-    draftId = created.id;
+    if (kind === "DISPLAY") {
+      const created = await createDisplayDraft({
+        customerId: input.customerId,
+        name: "Adrunr paused display",
+        dailyBudgetMicros: 1_000_000,
+        biddingStrategy: "MANUAL_CPC",
+        status: "PAUSED",
+      });
+      draftId = created.id;
+    } else {
+      const created = await createSearchDraft({
+        customerId: input.customerId,
+        name: "Adrunr paused search",
+        dailyBudgetMicros: 1_000_000,
+        biddingStrategy: "MANUAL_CPC",
+        status: "PAUSED",
+      });
+      draftId = created.id;
+    }
   }
 
   let threadId = input.threadId ?? null;
   if (threadId) {
     const existing = await loadThreadOrThrow(threadId);
-    if (draftId && existing.draftId && existing.draftId !== draftId) {
+    const boundId = kind === "DISPLAY" ? existing.displayDraftId : existing.draftId;
+    if (draftId && boundId && boundId !== draftId) {
       throw Object.assign(new Error("Thread is bound to a different draft."), {
         status: 400,
         info: { kind: "validation" },
       });
     }
-    if (draftId && !existing.draftId) {
+    if (draftId && !boundId) {
       await prisma().assistantThread.update({
         where: { id: threadId },
-        data: { draftId },
+        data: kind === "DISPLAY" ? { displayDraftId: draftId } : { draftId },
       });
     }
-    draftId = draftId ?? existing.draftId;
+    draftId = draftId ?? boundId;
   } else {
     const created = await createAssistantThread({
       draftId,
-      title: "Search wizard assistant",
+      kind,
+      title: kind === "DISPLAY" ? "Display wizard assistant" : "Search wizard assistant",
     });
     threadId = created.id;
   }
@@ -355,7 +428,7 @@ export async function runAssistantTurn(input: {
   await addAssistantMessage({ threadId, content: message, role: "USER" });
 
   const refused = detectForbiddenAssistantIntent(message);
-  const pack = await buildAssistantContextPack({ draftId, threadId });
+  const pack = await buildAssistantContextPack({ draftId, threadId, kind });
   const { plan, source } = refused
     ? {
         plan: {
@@ -374,25 +447,37 @@ export async function runAssistantTurn(input: {
       }
     : await planAssistantTurn({ message, pack });
 
-  let draft: SearchDraftView | null = draftId ? await getSearchDraft(draftId) : null;
+  let draft: SearchDraftView | DisplayDraftView | null = draftId
+    ? kind === "DISPLAY"
+      ? await getDisplayDraft(draftId)
+      : await getSearchDraft(draftId)
+    : null;
   let patchedFields: string[] = [];
   if (plan.update_draft_fields && draftId && !refused) {
-    const before = searchDraftViewToTree(draft ?? (await getSearchDraft(draftId)));
-    draft = await patchSearchDraft(draftId, plan.update_draft_fields);
-    const after = searchDraftViewToTree(draft);
-    patchedFields = diffDraftFields(before, after);
+    if (kind === "DISPLAY") {
+      const before = displayDraftViewToTree((draft as DisplayDraftView) ?? (await getDisplayDraft(draftId)));
+      draft = await patchDisplayDraft(draftId, plan.update_draft_fields);
+      const after = displayDraftViewToTree(draft);
+      patchedFields = diffDisplayDraftFields(before, after);
+    } else {
+      const before = searchDraftViewToTree((draft as SearchDraftView) ?? (await getSearchDraft(draftId)));
+      draft = await patchSearchDraft(draftId, plan.update_draft_fields);
+      const after = searchDraftViewToTree(draft);
+      patchedFields = diffDraftFields(before, after);
+    }
     if (patchedFields.length) {
       await writeAudit({
         organizationId: ctx.org.id,
         actorUserId: ctx.user.id,
         action: "assistant.draft_patched",
-        resourceType: "SEARCH_CAMPAIGN_DRAFT",
+        resourceType: kind === "DISPLAY" ? "DISPLAY_CAMPAIGN_DRAFT" : "SEARCH_CAMPAIGN_DRAFT",
         resourceId: draftId,
         metadata: {
           threadId,
           fields: patchedFields,
           source,
           clientId: ctx.client.id,
+          kind,
         },
       });
     }

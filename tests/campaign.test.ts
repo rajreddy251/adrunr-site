@@ -120,6 +120,7 @@ describe("paused campaign payload", () => {
         kind: "SEARCH_CREATE",
       }).kind,
     ).toBe("SEARCH_CREATE");
+    expect(() => resolveCampaignOpKind("DISPLAY_CREATE")).toThrow(/Display draft APIs/);
     expect(() => resolveCampaignOpKind("PMAX_CREATE")).toThrow(/schema-ready but not implemented/);
     expect(() => resolveCampaignOpKind("META_CAMPAIGN_CREATE")).toThrow(
       /schema-ready but not implemented/,
