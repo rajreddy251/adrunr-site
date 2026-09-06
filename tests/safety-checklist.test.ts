@@ -9,8 +9,8 @@ const schema = readFileSync(resolve(process.cwd(), "prisma/schema.prisma"), "utf
 const envExample = readFileSync(resolve(process.cwd(), ".env.example"), "utf8");
 const gitignore = readFileSync(resolve(process.cwd(), ".gitignore"), "utf8");
 
-describe("P6 App safety checklist", () => {
-  it("keeps Search, Display, Performance Max, Demand Gen, Video, Shopping, and App create implemented and never enables spend", () => {
+describe("P7 Hotel / Local / Local Services safety checklist", () => {
+  it("keeps Search, Display, Performance Max, Demand Gen, Video, Shopping, App, Hotel, Local, and Local Services create implemented and never enables spend", () => {
     expect(IMPLEMENTED_CAMPAIGN_OP_KINDS).toEqual([
       "SEARCH_CREATE",
       "DISPLAY_CREATE",
@@ -19,6 +19,9 @@ describe("P6 App safety checklist", () => {
       "VIDEO_CREATE",
       "SHOPPING_CREATE",
       "APP_CREATE",
+      "HOTEL_CREATE",
+      "LOCAL_CREATE",
+      "LOCAL_SERVICES_CREATE",
     ]);
     expect(CONFIRM_PAUSED_PHRASE).toBe("CREATE PAUSED");
     expect(() => assertPausedOnly("ENABLED")).toThrow(/enable path/);
@@ -80,6 +83,35 @@ describe("P6 App safety checklist", () => {
     expect(schema).toContain("enum AppPlatform");
     expect(schema).toContain("INSTALLS");
     expect(schema).toContain("ANDROID");
+    expect(schema).not.toMatch(/\bJson\b/);
+  });
+
+  it("stores Hotel drafts as TEXT children with Hotel Center and ALL_HOTELS listings", () => {
+    expect(schema).toContain("model HotelCampaignDraft");
+    expect(schema).toContain("model HotelAdGroupDraft");
+    expect(schema).toContain("model HotelListingDraft");
+    expect(schema).toContain("hotelCenterId");
+    expect(schema).toContain("ALL_HOTELS");
+    expect(schema).toContain("PERCENT_CPC");
+    expect(schema).not.toMatch(/\bJson\b/);
+  });
+
+  it("stores Local drafts as TEXT children with locations, ads, and store-visit goal", () => {
+    expect(schema).toContain("model LocalCampaignDraft");
+    expect(schema).toContain("model LocalLocationDraft");
+    expect(schema).toContain("model LocalAdGroupDraft");
+    expect(schema).toContain("model LocalAdDraft");
+    expect(schema).toContain("STORE_VISITS");
+    expect(schema).toContain("PLACE_ID");
+    expect(schema).not.toMatch(/\bJson\b/);
+  });
+
+  it("stores Local Services drafts as TEXT children with PRIMARY categories and max lead bid", () => {
+    expect(schema).toContain("model LocalServicesCampaignDraft");
+    expect(schema).toContain("model LocalServicesCategoryDraft");
+    expect(schema).toContain("model LocalServicesTargetDraft");
+    expect(schema).toContain("maxLeadBidMicros");
+    expect(schema).toContain("PRIMARY");
     expect(schema).not.toMatch(/\bJson\b/);
   });
 

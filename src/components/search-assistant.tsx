@@ -7,6 +7,9 @@ import type { DisplayWizardHandle } from "@/components/display-wizard";
 import type { PmaxWizardHandle } from "@/components/pmax-wizard";
 import type { SearchWizardHandle } from "@/components/search-wizard";
 import type { AppWizardHandle } from "@/components/app-wizard";
+import type { HotelWizardHandle } from "@/components/hotel-wizard";
+import type { LocalServicesWizardHandle } from "@/components/local-services-wizard";
+import type { LocalWizardHandle } from "@/components/local-wizard";
 import type { ShoppingWizardHandle } from "@/components/shopping-wizard";
 import type { VideoWizardHandle } from "@/components/video-wizard";
 import type {
@@ -19,6 +22,9 @@ import type {
   PmaxDraftClientView,
   SearchDraftClientView,
   AppDraftClientView,
+  HotelDraftClientView,
+  LocalDraftClientView,
+  LocalServicesDraftClientView,
   ShoppingDraftClientView,
   VideoDraftClientView,
 } from "@/lib/types";
@@ -34,6 +40,9 @@ type TurnResponse = {
     | VideoDraftClientView
     | ShoppingDraftClientView
     | AppDraftClientView
+    | HotelDraftClientView
+    | LocalDraftClientView
+    | LocalServicesDraftClientView
     | null;
   questions?: AssistantQuestion[];
   patchedFields?: string[];
@@ -57,6 +66,9 @@ export function SearchAssistant({
     | VideoWizardHandle
     | ShoppingWizardHandle
     | AppWizardHandle
+    | HotelWizardHandle
+    | LocalWizardHandle
+    | LocalServicesWizardHandle
     | null
   >;
   connected: boolean;
@@ -123,7 +135,10 @@ export function SearchAssistant({
           DemandGenDraftClientView &
           VideoDraftClientView &
           ShoppingDraftClientView &
-          AppDraftClientView,
+          AppDraftClientView &
+          HotelDraftClientView &
+          LocalDraftClientView &
+          LocalServicesDraftClientView,
       );
     }
     setInput("");
@@ -146,7 +161,13 @@ export function SearchAssistant({
                   ? "shopping-assistant"
                   : kind === "APP"
                     ? "app-assistant"
-                    : "search-assistant"
+                    : kind === "HOTEL"
+                      ? "hotel-assistant"
+                      : kind === "LOCAL"
+                        ? "local-assistant"
+                        : kind === "LOCAL_SERVICES"
+                          ? "local-services-assistant"
+                          : "search-assistant"
       }
     >
       <h2 className="text-lg text-white">
@@ -162,7 +183,13 @@ export function SearchAssistant({
                   ? "Shopping"
                   : kind === "APP"
                     ? "App"
-                    : "Search"}{" "}
+                    : kind === "HOTEL"
+                      ? "Hotel"
+                      : kind === "LOCAL"
+                        ? "Local"
+                        : kind === "LOCAL_SERVICES"
+                          ? "Local Services"
+                          : "Search"}{" "}
         assistant
       </h2>
       <p className="mt-1 text-sm text-moss-400">
@@ -181,6 +208,15 @@ export function SearchAssistant({
           : ""}
         {kind === "APP"
           ? " App id + Android / iOS platforms — install / download goal. Chat cannot Validate or Apply."
+          : ""}
+        {kind === "HOTEL"
+          ? " Hotel Center + ALL_HOTELS listings — percent CPC. Chat cannot Validate or Apply."
+          : ""}
+        {kind === "LOCAL"
+          ? " Store visits + business location + one local ad. Chat cannot Validate or Apply."
+          : ""}
+        {kind === "LOCAL_SERVICES"
+          ? " Primary service category + max lead bid. Chat cannot Validate or Apply."
           : ""}
       </p>
       {source ? (

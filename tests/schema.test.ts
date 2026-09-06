@@ -49,6 +49,10 @@ const v110Migration = readFileSync(
   resolve(process.cwd(), "prisma/migrations/20260906260000_schema_v1_10/migration.sql"),
   "utf8",
 );
+const v111Migration = readFileSync(
+  resolve(process.cwd(), "prisma/migrations/20260906270000_schema_v1_11/migration.sql"),
+  "utf8",
+);
 
 describe("schema v1.2 locks", () => {
   it("does not use JSONB / Prisma Json types", () => {
@@ -110,6 +114,18 @@ describe("schema v1.2 locks", () => {
       "AppAdDraft",
       "AppAssetDraft",
       "AppTargetDraft",
+      "HotelCampaignDraft",
+      "HotelAdGroupDraft",
+      "HotelListingDraft",
+      "HotelTargetDraft",
+      "LocalCampaignDraft",
+      "LocalLocationDraft",
+      "LocalAdGroupDraft",
+      "LocalAdDraft",
+      "LocalTargetDraft",
+      "LocalServicesCampaignDraft",
+      "LocalServicesCategoryDraft",
+      "LocalServicesTargetDraft",
       "DryRunJob",
       "ChangeRequest",
       "AuditEvent",
@@ -150,6 +166,9 @@ describe("schema v1.2 locks", () => {
       "VIDEO_CREATE",
       "SHOPPING_CREATE",
       "APP_CREATE",
+      "HOTEL_CREATE",
+      "LOCAL_CREATE",
+      "LOCAL_SERVICES_CREATE",
     ]);
     for (const kind of CAMPAIGN_OP_KINDS) {
       expect(enumBlock).toContain(kind);
@@ -162,6 +181,9 @@ describe("schema v1.2 locks", () => {
       "VIDEO_CREATE",
       "SHOPPING_CREATE",
       "APP_CREATE",
+      "HOTEL_CREATE",
+      "LOCAL_CREATE",
+      "LOCAL_SERVICES_CREATE",
     ]);
   });
 
@@ -396,6 +418,61 @@ describe("schema v1.10 locks", () => {
   });
 });
 
+describe("schema v1.11 locks", () => {
+  it("adds Hotel, Local, and Local Services draft models without JSONB", () => {
+    expect(schema).toContain("enum HotelDraftStatus");
+    expect(schema).toContain("enum HotelListingKind");
+    expect(schema).toContain("enum LocalDraftStatus");
+    expect(schema).toContain("enum LocalGoal");
+    expect(schema).toContain("enum LocalLocationKind");
+    expect(schema).toContain("enum LocalServicesDraftStatus");
+    expect(schema).toContain("enum LocalServicesCategoryKind");
+    expect(schema).toContain("HOTEL_CAMPAIGN_DRAFT");
+    expect(schema).toContain("LOCAL_CAMPAIGN_DRAFT");
+    expect(schema).toContain("LOCAL_SERVICES_CAMPAIGN_DRAFT");
+    expect(schema).toContain("HOTEL_CREATE");
+    expect(schema).toContain("LOCAL_CREATE");
+    expect(schema).toContain("LOCAL_SERVICES_CREATE");
+    expect(schema).toContain("hotelCampaignDraftId");
+    expect(schema).toContain("localCampaignDraftId");
+    expect(schema).toContain("localServicesCampaignDraftId");
+    expect(schema).toContain("hotelDraftId");
+    expect(schema).toContain("localDraftId");
+    expect(schema).toContain("localServicesDraftId");
+    expect(schema).toContain("hotelCenterId");
+    expect(schema).toContain("maxLeadBidMicros");
+    expect(schema).toContain("ALL_HOTELS");
+    expect(schema).toContain("STORE_VISITS");
+    expect(schema).not.toMatch(/\bJson\b/);
+    expect(v111Migration).toContain('ALTER TYPE "PermissionResource" ADD VALUE \'HOTEL_CAMPAIGN_DRAFT\'');
+    expect(v111Migration).toContain('ALTER TYPE "PermissionResource" ADD VALUE \'LOCAL_CAMPAIGN_DRAFT\'');
+    expect(v111Migration).toContain('ALTER TYPE "PermissionResource" ADD VALUE \'LOCAL_SERVICES_CAMPAIGN_DRAFT\'');
+    expect(v111Migration).toContain('ALTER TYPE "CampaignOpKind" ADD VALUE \'HOTEL_CREATE\'');
+    expect(v111Migration).toContain('ALTER TYPE "CampaignOpKind" ADD VALUE \'LOCAL_CREATE\'');
+    expect(v111Migration).toContain('ALTER TYPE "CampaignOpKind" ADD VALUE \'LOCAL_SERVICES_CREATE\'');
+    expect(v111Migration).toContain('CREATE TABLE "HotelCampaignDraft"');
+    expect(v111Migration).toContain('CREATE TABLE "HotelAdGroupDraft"');
+    expect(v111Migration).toContain('CREATE TABLE "HotelListingDraft"');
+    expect(v111Migration).toContain('CREATE TABLE "HotelTargetDraft"');
+    expect(v111Migration).toContain('CREATE TABLE "LocalCampaignDraft"');
+    expect(v111Migration).toContain('CREATE TABLE "LocalLocationDraft"');
+    expect(v111Migration).toContain('CREATE TABLE "LocalAdGroupDraft"');
+    expect(v111Migration).toContain('CREATE TABLE "LocalAdDraft"');
+    expect(v111Migration).toContain('CREATE TABLE "LocalTargetDraft"');
+    expect(v111Migration).toContain('CREATE TABLE "LocalServicesCampaignDraft"');
+    expect(v111Migration).toContain('CREATE TABLE "LocalServicesCategoryDraft"');
+    expect(v111Migration).toContain('CREATE TABLE "LocalServicesTargetDraft"');
+    expect(v111Migration).toContain("CampaignOp_hotelCampaignDraftId_fkey");
+    expect(v111Migration).toContain("CampaignOp_localCampaignDraftId_fkey");
+    expect(v111Migration).toContain("CampaignOp_localServicesCampaignDraftId_fkey");
+    expect(v111Migration).toContain("AssistantThread_hotelDraftId_fkey");
+    expect(v111Migration).toContain("AssistantThread_localDraftId_fkey");
+    expect(v111Migration).toContain("AssistantThread_localServicesDraftId_fkey");
+    expect(v111Migration).not.toMatch(/DROP TABLE/i);
+    expect(v111Migration).not.toMatch(/jsonb/i);
+  });
+});
+
 describe("seeded provider registry", () => {
   it("includes the required slugs", () => {
     expect(SEED_PROVIDERS.map((p) => p.slug)).toEqual([
@@ -428,7 +505,7 @@ describe("role permissions", () => {
 describe("client role permissions", () => {
   it("seeds READ/LIST defaults without mutating agency RolePermission", () => {
     const rows = buildClientRolePermissionRows();
-    expect(rows).toHaveLength(56);
+    expect(rows).toHaveLength(74);
     expect(rows.every((row) => row.action === "READ" || row.action === "LIST")).toBe(true);
 
     expect(clientRoleHasPermission("CLIENT_ADMIN", "AUDIT_EVENT", "READ")).toBe(true);
@@ -463,6 +540,15 @@ describe("client role permissions", () => {
       expect(clientRoleHasPermission(role, "APP_CAMPAIGN_DRAFT", "READ")).toBe(true);
       expect(clientRoleHasPermission(role, "APP_CAMPAIGN_DRAFT", "LIST")).toBe(true);
       expect(clientRoleHasPermission(role, "APP_CAMPAIGN_DRAFT", "APPLY_PAUSED")).toBe(false);
+      expect(clientRoleHasPermission(role, "HOTEL_CAMPAIGN_DRAFT", "READ")).toBe(true);
+      expect(clientRoleHasPermission(role, "HOTEL_CAMPAIGN_DRAFT", "LIST")).toBe(true);
+      expect(clientRoleHasPermission(role, "HOTEL_CAMPAIGN_DRAFT", "APPLY_PAUSED")).toBe(false);
+      expect(clientRoleHasPermission(role, "LOCAL_CAMPAIGN_DRAFT", "READ")).toBe(true);
+      expect(clientRoleHasPermission(role, "LOCAL_CAMPAIGN_DRAFT", "LIST")).toBe(true);
+      expect(clientRoleHasPermission(role, "LOCAL_CAMPAIGN_DRAFT", "APPLY_PAUSED")).toBe(false);
+      expect(clientRoleHasPermission(role, "LOCAL_SERVICES_CAMPAIGN_DRAFT", "READ")).toBe(true);
+      expect(clientRoleHasPermission(role, "LOCAL_SERVICES_CAMPAIGN_DRAFT", "LIST")).toBe(true);
+      expect(clientRoleHasPermission(role, "LOCAL_SERVICES_CAMPAIGN_DRAFT", "APPLY_PAUSED")).toBe(false);
     }
   });
 });

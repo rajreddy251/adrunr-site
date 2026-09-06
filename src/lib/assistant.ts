@@ -48,6 +48,21 @@ import {
   parseAppDraftWrite,
   type AppDraftTree,
 } from "./app-draft";
+import {
+  DEFAULT_HOTEL_CENTER_ID,
+  parseHotelDraftWrite,
+  type HotelDraftTree,
+} from "./hotel-draft";
+import {
+  DEFAULT_LOCAL_PLACE_ID,
+  parseLocalDraftWrite,
+  type LocalDraftTree,
+} from "./local-draft";
+import {
+  DEFAULT_LSA_CATEGORY_ID,
+  parseLocalServicesDraftWrite,
+  type LocalServicesDraftTree,
+} from "./local-services-draft";
 import type { AssistantCampaignKind } from "./types";
 
 export const ASSISTANT_CAMPAIGN_KINDS = [
@@ -58,6 +73,9 @@ export const ASSISTANT_CAMPAIGN_KINDS = [
   "VIDEO",
   "SHOPPING",
   "APP",
+  "HOTEL",
+  "LOCAL",
+  "LOCAL_SERVICES",
 ] as const;
 
 export function parseAssistantCampaignKind(value: unknown): AssistantCampaignKind {
@@ -75,6 +93,9 @@ export function assistantKindLabel(kind: AssistantCampaignKind): string {
   if (kind === "VIDEO") return "Video";
   if (kind === "SHOPPING") return "Shopping";
   if (kind === "APP") return "App";
+  if (kind === "HOTEL") return "Hotel";
+  if (kind === "LOCAL") return "Local";
+  if (kind === "LOCAL_SERVICES") return "Local Services";
   return "Search";
 }
 
@@ -129,7 +150,7 @@ export type AssistantContextCampaign = {
   status: string | null;
   budgetHint: string | null;
   settings: string | null;
-  source: "external_entity" | "search_draft" | "display_draft" | "pmax_draft" | "demand_gen_draft" | "video_draft" | "shopping_draft" | "app_draft";
+  source: "external_entity" | "search_draft" | "display_draft" | "pmax_draft" | "demand_gen_draft" | "video_draft" | "shopping_draft" | "app_draft" | "hotel_draft" | "local_draft" | "local_services_draft";
 };
 
 export type AssistantContextPack = {
@@ -144,7 +165,7 @@ export type AssistantContextPack = {
     isManager: boolean;
   }>;
   campaigns: AssistantContextCampaign[];
-  draft: SearchDraftTree | DisplayDraftTree | PmaxDraftTree | DemandGenDraftTree | VideoDraftTree | ShoppingDraftTree | AppDraftTree | null;
+  draft: SearchDraftTree | DisplayDraftTree | PmaxDraftTree | DemandGenDraftTree | VideoDraftTree | ShoppingDraftTree | AppDraftTree | HotelDraftTree | LocalDraftTree | LocalServicesDraftTree | null;
   draftId: string | null;
   messages: Array<{ role: string; content: string }>;
   memory: AssistantMemoryWrite[];
@@ -307,6 +328,43 @@ export function mergeAppDraftPatch(current: AppDraftTree, patch: unknown): AppDr
     externalAccountId: raw.externalAccountId ?? current.externalAccountId,
     platforms: Array.isArray(raw.platforms) && raw.platforms.length > 0 ? raw.platforms : current.platforms,
     adGroups: Array.isArray(raw.adGroups) && raw.adGroups.length > 0 ? raw.adGroups : current.adGroups,
+    targets: Array.isArray(raw.targets) && raw.targets.length > 0 ? raw.targets : current.targets,
+  });
+}
+
+export function mergeHotelDraftPatch(current: HotelDraftTree, patch: unknown): HotelDraftTree {
+  const raw = patch && typeof patch === "object" && !Array.isArray(patch) ? (patch as Record<string, unknown>) : {};
+  return parseHotelDraftWrite({
+    ...current,
+    ...raw,
+    customerId: raw.customerId ?? current.customerId,
+    externalAccountId: raw.externalAccountId ?? current.externalAccountId,
+    adGroups: Array.isArray(raw.adGroups) && raw.adGroups.length > 0 ? raw.adGroups : current.adGroups,
+    targets: Array.isArray(raw.targets) && raw.targets.length > 0 ? raw.targets : current.targets,
+  });
+}
+
+export function mergeLocalDraftPatch(current: LocalDraftTree, patch: unknown): LocalDraftTree {
+  const raw = patch && typeof patch === "object" && !Array.isArray(patch) ? (patch as Record<string, unknown>) : {};
+  return parseLocalDraftWrite({
+    ...current,
+    ...raw,
+    customerId: raw.customerId ?? current.customerId,
+    externalAccountId: raw.externalAccountId ?? current.externalAccountId,
+    locations: Array.isArray(raw.locations) && raw.locations.length > 0 ? raw.locations : current.locations,
+    adGroups: Array.isArray(raw.adGroups) && raw.adGroups.length > 0 ? raw.adGroups : current.adGroups,
+    targets: Array.isArray(raw.targets) && raw.targets.length > 0 ? raw.targets : current.targets,
+  });
+}
+
+export function mergeLocalServicesDraftPatch(current: LocalServicesDraftTree, patch: unknown): LocalServicesDraftTree {
+  const raw = patch && typeof patch === "object" && !Array.isArray(patch) ? (patch as Record<string, unknown>) : {};
+  return parseLocalServicesDraftWrite({
+    ...current,
+    ...raw,
+    customerId: raw.customerId ?? current.customerId,
+    externalAccountId: raw.externalAccountId ?? current.externalAccountId,
+    categories: Array.isArray(raw.categories) && raw.categories.length > 0 ? raw.categories : current.categories,
     targets: Array.isArray(raw.targets) && raw.targets.length > 0 ? raw.targets : current.targets,
   });
 }
@@ -477,6 +535,75 @@ export function diffAppDraftFields(before: AppDraftTree, after: AppDraftTree): s
   return fields;
 }
 
+export function diffHotelDraftFields(before: HotelDraftTree, after: HotelDraftTree): string[] {
+  const fields: string[] = [];
+  const keys: Array<keyof HotelDraftTree> = [
+    "name",
+    "dailyBudgetMicros",
+    "biddingStrategy",
+    "hotelCenterId",
+    "percentCpcCeilingMicros",
+    "startDate",
+    "endDate",
+    "notesText",
+  ];
+  for (const key of keys) {
+    if (JSON.stringify(before[key] ?? null) !== JSON.stringify(after[key] ?? null)) {
+      fields.push(String(key));
+    }
+  }
+  if (JSON.stringify(before.adGroups) !== JSON.stringify(after.adGroups)) fields.push("adGroups");
+  if (JSON.stringify(before.targets) !== JSON.stringify(after.targets)) fields.push("targets");
+  return fields;
+}
+
+export function diffLocalDraftFields(before: LocalDraftTree, after: LocalDraftTree): string[] {
+  const fields: string[] = [];
+  const keys: Array<keyof LocalDraftTree> = [
+    "name",
+    "dailyBudgetMicros",
+    "biddingStrategy",
+    "goal",
+    "businessName",
+    "finalUrl",
+    "startDate",
+    "endDate",
+    "notesText",
+  ];
+  for (const key of keys) {
+    if (JSON.stringify(before[key] ?? null) !== JSON.stringify(after[key] ?? null)) {
+      fields.push(String(key));
+    }
+  }
+  if (JSON.stringify(before.locations) !== JSON.stringify(after.locations)) fields.push("locations");
+  if (JSON.stringify(before.adGroups) !== JSON.stringify(after.adGroups)) fields.push("adGroups");
+  if (JSON.stringify(before.targets) !== JSON.stringify(after.targets)) fields.push("targets");
+  return fields;
+}
+
+export function diffLocalServicesDraftFields(before: LocalServicesDraftTree, after: LocalServicesDraftTree): string[] {
+  const fields: string[] = [];
+  const keys: Array<keyof LocalServicesDraftTree> = [
+    "name",
+    "dailyBudgetMicros",
+    "biddingStrategy",
+    "maxLeadBidMicros",
+    "businessName",
+    "googleGuaranteed",
+    "startDate",
+    "endDate",
+    "notesText",
+  ];
+  for (const key of keys) {
+    if (JSON.stringify(before[key] ?? null) !== JSON.stringify(after[key] ?? null)) {
+      fields.push(String(key));
+    }
+  }
+  if (JSON.stringify(before.categories) !== JSON.stringify(after.categories)) fields.push("categories");
+  if (JSON.stringify(before.targets) !== JSON.stringify(after.targets)) fields.push("targets");
+  return fields;
+}
+
 export function extractUrlFromText(text: string): string | null {
   const match = text.match(/https?:\/\/[^\s)]+/i);
   if (!match) return null;
@@ -617,7 +744,7 @@ function draftLooksEmpty(draft: SearchDraftTree | null): boolean {
   return defaultish || defaultKw;
 }
 
-type AnyDraft = SearchDraftTree | DisplayDraftTree | PmaxDraftTree | DemandGenDraftTree | VideoDraftTree | ShoppingDraftTree | AppDraftTree | null;
+type AnyDraft = SearchDraftTree | DisplayDraftTree | PmaxDraftTree | DemandGenDraftTree | VideoDraftTree | ShoppingDraftTree | AppDraftTree | HotelDraftTree | LocalDraftTree | LocalServicesDraftTree | null;
 
 function isSearchDraft(draft: AnyDraft): draft is SearchDraftTree {
   return Boolean(draft && Array.isArray((draft as SearchDraftTree).adGroups?.[0]?.keywords));
@@ -648,6 +775,33 @@ function isAppDraft(draft: AnyDraft): draft is AppDraftTree {
       typeof (draft as AppDraftTree).goal === "string" &&
       !Array.isArray((draft as ShoppingDraftTree).adGroups?.[0]?.productGroups) &&
       !Array.isArray((draft as PmaxDraftTree).assetGroups),
+  );
+}
+
+function isHotelDraft(draft: AnyDraft): draft is HotelDraftTree {
+  return Boolean(
+    draft &&
+      (typeof (draft as HotelDraftTree).hotelCenterId === "string" ||
+        (draft as HotelDraftTree).hotelCenterId === null) &&
+      Array.isArray((draft as HotelDraftTree).adGroups?.[0]?.listings),
+  );
+}
+
+function isLocalDraft(draft: AnyDraft): draft is LocalDraftTree {
+  return Boolean(
+    draft &&
+      Array.isArray((draft as LocalDraftTree).locations) &&
+      typeof (draft as LocalDraftTree).goal === "string" &&
+      ((draft as LocalDraftTree).goal === "STORE_VISITS" || (draft as LocalDraftTree).goal === "STORE_SALES"),
+  );
+}
+
+function isLocalServicesDraft(draft: AnyDraft): draft is LocalServicesDraftTree {
+  return Boolean(
+    draft &&
+      Array.isArray((draft as LocalServicesDraftTree).categories) &&
+      typeof (draft as LocalServicesDraftTree).googleGuaranteed === "boolean" &&
+      !Array.isArray((draft as LocalDraftTree).locations),
   );
 }
 
@@ -747,6 +901,15 @@ export function mockAssistantTurn(input: {
   }
   if (input.pack.kind === "APP") {
     return mockAppAssistantTurn(input);
+  }
+  if (input.pack.kind === "HOTEL") {
+    return mockHotelAssistantTurn(input);
+  }
+  if (input.pack.kind === "LOCAL") {
+    return mockLocalAssistantTurn(input);
+  }
+  if (input.pack.kind === "LOCAL_SERVICES") {
+    return mockLocalServicesAssistantTurn(input);
   }
 
   const searchDraft = isSearchDraft(input.pack.draft) ? input.pack.draft : null;
@@ -1928,7 +2091,286 @@ function mockAppAssistantTurn(input: {
   };
 }
 
+function mockHotelAssistantTurn(input: {
+  message: string;
+  pack: AssistantContextPack;
+}): AssistantTurnPlan {
+  const hotelDraft = isHotelDraft(input.pack.draft) ? input.pack.draft : null;
+  const url = extractUrlFromText(input.message) ?? input.pack.memory.find((item) => item.key === "landing_url")?.value ?? null;
+  const budgetMicros =
+    extractBudgetMicros(input.message) ??
+    (input.pack.memory.find((item) => item.key === "daily_budget_micros")
+      ? Number(input.pack.memory.find((item) => item.key === "daily_budget_micros")?.value)
+      : null);
+  const brand = inferBrand(input.message, url, input.pack.memory);
+  const geo = resolveGeo(input.message, input.pack.memory);
+  const hotelCenterId =
+    input.message.match(/hotel(?:\s*center)?[:\s#]+(\d{6,})/i)?.[1] ??
+    input.pack.memory.find((item) => item.key === "hotel_center_id")?.value ??
+    hotelDraft?.hotelCenterId ??
+    DEFAULT_HOTEL_CENTER_ID;
+  const patch: Record<string, unknown> = {};
+  const questions: AssistantQuestion[] = [];
+  const memory: AssistantMemoryWrite[] = [];
+  if (url) memory.push({ key: "landing_url", value: url, source: "chat" });
+  if (brand) memory.push({ key: "brand", value: brand, source: "chat" });
+  if (budgetMicros) memory.push({ key: "daily_budget_micros", value: String(budgetMicros), source: "chat" });
+  if (geo) memory.push({ key: "geo", value: geo.valueText, source: "chat" });
+  memory.push({ key: "hotel_center_id", value: hotelCenterId, source: "chat" });
+  if (brand) patch.name = `${brand} Hotel`;
+  if (budgetMicros) patch.dailyBudgetMicros = budgetMicros;
+  patch.biddingStrategy = "PERCENT_CPC";
+  patch.hotelCenterId = hotelCenterId;
+  patch.percentCpcCeilingMicros = hotelDraft?.percentCpcCeilingMicros ?? 2_000_000;
+  const canFill = Boolean(brand || url || input.message.trim().length > 12);
+  if (canFill) {
+    patch.adGroups = [
+      {
+        name: brand ? `${brand} hotels` : "Hotel listing group 1",
+        defaultBidMicros: hotelDraft?.adGroups[0]?.defaultBidMicros ?? 1_000_000,
+        sortOrder: 0,
+        listings: [{ kind: "ALL_HOTELS", valueText: "All hotels", hotelIdText: "", included: true, sortOrder: 0 }],
+      },
+    ];
+  }
+  if (geo || !hotelDraft?.targets.length) {
+    patch.targets = [geo ?? { type: "GEO", valueText: "United States", criterionText: "geoTargetConstants/2840", included: true }];
+  }
+  if (!budgetMicros) {
+    questions.push({ id: "daily_budget", question: "Optional: what daily budget (USD) should I set?", field: "dailyBudgetMicros", optional: true });
+  }
+  if (!brand && !canFill) {
+    questions.push({ id: "brief", question: "Paste a hotel URL or a short brief (property + geo) and I will fill the Hotel draft first.", field: "notesText" });
+  }
+  const filled = Object.keys(patch);
+  const messageParts: string[] = [];
+  if (filled.length) {
+    messageParts.push(
+      `Filled the Hotel draft from your ${url ? "URL" : "brief"}: ${[
+        patch.name ? `name “${patch.name}”` : null,
+        budgetMicros ? `budget $${(budgetMicros / 1_000_000).toFixed(2)}/day` : null,
+        `Hotel Center ${hotelCenterId}`,
+        geo ? `geo ${geo.valueText}` : "geo United States (default)",
+      ]
+        .filter(Boolean)
+        .join(", ")}.`,
+    );
+    messageParts.push("The form is the source of truth — edit anything before you Validate or Create PAUSED there.");
+  } else if (!questions.length) {
+    messageParts.push("I have what I need on the draft. Tweak the form if you want polish; I will not block on it.");
+  }
+  if (questions.length) messageParts.push(questions.map((item) => item.question).join(" "));
+  return { update_draft_fields: filled.length ? patch : null, ask_questions: questions, memory, assistant_message: messageParts.join(" ") };
+}
+
+function mockLocalAssistantTurn(input: {
+  message: string;
+  pack: AssistantContextPack;
+}): AssistantTurnPlan {
+  const localDraft = isLocalDraft(input.pack.draft) ? input.pack.draft : null;
+  const url = extractUrlFromText(input.message) ?? input.pack.memory.find((item) => item.key === "landing_url")?.value ?? localDraft?.finalUrl ?? null;
+  const budgetMicros =
+    extractBudgetMicros(input.message) ??
+    (input.pack.memory.find((item) => item.key === "daily_budget_micros")
+      ? Number(input.pack.memory.find((item) => item.key === "daily_budget_micros")?.value)
+      : null);
+  const brand = inferBrand(input.message, url, input.pack.memory);
+  const geo = resolveGeo(input.message, input.pack.memory);
+  const patch: Record<string, unknown> = {};
+  const questions: AssistantQuestion[] = [];
+  const memory: AssistantMemoryWrite[] = [];
+  if (url) memory.push({ key: "landing_url", value: url, source: "chat" });
+  if (brand) memory.push({ key: "brand", value: brand, source: "chat" });
+  if (budgetMicros) memory.push({ key: "daily_budget_micros", value: String(budgetMicros), source: "chat" });
+  if (geo) memory.push({ key: "geo", value: geo.valueText, source: "chat" });
+  if (brand) patch.name = `${brand} Local`;
+  if (budgetMicros) patch.dailyBudgetMicros = budgetMicros;
+  patch.biddingStrategy = "MAXIMIZE_CONVERSIONS";
+  patch.goal = "STORE_VISITS";
+  patch.businessName = brand ?? localDraft?.businessName ?? "Adrunr Local";
+  if (url) patch.finalUrl = url;
+  const canFill = Boolean(brand || url || input.message.trim().length > 12);
+  if (canFill) {
+    patch.locations = localDraft?.locations.length
+      ? localDraft.locations
+      : [{ kind: "PLACE_ID", valueText: brand ?? "Adrunr store", placeIdText: DEFAULT_LOCAL_PLACE_ID, addressText: "1 Market St, San Francisco, CA", included: true, sortOrder: 0 }];
+    patch.adGroups = [
+      {
+        name: brand ? `${brand} store visits` : "Store visits 1",
+        defaultBidMicros: localDraft?.adGroups[0]?.defaultBidMicros ?? 1_000_000,
+        sortOrder: 0,
+        ads: [
+          {
+            headlines: [clip(`Visit ${brand ?? "us"}`, 30), "Find us nearby", "Local pickup"],
+            descriptions: [
+              clip(`Store-visit ads for ${brand ?? "your shop"} stay PAUSED until you apply from the form.`, 90),
+              "Filled from your brief. Chat cannot Validate or Create PAUSED.",
+            ],
+            finalUrl: url && url.startsWith("http") ? url : "https://adrunr.app",
+          },
+        ],
+      },
+    ];
+  }
+  if (geo || !localDraft?.targets.length) {
+    patch.targets = [geo ?? { type: "GEO", valueText: "United States", criterionText: "geoTargetConstants/2840", included: true }];
+  }
+  if (!budgetMicros) {
+    questions.push({ id: "daily_budget", question: "Optional: what daily budget (USD) should I set?", field: "dailyBudgetMicros", optional: true });
+  }
+  if (!brand && !canFill) {
+    questions.push({ id: "brief", question: "Paste a store URL or a short brief (business + geo) and I will fill the Local draft first.", field: "notesText" });
+  }
+  const filled = Object.keys(patch);
+  const messageParts: string[] = [];
+  if (filled.length) {
+    messageParts.push(
+      `Filled the Local draft from your ${url ? "URL" : "brief"}: ${[
+        patch.name ? `name “${patch.name}”` : null,
+        budgetMicros ? `budget $${(budgetMicros / 1_000_000).toFixed(2)}/day` : null,
+        "goal STORE_VISITS",
+        geo ? `geo ${geo.valueText}` : "geo United States (default)",
+      ]
+        .filter(Boolean)
+        .join(", ")}.`,
+    );
+    messageParts.push("The form is the source of truth — edit anything before you Validate or Create PAUSED there.");
+  } else if (!questions.length) {
+    messageParts.push("I have what I need on the draft. Tweak the form if you want polish; I will not block on it.");
+  }
+  if (questions.length) messageParts.push(questions.map((item) => item.question).join(" "));
+  return { update_draft_fields: filled.length ? patch : null, ask_questions: questions, memory, assistant_message: messageParts.join(" ") };
+}
+
+function mockLocalServicesAssistantTurn(input: {
+  message: string;
+  pack: AssistantContextPack;
+}): AssistantTurnPlan {
+  const lsaDraft = isLocalServicesDraft(input.pack.draft) ? input.pack.draft : null;
+  const url = extractUrlFromText(input.message) ?? input.pack.memory.find((item) => item.key === "landing_url")?.value ?? null;
+  const budgetMicros =
+    extractBudgetMicros(input.message) ??
+    (input.pack.memory.find((item) => item.key === "daily_budget_micros")
+      ? Number(input.pack.memory.find((item) => item.key === "daily_budget_micros")?.value)
+      : null);
+  const brand = inferBrand(input.message, url, input.pack.memory);
+  const geo = resolveGeo(input.message, input.pack.memory);
+  const hay = input.message.toLowerCase();
+  const category =
+    /\bplumb/.test(hay)
+      ? { categoryId: "xcat:home_services:plumber", valueText: "Plumber" }
+      : /\belectric/.test(hay)
+        ? { categoryId: "xcat:home_services:electrician", valueText: "Electrician" }
+        : /\bhvac|heating|cooling/.test(hay)
+          ? { categoryId: "xcat:home_services:hvac", valueText: "HVAC" }
+          : lsaDraft?.categories[0]
+            ? { categoryId: lsaDraft.categories[0].categoryId, valueText: lsaDraft.categories[0].valueText }
+            : { categoryId: DEFAULT_LSA_CATEGORY_ID, valueText: "Plumber" };
+  const patch: Record<string, unknown> = {};
+  const questions: AssistantQuestion[] = [];
+  const memory: AssistantMemoryWrite[] = [];
+  if (url) memory.push({ key: "landing_url", value: url, source: "chat" });
+  if (brand) memory.push({ key: "brand", value: brand, source: "chat" });
+  if (budgetMicros) memory.push({ key: "daily_budget_micros", value: String(budgetMicros), source: "chat" });
+  if (geo) memory.push({ key: "geo", value: geo.valueText, source: "chat" });
+  memory.push({ key: "lsa_category", value: category.valueText, source: "chat" });
+  if (brand) patch.name = `${brand} Local Services`;
+  if (budgetMicros) patch.dailyBudgetMicros = budgetMicros;
+  patch.biddingStrategy = "MANUAL_CPC";
+  patch.maxLeadBidMicros = lsaDraft?.maxLeadBidMicros ?? 2_000_000;
+  patch.businessName = brand ?? lsaDraft?.businessName ?? "Adrunr Local Services";
+  patch.googleGuaranteed = lsaDraft?.googleGuaranteed ?? false;
+  const canFill = Boolean(brand || url || input.message.trim().length > 12);
+  if (canFill) {
+    patch.categories = [{ kind: "PRIMARY", categoryId: category.categoryId, valueText: category.valueText, included: true, sortOrder: 0 }];
+  }
+  if (geo || !lsaDraft?.targets.length) {
+    patch.targets = [geo ?? { type: "GEO", valueText: "United States", criterionText: "geoTargetConstants/2840", included: true }];
+  }
+  if (!budgetMicros) {
+    questions.push({ id: "daily_budget", question: "Optional: what daily budget (USD) should I set?", field: "dailyBudgetMicros", optional: true });
+  }
+  if (!brand && !canFill) {
+    questions.push({ id: "brief", question: "Paste a service URL or a short brief (trade + geo) and I will fill the Local Services draft first.", field: "notesText" });
+  }
+  const filled = Object.keys(patch);
+  const messageParts: string[] = [];
+  if (filled.length) {
+    messageParts.push(
+      `Filled the Local Services draft from your ${url ? "URL" : "brief"}: ${[
+        patch.name ? `name “${patch.name}”` : null,
+        budgetMicros ? `budget $${(budgetMicros / 1_000_000).toFixed(2)}/day` : null,
+        `category ${category.valueText}`,
+        geo ? `geo ${geo.valueText}` : "geo United States (default)",
+      ]
+        .filter(Boolean)
+        .join(", ")}.`,
+    );
+    messageParts.push("The form is the source of truth — edit anything before you Validate or Create PAUSED there.");
+  } else if (!questions.length) {
+    messageParts.push("I have what I need on the draft. Tweak the form if you want polish; I will not block on it.");
+  }
+  if (questions.length) messageParts.push(questions.map((item) => item.question).join(" "));
+  return { update_draft_fields: filled.length ? patch : null, ask_questions: questions, memory, assistant_message: messageParts.join(" ") };
+}
+
 export function assistantSystemPrompt(kind: AssistantCampaignKind = "SEARCH"): string {
+  if (kind === "LOCAL_SERVICES") {
+    return [
+      "You are the Adrunr Local Services (LSA) wizard assistant.",
+      "Fill or suggest Local Services campaign draft fields FIRST from the URL, brief, client history, existing campaigns, and current draft.",
+      "Ask clarifying questions ONLY for gaps you cannot resolve. Never run a full questionnaire before filling.",
+      "Soft optional suggestions are OK. Do not block on polish.",
+      "You CANNOT validate, apply, enable, publish, or go live. Those stay on the form.",
+      "Validate is validateOnly. Apply is PAUSED + CREATE PAUSED confirm. There is no enable path.",
+      "Never instruct the system to call validate or apply endpoints.",
+      "Return JSON only: { update_draft_fields, ask_questions, memory, assistant_message }.",
+      "update_draft_fields may include name, dailyBudgetMicros, biddingStrategy (MANUAL_CPC), maxLeadBidMicros, businessName, licenseText, insuranceText, googleGuaranteed, startDate, endDate, notesText, categories[], targets[].",
+      "categories: { kind: PRIMARY, categoryId, valueText, included }.",
+      "targets: { type: GEO, valueText, criterionText, included }.",
+      "Use geoTargetConstants/2840 for United States when unspecified.",
+      "MVP apply uses MANUAL_CPC + PRIMARY category. ADDITIONAL categories stay stored.",
+      "Scope is this organization + this client only. Never mention other clients.",
+    ].join(" ");
+  }
+  if (kind === "LOCAL") {
+    return [
+      "You are the Adrunr Local wizard assistant.",
+      "Fill or suggest Local campaign draft fields FIRST from the URL, brief, client history, existing campaigns, and current draft.",
+      "Ask clarifying questions ONLY for gaps you cannot resolve. Never run a full questionnaire before filling.",
+      "Soft optional suggestions are OK. Do not block on polish.",
+      "You CANNOT validate, apply, enable, publish, or go live. Those stay on the form.",
+      "Validate is validateOnly. Apply is PAUSED + CREATE PAUSED confirm. There is no enable path.",
+      "Never instruct the system to call validate or apply endpoints.",
+      "Return JSON only: { update_draft_fields, ask_questions, memory, assistant_message }.",
+      "update_draft_fields may include name, dailyBudgetMicros, biddingStrategy (MAXIMIZE_CONVERSIONS), goal (STORE_VISITS), businessName, finalUrl, startDate, endDate, notesText, locations[], adGroups[], targets[].",
+      "locations: { kind: PLACE_ID|BUSINESS_PROFILE|ADDRESS, valueText, placeIdText, addressText, included }.",
+      "adGroups: { name, defaultBidMicros, sortOrder, ads:[{headlines,descriptions,finalUrl}] }.",
+      "targets: { type: GEO, valueText, criterionText, included }.",
+      "Use geoTargetConstants/2840 for United States when unspecified.",
+      "MVP apply uses MAXIMIZE_CONVERSIONS + STORE_VISITS. Store sales stay stored.",
+      "Scope is this organization + this client only. Never mention other clients.",
+    ].join(" ");
+  }
+  if (kind === "HOTEL") {
+    return [
+      "You are the Adrunr Hotel wizard assistant.",
+      "Fill or suggest Hotel campaign draft fields FIRST from the URL, brief, client history, existing campaigns, and current draft.",
+      "Ask clarifying questions ONLY for gaps you cannot resolve. Never run a full questionnaire before filling.",
+      "Soft optional suggestions are OK. Do not block on polish.",
+      "You CANNOT validate, apply, enable, publish, or go live. Those stay on the form.",
+      "Validate is validateOnly. Apply is PAUSED + CREATE PAUSED confirm. There is no enable path.",
+      "Never instruct the system to call validate or apply endpoints.",
+      "Hotel uses Hotel Center + ALL_HOTELS listings, not RSA creatives.",
+      "Return JSON only: { update_draft_fields, ask_questions, memory, assistant_message }.",
+      "update_draft_fields may include name, dailyBudgetMicros, biddingStrategy (PERCENT_CPC), hotelCenterId, percentCpcCeilingMicros, startDate, endDate, notesText, adGroups[], targets[].",
+      "adGroups: { name, defaultBidMicros, sortOrder, listings:[{kind,valueText,hotelIdText,included}] }.",
+      "targets: { type: GEO, valueText, criterionText, included }.",
+      "Use geoTargetConstants/2840 for United States when unspecified.",
+      "MVP apply uses PERCENT_CPC + Hotel Center + ALL_HOTELS. UNIT listings stay stored.",
+      "Scope is this organization + this client only. Never mention other clients.",
+    ].join(" ");
+  }
   if (kind === "APP") {
     return [
       "You are the Adrunr App wizard assistant.",
