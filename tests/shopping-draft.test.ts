@@ -89,7 +89,10 @@ describe("shopping draft tree", () => {
         adGroups: [
           {
             name: "Thin",
-            productGroups: [{ kind: "UNIT", valueText: "Brand Acme", dimensionText: "brand" }],
+            productGroups: [
+              { kind: "ALL_PRODUCTS", valueText: "All products", dimensionText: "" },
+              { kind: "UNIT", valueText: "Brand Acme", dimensionText: "brand" },
+            ],
           },
         ],
       }),
