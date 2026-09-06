@@ -9,8 +9,8 @@ const schema = readFileSync(resolve(process.cwd(), "prisma/schema.prisma"), "utf
 const envExample = readFileSync(resolve(process.cwd(), ".env.example"), "utf8");
 const gitignore = readFileSync(resolve(process.cwd(), ".gitignore"), "utf8");
 
-describe("P5 Shopping safety checklist", () => {
-  it("keeps Search, Display, Performance Max, Demand Gen, Video, and Shopping create implemented and never enables spend", () => {
+describe("P6 App safety checklist", () => {
+  it("keeps Search, Display, Performance Max, Demand Gen, Video, Shopping, and App create implemented and never enables spend", () => {
     expect(IMPLEMENTED_CAMPAIGN_OP_KINDS).toEqual([
       "SEARCH_CREATE",
       "DISPLAY_CREATE",
@@ -18,6 +18,7 @@ describe("P5 Shopping safety checklist", () => {
       "DEMAND_GEN_CREATE",
       "VIDEO_CREATE",
       "SHOPPING_CREATE",
+      "APP_CREATE",
     ]);
     expect(CONFIRM_PAUSED_PHRASE).toBe("CREATE PAUSED");
     expect(() => assertPausedOnly("ENABLED")).toThrow(/enable path/);
@@ -68,6 +69,17 @@ describe("P5 Shopping safety checklist", () => {
     expect(schema).toContain("model ShoppingListingDraft");
     expect(schema).toContain("merchantCenterId");
     expect(schema).toContain("ALL_PRODUCTS");
+    expect(schema).not.toMatch(/\bJson\b/);
+  });
+
+  it("stores App drafts as TEXT children with platforms, app ids, and install/download goal", () => {
+    expect(schema).toContain("model AppCampaignDraft");
+    expect(schema).toContain("model AppPlatformDraft");
+    expect(schema).toContain("model AppAdGroupDraft");
+    expect(schema).toContain("model AppAdDraft");
+    expect(schema).toContain("enum AppPlatform");
+    expect(schema).toContain("INSTALLS");
+    expect(schema).toContain("ANDROID");
     expect(schema).not.toMatch(/\bJson\b/);
   });
 

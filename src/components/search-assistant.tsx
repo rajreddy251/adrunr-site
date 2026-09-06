@@ -6,6 +6,7 @@ import type { DemandGenWizardHandle } from "@/components/demand-gen-wizard";
 import type { DisplayWizardHandle } from "@/components/display-wizard";
 import type { PmaxWizardHandle } from "@/components/pmax-wizard";
 import type { SearchWizardHandle } from "@/components/search-wizard";
+import type { AppWizardHandle } from "@/components/app-wizard";
 import type { ShoppingWizardHandle } from "@/components/shopping-wizard";
 import type { VideoWizardHandle } from "@/components/video-wizard";
 import type {
@@ -17,6 +18,7 @@ import type {
   DisplayDraftClientView,
   PmaxDraftClientView,
   SearchDraftClientView,
+  AppDraftClientView,
   ShoppingDraftClientView,
   VideoDraftClientView,
 } from "@/lib/types";
@@ -31,6 +33,7 @@ type TurnResponse = {
     | DemandGenDraftClientView
     | VideoDraftClientView
     | ShoppingDraftClientView
+    | AppDraftClientView
     | null;
   questions?: AssistantQuestion[];
   patchedFields?: string[];
@@ -53,6 +56,7 @@ export function SearchAssistant({
     | DemandGenWizardHandle
     | VideoWizardHandle
     | ShoppingWizardHandle
+    | AppWizardHandle
     | null
   >;
   connected: boolean;
@@ -118,7 +122,8 @@ export function SearchAssistant({
           PmaxDraftClientView &
           DemandGenDraftClientView &
           VideoDraftClientView &
-          ShoppingDraftClientView,
+          ShoppingDraftClientView &
+          AppDraftClientView,
       );
     }
     setInput("");
@@ -139,7 +144,9 @@ export function SearchAssistant({
                 ? "video-assistant"
                 : kind === "SHOPPING"
                   ? "shopping-assistant"
-                  : "search-assistant"
+                  : kind === "APP"
+                    ? "app-assistant"
+                    : "search-assistant"
       }
     >
       <h2 className="text-lg text-white">
@@ -153,7 +160,9 @@ export function SearchAssistant({
                 ? "Video"
                 : kind === "SHOPPING"
                   ? "Shopping"
-                  : "Search"}{" "}
+                  : kind === "APP"
+                    ? "App"
+                    : "Search"}{" "}
         assistant
       </h2>
       <p className="mt-1 text-sm text-moss-400">
@@ -169,6 +178,9 @@ export function SearchAssistant({
           : ""}
         {kind === "SHOPPING"
           ? " Merchant Center + ALL_PRODUCTS product groups — listings are optional storage only."
+          : ""}
+        {kind === "APP"
+          ? " App id + Android / iOS platforms — install / download goal. Chat cannot Validate or Apply."
           : ""}
       </p>
       {source ? (

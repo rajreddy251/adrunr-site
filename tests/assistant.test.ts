@@ -8,6 +8,7 @@ import {
   diffDraftFields,
   diffDemandGenDraftFields,
   diffPmaxDraftFields,
+  diffAppDraftFields,
   diffShoppingDraftFields,
   diffVideoDraftFields,
   extractBudgetMicros,
@@ -16,12 +17,15 @@ import {
   mergeDisplayDraftPatch,
   mergeDraftPatch,
   mergePmaxDraftPatch,
+  mergeAppDraftPatch,
   mergeShoppingDraftPatch,
   mergeVideoDraftPatch,
   mockAssistantTurn,
   parseAssistantTurnPlan,
   type AssistantContextPack,
 } from "@/lib/assistant";
+import { defaultAppDraftTree, parseAppDraftWrite } from "@/lib/app-draft";
+import { hydrateAppWizardFromDraft } from "@/lib/app-wizard-map";
 import { defaultDemandGenDraftTree, parseDemandGenDraftWrite } from "@/lib/demand-gen-draft";
 import { hydrateDemandGenWizardFromDraft } from "@/lib/demand-gen-wizard-map";
 import { defaultDisplayDraftTree, parseDisplayDraftWrite } from "@/lib/display-draft";
@@ -39,6 +43,7 @@ import type {
   DisplayDraftClientView,
   PmaxDraftClientView,
   SearchDraftClientView,
+  AppDraftClientView,
   ShoppingDraftClientView,
   VideoDraftClientView,
 } from "@/lib/types";
@@ -876,6 +881,131 @@ describe("shopping assistant fill-first", () => {
   });
 });
 
+const emptyAppPack = (
+  draft = defaultAppDraftTree({ customerId: "1234567890" }),
+): AssistantContextPack => ({
+  kind: "APP",
+  org: { id: "org", name: "Adrunr", slug: "adrunr" },
+  client: { id: "client-default", name: "Default client", slug: "default" },
+  accounts: [{ id: "acc", externalId: "1234567890", displayName: "Demo", status: "ENABLED", isManager: false }],
+  campaigns: [],
+  draft,
+  draftId: "app-1",
+  messages: [],
+  memory: [],
+});
+
+describe("app assistant fill-first", () => {
+  it("fills App draft fields from a URL before asking optional gaps", () => {
+    const plan = mockAssistantTurn({
+      message: "https://acmeboots.com/hiking",
+      pack: emptyAppPack(),
+    });
+    expect(plan.update_draft_fields).toBeTruthy();
+    expect(String(plan.update_draft_fields?.name)).toMatch(/Acmeboots/i);
+    const platforms = plan.update_draft_fields?.platforms as Array<{ platform: string; appId: string }>;
+    expect(platforms[0].platform).toBe("ANDROID");
+    expect(platforms[0].appId).toBeTruthy();
+    expect(plan.update_draft_fields?.goal).toBe("INSTALLS");
+    const required = plan.ask_questions.filter((question) => !question.optional);
+    expect(required).toHaveLength(0);
+    expect(plan.assistant_message.toLowerCase()).toMatch(/filled/);
+  });
+
+  it("refuses validate / apply / enable on App without emitting draft mutate actions", () => {
+    for (const message of ["Validate this", "Apply CREATE PAUSED", "enable and go live"]) {
+      const plan = mockAssistantTurn({ message, pack: emptyAppPack() });
+      expect(plan.update_draft_fields).toBeNull();
+      expect(plan.refusedAction).toBeTruthy();
+    }
+  });
+
+  it("merges structured patches onto the existing App draft tree", () => {
+    const current = parseAppDraftWrite({
+      customerId: "1234567890",
+      name: "Keep me",
+      dailyBudgetMicros: 1_000_000,
+      platforms: [{ platform: "ANDROID", appId: "com.adrunr.demo", included: true }],
+      adGroups: [{ name: "Existing", ads: [] }],
+    });
+    const merged = mergeAppDraftPatch(current, { name: "Patched app", dailyBudgetMicros: 5_000_000 });
+    expect(merged.name).toBe("Patched app");
+    expect(merged.dailyBudgetMicros).toBe(5_000_000);
+    expect(merged.adGroups[0].name).toBe("Existing");
+    expect(merged.platforms[0].appId).toBe("com.adrunr.demo");
+    expect(diffAppDraftFields(current, merged)).toEqual(["name", "dailyBudgetMicros"]);
+  });
+
+  it("hydrates App wizard fields from a draft view", () => {
+    const draft: AppDraftClientView = {
+      id: "d1",
+      customerId: "1234567890",
+      externalAccountId: "ea1",
+      name: "Hydrated App",
+      dailyBudgetMicros: "25000000",
+      biddingStrategy: "TARGET_CPA",
+      goal: "INSTALLS",
+      targetCpaMicros: "2000000",
+      targetRoasText: null,
+      startDate: null,
+      endDate: null,
+      statusDraft: "DRAFT",
+      googleCampaignResourceName: null,
+      campaignOpId: null,
+      notesText: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      platforms: [
+        { id: "p1", platform: "ANDROID", appId: "com.acme.fit", included: true, sortOrder: 0 },
+        { id: "p2", platform: "IOS", appId: "123456789", included: false, sortOrder: 1 },
+      ],
+      adGroups: [
+        {
+          id: "g1",
+          name: "Coffee",
+          defaultBidMicros: "2000000",
+          sortOrder: 0,
+          googleAdGroupResourceName: null,
+          ads: [
+            {
+              id: "a1",
+              headlines: ["Install now", "Download today"],
+              descriptions: ["Get the app."],
+              googleAdResourceName: null,
+              assets: [
+                {
+                  id: "as1",
+                  kind: "MARKETING_IMAGE",
+                  urlText: "https://placehold.co/1200x628/png",
+                  assetResourceName: null,
+                  sortOrder: 0,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      targets: [
+        {
+          id: "t1",
+          type: "GEO",
+          valueText: "Canada",
+          criterionText: "geoTargetConstants/2124",
+          included: true,
+        },
+      ],
+    };
+    const state = hydrateAppWizardFromDraft(draft);
+    expect(state.name).toBe("Hydrated App");
+    expect(state.budgetDollars).toBe("25.00");
+    expect(state.goal).toBe("INSTALLS");
+    expect(state.targetCpaDollars).toBe("2.00");
+    expect(state.platforms[0].appId).toBe("com.acme.fit");
+    expect(state.groups[0].ads[0].headlines[0]).toBe("Install now");
+    expect(state.targets[0].valueText).toBe("Canada");
+  });
+});
+
 describe("assistant safety source locks", () => {
   it("does not call validate or apply endpoints from assistant server modules", () => {
     const ops = readFileSync(resolve(process.cwd(), "src/lib/assistant-ops.ts"), "utf8");
@@ -891,6 +1021,7 @@ describe("assistant safety source locks", () => {
       expect(source).not.toMatch(/validateOrApplyDemandGenDraft/);
       expect(source).not.toMatch(/validateOrApplyVideoDraft/);
       expect(source).not.toMatch(/validateOrApplyShoppingDraft/);
+      expect(source).not.toMatch(/validateOrApplyAppDraft/);
       expect(source).not.toMatch(/\/api\/ads\/search\/drafts\/.+\/validate/);
       expect(source).not.toMatch(/\/api\/ads\/search\/drafts\/.+\/apply/);
       expect(source).not.toMatch(/\/api\/ads\/display\/drafts\/.+\/validate/);
@@ -903,6 +1034,8 @@ describe("assistant safety source locks", () => {
       expect(source).not.toMatch(/\/api\/ads\/video\/drafts\/.+\/apply/);
       expect(source).not.toMatch(/\/api\/ads\/shopping\/drafts\/.+\/validate/);
       expect(source).not.toMatch(/\/api\/ads\/shopping\/drafts\/.+\/apply/);
+      expect(source).not.toMatch(/\/api\/ads\/app\/drafts\/.+\/validate/);
+      expect(source).not.toMatch(/\/api\/ads\/app\/drafts\/.+\/apply/);
     }
   });
 });
