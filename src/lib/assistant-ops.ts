@@ -8,6 +8,7 @@ import {
   diffDisplayDraftFields,
   diffDraftFields,
   diffPmaxDraftFields,
+  diffShoppingDraftFields,
   diffVideoDraftFields,
   type AssistantContextPack,
   type AssistantTurnPlan,
@@ -42,6 +43,13 @@ import {
   videoDraftViewToTree,
   type VideoDraftView,
 } from "./video-ops";
+import {
+  createShoppingDraft,
+  getShoppingDraft,
+  patchShoppingDraft,
+  shoppingDraftViewToTree,
+  type ShoppingDraftView,
+} from "./shopping-ops";
 import { prisma } from "./prisma";
 import { GOOGLE_ADS_SLUG } from "./providers";
 import {
@@ -62,7 +70,7 @@ import type {
 
 export type AssistantTurnResult = {
   thread: AssistantThreadView;
-  draft: SearchDraftView | DisplayDraftView | PmaxDraftView | DemandGenDraftView | VideoDraftView | null;
+  draft: SearchDraftView | DisplayDraftView | PmaxDraftView | DemandGenDraftView | VideoDraftView | ShoppingDraftView | null;
   questions: AssistantQuestion[];
   patchedFields: string[];
   source: "mock" | "llm";
@@ -75,7 +83,9 @@ function threadKind(row: {
   pmaxDraftId: string | null;
   demandGenDraftId: string | null;
   videoDraftId: string | null;
+  shoppingDraftId: string | null;
 }): AssistantCampaignKind {
+  if (row.shoppingDraftId) return "SHOPPING";
   if (row.videoDraftId) return "VIDEO";
   if (row.demandGenDraftId) return "DEMAND_GEN";
   if (row.pmaxDraftId) return "PMAX";
@@ -88,6 +98,7 @@ function assistantTitle(kind: AssistantCampaignKind): string {
   if (kind === "PMAX") return "Performance Max wizard assistant";
   if (kind === "DEMAND_GEN") return "Demand Gen wizard assistant";
   if (kind === "VIDEO") return "Video wizard assistant";
+  if (kind === "SHOPPING") return "Shopping wizard assistant";
   return "Search wizard assistant";
 }
 
@@ -96,6 +107,7 @@ function draftResourceType(kind: AssistantCampaignKind): string {
   if (kind === "PMAX") return "PERFORMANCE_MAX_CAMPAIGN_DRAFT";
   if (kind === "DEMAND_GEN") return "DEMAND_GEN_CAMPAIGN_DRAFT";
   if (kind === "VIDEO") return "VIDEO_CAMPAIGN_DRAFT";
+  if (kind === "SHOPPING") return "SHOPPING_CAMPAIGN_DRAFT";
   return "SEARCH_CAMPAIGN_DRAFT";
 }
 
@@ -106,6 +118,7 @@ function boundDraftId(
     pmaxDraftId: string | null;
     demandGenDraftId: string | null;
     videoDraftId: string | null;
+    shoppingDraftId: string | null;
   },
   kind: AssistantCampaignKind,
 ): string | null {
@@ -113,6 +126,7 @@ function boundDraftId(
   if (kind === "PMAX") return row.pmaxDraftId;
   if (kind === "DEMAND_GEN") return row.demandGenDraftId;
   if (kind === "VIDEO") return row.videoDraftId;
+  if (kind === "SHOPPING") return row.shoppingDraftId;
   return row.draftId;
 }
 
@@ -158,7 +172,7 @@ async function loadThreadOrThrow(id: string): Promise<AssistantThreadView> {
   if (!row) {
     throw Object.assign(new Error("Assistant thread not found."), {
       status: 404,
-      info: { kind: "validation", hint: "Start a thread from the Search, Display, Performance Max, Demand Gen, or Video wizard assistant." },
+      info: { kind: "validation", hint: "Start a thread from the Search, Display, Performance Max, Demand Gen, Video, or Shopping wizard assistant." },
     });
   }
   return {
@@ -170,6 +184,7 @@ async function loadThreadOrThrow(id: string): Promise<AssistantThreadView> {
     pmaxDraftId: row.pmaxDraftId,
     demandGenDraftId: row.demandGenDraftId,
     videoDraftId: row.videoDraftId,
+    shoppingDraftId: row.shoppingDraftId,
     kind: threadKind(row),
     createdById: row.createdById,
     title: row.title,
@@ -233,6 +248,19 @@ async function assertDraftInScope(draftId: string, kind: AssistantCampaignKind =
     }
     return draft;
   }
+  if (kind === "SHOPPING") {
+    const draft = await prisma().shoppingCampaignDraft.findFirst({
+      where: { id: draftId, organizationId: ctx.org.id, clientId: ctx.client.id },
+      select: { id: true, name: true },
+    });
+    if (!draft) {
+      throw Object.assign(new Error("Shopping campaign draft not found for this client."), {
+        status: 404,
+        info: { kind: "rbac", hint: "Assistant threads cannot read another client's drafts." },
+      });
+    }
+    return draft;
+  }
   const draft = await prisma().searchCampaignDraft.findFirst({
     where: { id: draftId, organizationId: ctx.org.id, clientId: ctx.client.id },
     select: { id: true, name: true },
@@ -266,7 +294,9 @@ export async function listAssistantThreads(input?: {
               ? { demandGenDraftId: input.draftId }
               : kind === "VIDEO"
                 ? { videoDraftId: input.draftId }
-                : { draftId: input.draftId }
+                : kind === "SHOPPING"
+                  ? { shoppingDraftId: input.draftId }
+                  : { draftId: input.draftId }
         : {}),
     },
     include: { messages: { orderBy: { createdAt: "asc" } } },
@@ -282,6 +312,7 @@ export async function listAssistantThreads(input?: {
     pmaxDraftId: row.pmaxDraftId,
     demandGenDraftId: row.demandGenDraftId,
     videoDraftId: row.videoDraftId,
+    shoppingDraftId: row.shoppingDraftId,
     kind: threadKind(row),
     createdById: row.createdById,
     title: row.title,
@@ -313,6 +344,7 @@ export async function createAssistantThread(input: {
       pmaxDraftId: kind === "PMAX" ? input.draftId ?? null : null,
       demandGenDraftId: kind === "DEMAND_GEN" ? input.draftId ?? null : null,
       videoDraftId: kind === "VIDEO" ? input.draftId ?? null : null,
+      shoppingDraftId: kind === "SHOPPING" ? input.draftId ?? null : null,
       createdById: ctx.user.id,
       title: input.title?.trim() || assistantTitle(kind),
     },
@@ -392,7 +424,7 @@ export async function buildAssistantContextPack(input: {
   const ctx = await requireScopedContext();
   const provider = await requireProvider(GOOGLE_ADS_SLUG);
   const kind = input.kind ?? "SEARCH";
-  const [accounts, entities, searchDrafts, displayDrafts, pmaxDrafts, demandGenDrafts, videoDrafts, memory, thread] = await Promise.all([
+  const [accounts, entities, searchDrafts, displayDrafts, pmaxDrafts, demandGenDrafts, videoDrafts, shoppingDrafts, memory, thread] = await Promise.all([
     prisma().externalAccount.findMany({
       where: { organizationId: ctx.org.id, clientId: ctx.client.id, providerId: provider.id },
       orderBy: { updatedAt: "desc" },
@@ -429,6 +461,11 @@ export async function buildAssistantContextPack(input: {
       take: 20,
     }),
     prisma().videoCampaignDraft.findMany({
+      where: { organizationId: ctx.org.id, clientId: ctx.client.id },
+      orderBy: { updatedAt: "desc" },
+      take: 20,
+    }),
+    prisma().shoppingCampaignDraft.findMany({
       where: { organizationId: ctx.org.id, clientId: ctx.client.id },
       orderBy: { updatedAt: "desc" },
       take: 20,
@@ -486,6 +523,14 @@ export async function buildAssistantContextPack(input: {
       settings: draft.biddingStrategy,
       source: "video_draft" as const,
     })),
+    ...shoppingDrafts.map((draft) => ({
+      name: draft.name,
+      type: "SHOPPING_DRAFT",
+      status: draft.statusDraft,
+      budgetHint: draft.dailyBudgetMicros.toString(),
+      settings: draft.biddingStrategy,
+      source: "shopping_draft" as const,
+    })),
   ];
 
   let draftTree: AssistantContextPack["draft"] = null;
@@ -500,7 +545,9 @@ export async function buildAssistantContextPack(input: {
             ? demandGenDraftViewToTree(await getDemandGenDraft(scoped.id))
             : kind === "VIDEO"
               ? videoDraftViewToTree(await getVideoDraft(scoped.id))
-              : searchDraftViewToTree(await getSearchDraft(scoped.id));
+              : kind === "SHOPPING"
+                ? shoppingDraftViewToTree(await getShoppingDraft(scoped.id))
+                : searchDraftViewToTree(await getSearchDraft(scoped.id));
   }
 
   return {
@@ -580,6 +627,17 @@ export async function runAssistantTurn(input: {
         status: "PAUSED",
       });
       draftId = created.id;
+    } else if (kind === "SHOPPING") {
+      const created = await createShoppingDraft({
+        customerId: input.customerId,
+        name: "Adrunr paused Shopping",
+        dailyBudgetMicros: 1_000_000,
+        biddingStrategy: "MANUAL_CPC",
+        merchantCenterId: "123456789",
+        salesCountry: "US",
+        status: "PAUSED",
+      });
+      draftId = created.id;
     } else {
       const created = await createSearchDraft({
         customerId: input.customerId,
@@ -614,7 +672,9 @@ export async function runAssistantTurn(input: {
                 ? { demandGenDraftId: draftId }
                 : kind === "VIDEO"
                   ? { videoDraftId: draftId }
-                  : { draftId },
+                  : kind === "SHOPPING"
+                    ? { shoppingDraftId: draftId }
+                    : { draftId },
       });
     }
     draftId = draftId ?? boundId;
@@ -649,7 +709,7 @@ export async function runAssistantTurn(input: {
       }
     : await planAssistantTurn({ message, pack });
 
-  let draft: SearchDraftView | DisplayDraftView | PmaxDraftView | DemandGenDraftView | VideoDraftView | null = draftId
+  let draft: SearchDraftView | DisplayDraftView | PmaxDraftView | DemandGenDraftView | VideoDraftView | ShoppingDraftView | null = draftId
     ? kind === "DISPLAY"
       ? await getDisplayDraft(draftId)
       : kind === "PMAX"
@@ -658,7 +718,9 @@ export async function runAssistantTurn(input: {
           ? await getDemandGenDraft(draftId)
           : kind === "VIDEO"
             ? await getVideoDraft(draftId)
-            : await getSearchDraft(draftId)
+            : kind === "SHOPPING"
+              ? await getShoppingDraft(draftId)
+              : await getSearchDraft(draftId)
     : null;
   let patchedFields: string[] = [];
   if (plan.update_draft_fields && draftId && !refused) {
@@ -682,6 +744,11 @@ export async function runAssistantTurn(input: {
       draft = await patchVideoDraft(draftId, plan.update_draft_fields);
       const after = videoDraftViewToTree(draft);
       patchedFields = diffVideoDraftFields(before, after);
+    } else if (kind === "SHOPPING") {
+      const before = shoppingDraftViewToTree((draft as ShoppingDraftView) ?? (await getShoppingDraft(draftId)));
+      draft = await patchShoppingDraft(draftId, plan.update_draft_fields);
+      const after = shoppingDraftViewToTree(draft);
+      patchedFields = diffShoppingDraftFields(before, after);
     } else {
       const before = searchDraftViewToTree((draft as SearchDraftView) ?? (await getSearchDraft(draftId)));
       draft = await patchSearchDraft(draftId, plan.update_draft_fields);

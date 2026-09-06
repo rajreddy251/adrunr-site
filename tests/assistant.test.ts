@@ -8,6 +8,7 @@ import {
   diffDraftFields,
   diffDemandGenDraftFields,
   diffPmaxDraftFields,
+  diffShoppingDraftFields,
   diffVideoDraftFields,
   extractBudgetMicros,
   extractUrlFromText,
@@ -15,6 +16,7 @@ import {
   mergeDisplayDraftPatch,
   mergeDraftPatch,
   mergePmaxDraftPatch,
+  mergeShoppingDraftPatch,
   mergeVideoDraftPatch,
   mockAssistantTurn,
   parseAssistantTurnPlan,
@@ -28,6 +30,8 @@ import { defaultPmaxDraftTree, parsePmaxDraftWrite } from "@/lib/pmax-draft";
 import { hydratePmaxWizardFromDraft } from "@/lib/pmax-wizard-map";
 import { defaultSearchDraftTree, parseSearchDraftWrite } from "@/lib/search-draft";
 import { hydrateWizardFromDraft } from "@/lib/search-wizard-map";
+import { defaultShoppingDraftTree, parseShoppingDraftWrite } from "@/lib/shopping-draft";
+import { hydrateShoppingWizardFromDraft } from "@/lib/shopping-wizard-map";
 import { defaultVideoDraftTree, parseVideoDraftWrite } from "@/lib/video-draft";
 import { hydrateVideoWizardFromDraft } from "@/lib/video-wizard-map";
 import type {
@@ -35,6 +39,7 @@ import type {
   DisplayDraftClientView,
   PmaxDraftClientView,
   SearchDraftClientView,
+  ShoppingDraftClientView,
   VideoDraftClientView,
 } from "@/lib/types";
 
@@ -752,17 +757,140 @@ describe("video assistant fill-first", () => {
   });
 });
 
+const emptyShoppingPack = (
+  draft = defaultShoppingDraftTree({ customerId: "1234567890" }),
+): AssistantContextPack => ({
+  kind: "SHOPPING",
+  org: { id: "org", name: "Adrunr", slug: "adrunr" },
+  client: { id: "client-default", name: "Default client", slug: "default" },
+  accounts: [{ id: "acc", externalId: "1234567890", displayName: "Demo", status: "ENABLED", isManager: false }],
+  campaigns: [],
+  draft,
+  draftId: "shopping-1",
+  messages: [],
+  memory: [],
+});
+
+describe("shopping assistant fill-first", () => {
+  it("fills Shopping draft fields from a URL before asking optional gaps", () => {
+    const plan = mockAssistantTurn({
+      message: "https://acmeboots.com/hiking",
+      pack: emptyShoppingPack(),
+    });
+    expect(plan.update_draft_fields).toBeTruthy();
+    expect(String(plan.update_draft_fields?.name)).toMatch(/Acmeboots/i);
+    const groups = plan.update_draft_fields?.adGroups as Array<{
+      productGroups: Array<{ kind: string; valueText: string }>;
+    }>;
+    expect(groups[0].productGroups[0].kind).toBe("ALL_PRODUCTS");
+    expect(plan.update_draft_fields?.merchantCenterId).toBeTruthy();
+    const required = plan.ask_questions.filter((question) => !question.optional);
+    expect(required).toHaveLength(0);
+    expect(plan.assistant_message.toLowerCase()).toMatch(/filled/);
+  });
+
+  it("refuses validate / apply / enable on Shopping without emitting draft mutate actions", () => {
+    for (const message of ["Validate this", "Apply CREATE PAUSED", "enable and go live"]) {
+      const plan = mockAssistantTurn({ message, pack: emptyShoppingPack() });
+      expect(plan.update_draft_fields).toBeNull();
+      expect(plan.refusedAction).toBeTruthy();
+    }
+  });
+
+  it("merges structured patches onto the existing Shopping draft tree", () => {
+    const current = parseShoppingDraftWrite({
+      customerId: "1234567890",
+      name: "Keep me",
+      dailyBudgetMicros: 1_000_000,
+      merchantCenterId: "123456789",
+      adGroups: [{ name: "Existing", productGroups: [] }],
+    });
+    const merged = mergeShoppingDraftPatch(current, { name: "Patched shopping", dailyBudgetMicros: 5_000_000 });
+    expect(merged.name).toBe("Patched shopping");
+    expect(merged.dailyBudgetMicros).toBe(5_000_000);
+    expect(merged.adGroups[0].name).toBe("Existing");
+    expect(diffShoppingDraftFields(current, merged)).toEqual(["name", "dailyBudgetMicros"]);
+  });
+
+  it("hydrates Shopping wizard fields from a draft view", () => {
+    const draft: ShoppingDraftClientView = {
+      id: "d1",
+      customerId: "1234567890",
+      externalAccountId: "ea1",
+      name: "Hydrated Shopping",
+      dailyBudgetMicros: "25000000",
+      biddingStrategy: "MANUAL_CPC",
+      merchantCenterId: "987654321",
+      salesCountry: "CA",
+      campaignPriority: "MEDIUM",
+      enableLocal: true,
+      targetRoasText: null,
+      startDate: null,
+      endDate: null,
+      statusDraft: "DRAFT",
+      googleCampaignResourceName: null,
+      campaignOpId: null,
+      notesText: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      adGroups: [
+        {
+          id: "g1",
+          name: "Coffee",
+          defaultBidMicros: "2000000",
+          sortOrder: 0,
+          googleAdGroupResourceName: null,
+          productGroups: [
+            {
+              id: "pg1",
+              kind: "ALL_PRODUCTS",
+              valueText: "All products",
+              dimensionText: "",
+              included: true,
+              sortOrder: 0,
+              googleListingGroupResourceName: null,
+            },
+          ],
+          listings: [],
+        },
+      ],
+      targets: [
+        {
+          id: "t1",
+          type: "GEO",
+          valueText: "Canada",
+          criterionText: "geoTargetConstants/2124",
+          included: true,
+        },
+      ],
+    };
+    const state = hydrateShoppingWizardFromDraft(draft);
+    expect(state.name).toBe("Hydrated Shopping");
+    expect(state.budgetDollars).toBe("25.00");
+    expect(state.merchantCenterId).toBe("987654321");
+    expect(state.salesCountry).toBe("CA");
+    expect(state.campaignPriority).toBe("MEDIUM");
+    expect(state.enableLocal).toBe(true);
+    expect(state.groups[0].productGroups[0].kind).toBe("ALL_PRODUCTS");
+    expect(state.targets[0].valueText).toBe("Canada");
+  });
+});
+
 describe("assistant safety source locks", () => {
   it("does not call validate or apply endpoints from assistant server modules", () => {
     const ops = readFileSync(resolve(process.cwd(), "src/lib/assistant-ops.ts"), "utf8");
     const llm = readFileSync(resolve(process.cwd(), "src/lib/assistant-llm.ts"), "utf8");
     const turn = readFileSync(resolve(process.cwd(), "src/app/api/assistant/turn/route.ts"), "utf8");
+    const threads = readFileSync(resolve(process.cwd(), "src/app/api/assistant/threads/route.ts"), "utf8");
+    expect(turn).toContain("parseAssistantCampaignKind");
+    expect(threads).toContain("parseAssistantCampaignKind");
     for (const source of [ops, llm, turn]) {
       expect(source).not.toMatch(/validateOrApplySearchDraft/);
       expect(source).not.toMatch(/validateOrApplyDisplayDraft/);
       expect(source).not.toMatch(/validateOrApplyPmaxDraft/);
       expect(source).not.toMatch(/validateOrApplyDemandGenDraft/);
       expect(source).not.toMatch(/validateOrApplyVideoDraft/);
+      expect(source).not.toMatch(/validateOrApplyShoppingDraft/);
       expect(source).not.toMatch(/\/api\/ads\/search\/drafts\/.+\/validate/);
       expect(source).not.toMatch(/\/api\/ads\/search\/drafts\/.+\/apply/);
       expect(source).not.toMatch(/\/api\/ads\/display\/drafts\/.+\/validate/);
@@ -773,6 +901,8 @@ describe("assistant safety source locks", () => {
       expect(source).not.toMatch(/\/api\/ads\/demand-gen\/drafts\/.+\/apply/);
       expect(source).not.toMatch(/\/api\/ads\/video\/drafts\/.+\/validate/);
       expect(source).not.toMatch(/\/api\/ads\/video\/drafts\/.+\/apply/);
+      expect(source).not.toMatch(/\/api\/ads\/shopping\/drafts\/.+\/validate/);
+      expect(source).not.toMatch(/\/api\/ads\/shopping\/drafts\/.+\/apply/);
     }
   });
 });

@@ -124,6 +124,7 @@ describe("paused campaign payload", () => {
     expect(() => resolveCampaignOpKind("PMAX_CREATE")).toThrow(/Performance Max draft APIs/);
     expect(() => resolveCampaignOpKind("DEMAND_GEN_CREATE")).toThrow(/Demand Gen draft APIs/);
     expect(() => resolveCampaignOpKind("VIDEO_CREATE")).toThrow(/Video draft APIs/);
+    expect(() => resolveCampaignOpKind("SHOPPING_CREATE")).toThrow(/Shopping draft APIs/);
     expect(() => resolveCampaignOpKind("META_CAMPAIGN_CREATE")).toThrow(
       /schema-ready but not implemented/,
     );
