@@ -70,6 +70,12 @@ enum ExternalEntityType {
 
 enum CampaignOpKind {
   SEARCH_CREATE
+  PMAX_CREATE
+  DISPLAY_CREATE
+  META_CAMPAIGN_CREATE
+  TIKTOK_CAMPAIGN_CREATE
+  LINKEDIN_CAMPAIGN_CREATE
+  GENERIC_MUTATE
 }
 
 enum CampaignOpStatus {
@@ -135,6 +141,7 @@ model Organization {
   campaignOps      CampaignOp[]
   syncJobs         SyncJob[]
   auditEvents      AuditEvent[]
+  agentAssignments AgentClientAssignment[]
 }
 
 model User {
@@ -153,6 +160,7 @@ model User {
   campaignOps       CampaignOp[]
   changeRequests    ChangeRequest[]
   auditEvents       AuditEvent[]
+  agentAssignments  AgentClientAssignment[]
 }
 
 model Membership {
@@ -230,7 +238,9 @@ model AgentClientAssignment {
   userId         String
   createdAt      DateTime @default(now())
 
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([clientId, userId])
   @@index([organizationId, userId])
@@ -469,6 +479,16 @@ model AuditEvent {
 model RolePermission {
   id       String             @id @default(cuid())
   role     MembershipRole
+  resource PermissionResource
+  action   PermissionAction
+
+  @@unique([role, resource, action])
+  @@index([role])
+}
+
+model ClientRolePermission {
+  id       String             @id @default(cuid())
+  role     ClientMemberRole
   resource PermissionResource
   action   PermissionAction
 

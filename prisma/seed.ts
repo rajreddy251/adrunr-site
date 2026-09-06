@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 
-import { buildRolePermissionRows } from "../src/lib/permissions";
+import { buildClientRolePermissionRows, buildRolePermissionRows } from "../src/lib/permissions";
 import { SEED_PROVIDERS } from "../src/lib/providers";
 
 const prisma = new PrismaClient();
@@ -27,6 +27,20 @@ async function main() {
 
   for (const row of buildRolePermissionRows()) {
     await prisma.rolePermission.upsert({
+      where: {
+        role_resource_action: {
+          role: row.role,
+          resource: row.resource,
+          action: row.action,
+        },
+      },
+      create: row,
+      update: {},
+    });
+  }
+
+  for (const row of buildClientRolePermissionRows()) {
+    await prisma.clientRolePermission.upsert({
       where: {
         role_resource_action: {
           role: row.role,
@@ -80,8 +94,9 @@ async function main() {
 
   const providerCount = await prisma.integrationProvider.count();
   const permissionCount = await prisma.rolePermission.count();
+  const clientPermissionCount = await prisma.clientRolePermission.count();
   console.log(
-    `Seeded ${providerCount} providers, ${permissionCount} role permissions, platform org ${org.slug}.`,
+    `Seeded ${providerCount} providers, ${permissionCount} role permissions, ${clientPermissionCount} client role permissions, platform org ${org.slug}.`,
   );
 }
 

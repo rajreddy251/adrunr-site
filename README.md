@@ -2,7 +2,7 @@
 
 Ads operations platform: marketing site (`/`, `/privacy`, `/terms`) plus an ops console at `/ops`.
 
-This repo is the **single production codebase**. Behavior is ported from the validated MVP (`rajreddy251/adrunr` @ `493d52c`) and evolved onto **Neon Postgres + Prisma Schema v1.1** (provider-agnostic). There is no `.data/tokens.json` path.
+This repo is the **single production codebase**. Behavior is ported from the validated MVP (`rajreddy251/adrunr` @ `493d52c`) and evolved onto **Neon Postgres + Prisma Schema v1.2** (provider-agnostic). There is no `.data/tokens.json` path.
 
 ## Safety (read first)
 
@@ -18,14 +18,18 @@ Platform notes (not secrets): GCP project `adrunr-ads-ops`, MCC `857-080-5596`. 
 
 - Next.js 15 App Router + TypeScript
 - **Neon Postgres only** (no Vercel Postgres, no Supabase)
-- **Prisma only** (Schema v1.1)
+- **Prisma only** (Schema v1.2)
 - Encrypted OAuth columns (`accessTokenEncrypted`, `refreshTokenEncrypted`) via `TOKEN_ENCRYPTION_KEY`
 - TEXT payloads (`requestPayload`, `responsePayload`, `requestBody`, `responseBody`, `metadataText`) — **no JSONB**
 - Official [`googleapis`](https://github.com/googleapis/google-api-nodejs-client) + Google Ads REST
 
-## Schema v1.1
+## Schema v1.2
 
-Core models: Organization, User, Membership, Invitation, Client, ClientMembership, AgentClientAssignment, Workspace, **IntegrationProvider**, OAuthConnection, **ExternalAccount**, ExternalEntity, CampaignOp, DryRunJob, ChangeRequest, **SyncJob**, AuditEvent, RolePermission.
+Core models: Organization, User, Membership, Invitation, Client, ClientMembership, AgentClientAssignment, Workspace, **IntegrationProvider**, OAuthConnection, **ExternalAccount**, ExternalEntity, CampaignOp, DryRunJob, ChangeRequest, **SyncJob**, AuditEvent, RolePermission, **ClientRolePermission**.
+
+`AgentClientAssignment` has Prisma relations to Organization, Client, and User (`onDelete: Cascade`). Client RBAC lives in `ClientRolePermission` and is not overloaded onto agency `RolePermission`.
+
+`CampaignOpKind` values: `SEARCH_CREATE`, `PMAX_CREATE`, `DISPLAY_CREATE`, `META_CAMPAIGN_CREATE`, `TIKTOK_CAMPAIGN_CREATE`, `LINKEDIN_CAMPAIGN_CREATE`, `GENERIC_MUTATE`. Google still implements `SEARCH_CREATE` first; other kinds are schema-ready stubs.
 
 Google-only `AdsAccount` / `Ga4Property` / `OAuthProvider` are gone. Ads customers, GA4 properties, and future Clarity/Meta/TikTok/LinkedIn/Heartza accounts share `ExternalAccount`.
 
@@ -98,7 +102,7 @@ Optional Vercel install/build override:
 npm ci && npx prisma generate && npx prisma migrate deploy && npm run build
 ```
 
-Seed RolePermission + platform org + the eight IntegrationProvider rows after the first migrate.
+Seed RolePermission + ClientRolePermission + platform org + the eight IntegrationProvider rows after the first migrate.
 
 ## Google Cloud / Ads checklist
 

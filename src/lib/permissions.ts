@@ -1,4 +1,9 @@
-import type { MembershipRole, PermissionAction, PermissionResource } from "@prisma/client";
+import type {
+  ClientMemberRole,
+  MembershipRole,
+  PermissionAction,
+  PermissionResource,
+} from "@prisma/client";
 
 export const ALL_RESOURCES: PermissionResource[] = [
   "ORGANIZATION",
@@ -96,6 +101,15 @@ const ROLE_GRANTS: Record<
   ],
 };
 
+const CLIENT_ROLE_GRANTS: Record<
+  ClientMemberRole,
+  Array<{ resource: PermissionResource; action: PermissionAction }>
+> = {
+  CLIENT_ADMIN: expand(["EXTERNAL_ACCOUNT", "CAMPAIGN_OP", "AUDIT_EVENT"], READ_LIST),
+  CLIENT_USER: expand(["EXTERNAL_ACCOUNT", "CAMPAIGN_OP"], READ_LIST),
+  CLIENT_VIEWER: expand(["EXTERNAL_ACCOUNT", "CAMPAIGN_OP"], READ_LIST),
+};
+
 export function buildRolePermissionRows(): Array<{
   role: MembershipRole;
   resource: PermissionResource;
@@ -123,4 +137,38 @@ export function roleHasPermission(
   action: PermissionAction,
 ): boolean {
   return ROLE_GRANTS[role].some((grant) => grant.resource === resource && grant.action === action);
+}
+
+export function buildClientRolePermissionRows(): Array<{
+  role: ClientMemberRole;
+  resource: PermissionResource;
+  action: PermissionAction;
+}> {
+  const rows: Array<{
+    role: ClientMemberRole;
+    resource: PermissionResource;
+    action: PermissionAction;
+  }> = [];
+  const seen = new Set<string>();
+  for (const [role, grants] of Object.entries(CLIENT_ROLE_GRANTS) as Array<
+    [ClientMemberRole, Array<{ resource: PermissionResource; action: PermissionAction }>]
+  >) {
+    for (const grant of grants) {
+      const key = `${role}:${grant.resource}:${grant.action}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rows.push({ role, resource: grant.resource, action: grant.action });
+    }
+  }
+  return rows;
+}
+
+export function clientRoleHasPermission(
+  role: ClientMemberRole,
+  resource: PermissionResource,
+  action: PermissionAction,
+): boolean {
+  return CLIENT_ROLE_GRANTS[role].some(
+    (grant) => grant.resource === resource && grant.action === action,
+  );
 }
