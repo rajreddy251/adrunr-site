@@ -35,14 +35,76 @@
   min-height: 100%;
   color: #121714;
   background:
-    radial-gradient(1100px 560px at 6% -14%, rgba(200, 245, 66, 0.28), transparent 54%),
-    radial-gradient(880px 480px at 100% -10%, rgba(26, 115, 232, 0.07), transparent 46%),
-    #f4f5f0;
+    radial-gradient(920px 520px at 0% -12%, rgba(200, 245, 66, 0.26), transparent 52%),
+    radial-gradient(720px 420px at 100% 0%, rgba(200, 245, 66, 0.1), transparent 44%),
+    #f6f7f3;
 }
 
 .marketing-shell ::selection {
   background: #c8f542;
   color: #0b0e0c;
+}
+
+.marketing-card {
+  border-radius: 1.25rem;
+  border: 1px solid rgba(11, 14, 12, 0.08);
+  background: #fff;
+  box-shadow:
+    0 1px 0 rgba(11, 14, 12, 0.03),
+    0 18px 40px -28px rgba(11, 14, 12, 0.28);
+}
+
+.marketing-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  background: #c8f542;
+  color: #0b0e0c;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  line-height: 1;
+  padding: 0.88rem 1.2rem;
+  box-shadow:
+    0 1px 0 rgba(11, 14, 12, 0.08),
+    0 12px 28px -14px rgba(168, 212, 42, 0.95);
+  transition:
+    background 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.marketing-cta:hover {
+  background: #b6e236;
+  box-shadow:
+    0 1px 0 rgba(11, 14, 12, 0.08),
+    0 14px 32px -12px rgba(168, 212, 42, 1);
+}
+
+.marketing-cta-compact {
+  padding: 0.52rem 0.9rem;
+  font-size: 0.875rem;
+}
+
+.marketing-cta-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(11, 14, 12, 0.12);
+  background: #fff;
+  color: #0b0e0c;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  line-height: 1;
+  padding: 0.88rem 1.2rem;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.marketing-cta-secondary:hover {
+  border-color: rgba(11, 14, 12, 0.28);
+  background: #f6f7f3;
 }
 
 html,
