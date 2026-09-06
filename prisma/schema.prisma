@@ -126,6 +126,7 @@ enum PermissionResource {
   SYNCED_CAMPAIGN
   CAMPAIGN_METRIC_SNAPSHOT
   CAMPAIGN_EDIT_DRAFT
+  CAMPAIGN_IMPORT_JOB
   SYNC_JOB
   AUDIT_EVENT
   BILLING
@@ -513,6 +514,7 @@ model Organization {
   syncedCampaigns  SyncedCampaign[]
   campaignMetricSnapshots CampaignMetricSnapshot[]
   campaignEditDrafts CampaignEditDraft[]
+  campaignImportJobs CampaignImportJob[]
   syncJobs         SyncJob[]
   auditEvents      AuditEvent[]
   agentAssignments AgentClientAssignment[]
@@ -544,6 +546,7 @@ model User {
   localDrafts       LocalCampaignDraft[]
   localServicesDrafts LocalServicesCampaignDraft[]
   campaignEditDrafts CampaignEditDraft[]
+  campaignImportJobs CampaignImportJob[]
   changeRequests    ChangeRequest[]
   auditEvents       AuditEvent[]
   agentAssignments  AgentClientAssignment[]
@@ -680,6 +683,7 @@ model IntegrationProvider {
   syncJobs         SyncJob[]
   syncedCampaigns  SyncedCampaign[]
   campaignMetricSnapshots CampaignMetricSnapshot[]
+  campaignImportJobs CampaignImportJob[]
   changeRequests   ChangeRequest[]
 }
 
@@ -747,6 +751,7 @@ model ExternalAccount {
   syncedCampaigns SyncedCampaign[]
   campaignMetricSnapshots CampaignMetricSnapshot[]
   campaignEditDrafts CampaignEditDraft[]
+  campaignImportJobs CampaignImportJob[]
 
   @@unique([organizationId, providerId, externalId])
   @@index([clientId])
@@ -866,6 +871,10 @@ model SearchCampaignDraft {
   googleCampaignResourceName String?
   campaignOpId               String?
   notesText                  String?
+  importJobId                String?
+  syncedCampaignId           String?
+  sourceCampaignExternalId   String?
+  importProvenanceText       String?
   createdAt                  DateTime              @default(now())
   updatedAt                  DateTime              @updatedAt
 
@@ -874,6 +883,7 @@ model SearchCampaignDraft {
   externalAccount ExternalAccount      @relation(fields: [externalAccountId], references: [id], onDelete: Restrict)
   createdBy       User                 @relation(fields: [createdById], references: [id], onDelete: Restrict)
   campaignOps      CampaignOp[]
+  importJobs       CampaignImportJob[]
   adGroups         SearchAdGroupDraft[]
   targets          SearchTargetDraft[]
   assistantThreads AssistantThread[]
@@ -967,6 +977,10 @@ model DisplayCampaignDraft {
   googleCampaignResourceName String?
   campaignOpId               String?
   notesText                  String?
+  importJobId                String?
+  syncedCampaignId           String?
+  sourceCampaignExternalId   String?
+  importProvenanceText       String?
   createdAt                  DateTime               @default(now())
   updatedAt                  DateTime               @updatedAt
 
@@ -975,6 +989,7 @@ model DisplayCampaignDraft {
   externalAccount  ExternalAccount        @relation(fields: [externalAccountId], references: [id], onDelete: Restrict)
   createdBy        User                   @relation(fields: [createdById], references: [id], onDelete: Restrict)
   campaignOps      CampaignOp[]
+  importJobs       CampaignImportJob[]
   adGroups         DisplayAdGroupDraft[]
   targets          DisplayTargetDraft[]
   audiences        DisplayAudienceDraft[]
@@ -1085,6 +1100,10 @@ model PerformanceMaxCampaignDraft {
   googleCampaignResourceName String?
   campaignOpId               String?
   notesText                  String?
+  importJobId                String?
+  syncedCampaignId           String?
+  sourceCampaignExternalId   String?
+  importProvenanceText       String?
   createdAt                  DateTime                        @default(now())
   updatedAt                  DateTime                        @updatedAt
 
@@ -1093,6 +1112,7 @@ model PerformanceMaxCampaignDraft {
   externalAccount  ExternalAccount                 @relation(fields: [externalAccountId], references: [id], onDelete: Restrict)
   createdBy        User                            @relation(fields: [createdById], references: [id], onDelete: Restrict)
   campaignOps      CampaignOp[]
+  importJobs       CampaignImportJob[]
   assetGroups      PerformanceMaxAssetGroupDraft[]
   targets          PerformanceMaxTargetDraft[]
   signals          PerformanceMaxSignalDraft[]
@@ -1208,6 +1228,10 @@ model DemandGenCampaignDraft {
   googleCampaignResourceName String?
   campaignOpId               String?
   notesText                  String?
+  importJobId                String?
+  syncedCampaignId           String?
+  sourceCampaignExternalId   String?
+  importProvenanceText       String?
   createdAt                  DateTime                 @default(now())
   updatedAt                  DateTime                 @updatedAt
 
@@ -1216,6 +1240,7 @@ model DemandGenCampaignDraft {
   externalAccount  ExternalAccount         @relation(fields: [externalAccountId], references: [id], onDelete: Restrict)
   createdBy        User                    @relation(fields: [createdById], references: [id], onDelete: Restrict)
   campaignOps      CampaignOp[]
+  importJobs       CampaignImportJob[]
   adGroups         DemandGenAdGroupDraft[]
   targets          DemandGenTargetDraft[]
   audiences        DemandGenAudienceDraft[]
@@ -1329,6 +1354,10 @@ model VideoCampaignDraft {
   googleCampaignResourceName String?
   campaignOpId               String?
   notesText                  String?
+  importJobId                String?
+  syncedCampaignId           String?
+  sourceCampaignExternalId   String?
+  importProvenanceText       String?
   createdAt                  DateTime             @default(now())
   updatedAt                  DateTime             @updatedAt
 
@@ -1337,6 +1366,7 @@ model VideoCampaignDraft {
   externalAccount  ExternalAccount      @relation(fields: [externalAccountId], references: [id], onDelete: Restrict)
   createdBy        User                 @relation(fields: [createdById], references: [id], onDelete: Restrict)
   campaignOps      CampaignOp[]
+  importJobs       CampaignImportJob[]
   adGroups         VideoAdGroupDraft[]
   targets          VideoTargetDraft[]
   audiences        VideoAudienceDraft[]
@@ -1447,6 +1477,10 @@ model ShoppingCampaignDraft {
   googleCampaignResourceName String?
   campaignOpId               String?
   notesText                  String?
+  importJobId                String?
+  syncedCampaignId           String?
+  sourceCampaignExternalId   String?
+  importProvenanceText       String?
   createdAt                  DateTime                 @default(now())
   updatedAt                  DateTime                 @updatedAt
 
@@ -1455,6 +1489,7 @@ model ShoppingCampaignDraft {
   externalAccount  ExternalAccount           @relation(fields: [externalAccountId], references: [id], onDelete: Restrict)
   createdBy        User                      @relation(fields: [createdById], references: [id], onDelete: Restrict)
   campaignOps      CampaignOp[]
+  importJobs       CampaignImportJob[]
   adGroups         ShoppingAdGroupDraft[]
   targets          ShoppingTargetDraft[]
   assistantThreads AssistantThread[]
@@ -1547,6 +1582,10 @@ model AppCampaignDraft {
   googleCampaignResourceName String?
   campaignOpId               String?
   notesText                  String?
+  importJobId                String?
+  syncedCampaignId           String?
+  sourceCampaignExternalId   String?
+  importProvenanceText       String?
   createdAt                  DateTime            @default(now())
   updatedAt                  DateTime            @updatedAt
 
@@ -1555,6 +1594,7 @@ model AppCampaignDraft {
   externalAccount  ExternalAccount      @relation(fields: [externalAccountId], references: [id], onDelete: Restrict)
   createdBy        User                 @relation(fields: [createdById], references: [id], onDelete: Restrict)
   campaignOps      CampaignOp[]
+  importJobs       CampaignImportJob[]
   platforms        AppPlatformDraft[]
   adGroups         AppAdGroupDraft[]
   targets          AppTargetDraft[]
@@ -1660,6 +1700,10 @@ model HotelCampaignDraft {
   googleCampaignResourceName String?
   campaignOpId               String?
   notesText                  String?
+  importJobId                String?
+  syncedCampaignId           String?
+  sourceCampaignExternalId   String?
+  importProvenanceText       String?
   createdAt                  DateTime             @default(now())
   updatedAt                  DateTime             @updatedAt
 
@@ -1668,6 +1712,7 @@ model HotelCampaignDraft {
   externalAccount  ExternalAccount      @relation(fields: [externalAccountId], references: [id], onDelete: Restrict)
   createdBy        User                 @relation(fields: [createdById], references: [id], onDelete: Restrict)
   campaignOps      CampaignOp[]
+  importJobs       CampaignImportJob[]
   adGroups         HotelAdGroupDraft[]
   targets          HotelTargetDraft[]
   assistantThreads AssistantThread[]
@@ -1745,6 +1790,10 @@ model LocalCampaignDraft {
   googleCampaignResourceName String?
   campaignOpId               String?
   notesText                  String?
+  importJobId                String?
+  syncedCampaignId           String?
+  sourceCampaignExternalId   String?
+  importProvenanceText       String?
   createdAt                  DateTime             @default(now())
   updatedAt                  DateTime             @updatedAt
 
@@ -1753,6 +1802,7 @@ model LocalCampaignDraft {
   externalAccount  ExternalAccount        @relation(fields: [externalAccountId], references: [id], onDelete: Restrict)
   createdBy        User                   @relation(fields: [createdById], references: [id], onDelete: Restrict)
   campaignOps      CampaignOp[]
+  importJobs       CampaignImportJob[]
   locations        LocalLocationDraft[]
   adGroups         LocalAdGroupDraft[]
   targets          LocalTargetDraft[]
@@ -1847,6 +1897,10 @@ model LocalServicesCampaignDraft {
   googleCampaignResourceName String?
   campaignOpId               String?
   notesText                  String?
+  importJobId                String?
+  syncedCampaignId           String?
+  sourceCampaignExternalId   String?
+  importProvenanceText       String?
   createdAt                  DateTime                     @default(now())
   updatedAt                  DateTime                     @updatedAt
 
@@ -1855,6 +1909,7 @@ model LocalServicesCampaignDraft {
   externalAccount  ExternalAccount               @relation(fields: [externalAccountId], references: [id], onDelete: Restrict)
   createdBy        User                          @relation(fields: [createdById], references: [id], onDelete: Restrict)
   campaignOps      CampaignOp[]
+  importJobs       CampaignImportJob[]
   categories       LocalServicesCategoryDraft[]
   targets          LocalServicesTargetDraft[]
   assistantThreads AssistantThread[]
@@ -1959,6 +2014,7 @@ model SyncedCampaign {
   adGroups        SyncedAdGroup[]
   metricSnapshots CampaignMetricSnapshot[]
   editDrafts      CampaignEditDraft[]
+  importJobs      CampaignImportJob[]
 
   @@unique([providerId, externalAccountId, externalId])
   @@index([organizationId, providerId])
@@ -2184,6 +2240,76 @@ model CampaignEditTargetDraft {
   draft CampaignEditDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
 
   @@index([draftId, type])
+}
+
+model CampaignImportJob {
+  id                           String        @id @default(cuid())
+  organizationId               String
+  providerId                   String
+  externalAccountId            String
+  createdById                  String
+  syncedCampaignId             String?
+  sourceCampaignExternalId     String
+  sourceCampaignName           String
+  sourceAdvertisingChannelType String?
+  sourceStatus                 String?
+  sourceServingStatus          String?
+  sourceBiddingStrategyType    String?
+  draftKind                    String
+  dryRun                       Boolean       @default(true)
+  neverEnable                  Boolean       @default(true)
+  status                       SyncJobStatus @default(QUEUED)
+  requestBody                  String?
+  responseBody                 String?
+  previewText                  String?
+  notesText                    String?
+  errorMessage                 String?
+  searchCampaignDraftId        String?
+  displayCampaignDraftId       String?
+  pmaxCampaignDraftId          String?
+  demandGenCampaignDraftId     String?
+  videoCampaignDraftId         String?
+  shoppingCampaignDraftId      String?
+  appCampaignDraftId           String?
+  hotelCampaignDraftId         String?
+  localCampaignDraftId         String?
+  localServicesCampaignDraftId String?
+  startedAt                    DateTime?
+  finishedAt                   DateTime?
+  createdAt                    DateTime      @default(now())
+  updatedAt                    DateTime      @updatedAt
+
+  organization               Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  provider                   IntegrationProvider            @relation(fields: [providerId], references: [id])
+  externalAccount            ExternalAccount                @relation(fields: [externalAccountId], references: [id], onDelete: Restrict)
+  createdBy                  User                           @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  syncedCampaign             SyncedCampaign?                @relation(fields: [syncedCampaignId], references: [id], onDelete: SetNull)
+  searchCampaignDraft        SearchCampaignDraft?           @relation(fields: [searchCampaignDraftId], references: [id], onDelete: SetNull)
+  displayCampaignDraft       DisplayCampaignDraft?          @relation(fields: [displayCampaignDraftId], references: [id], onDelete: SetNull)
+  pmaxCampaignDraft          PerformanceMaxCampaignDraft?   @relation(fields: [pmaxCampaignDraftId], references: [id], onDelete: SetNull)
+  demandGenCampaignDraft     DemandGenCampaignDraft?        @relation(fields: [demandGenCampaignDraftId], references: [id], onDelete: SetNull)
+  videoCampaignDraft         VideoCampaignDraft?            @relation(fields: [videoCampaignDraftId], references: [id], onDelete: SetNull)
+  shoppingCampaignDraft      ShoppingCampaignDraft?         @relation(fields: [shoppingCampaignDraftId], references: [id], onDelete: SetNull)
+  appCampaignDraft           AppCampaignDraft?              @relation(fields: [appCampaignDraftId], references: [id], onDelete: SetNull)
+  hotelCampaignDraft         HotelCampaignDraft?            @relation(fields: [hotelCampaignDraftId], references: [id], onDelete: SetNull)
+  localCampaignDraft         LocalCampaignDraft?            @relation(fields: [localCampaignDraftId], references: [id], onDelete: SetNull)
+  localServicesCampaignDraft LocalServicesCampaignDraft?    @relation(fields: [localServicesCampaignDraftId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([externalAccountId])
+  @@index([syncedCampaignId])
+  @@index([draftKind, createdAt])
+  @@index([status])
+  @@index([searchCampaignDraftId])
+  @@index([displayCampaignDraftId])
+  @@index([pmaxCampaignDraftId])
+  @@index([demandGenCampaignDraftId])
+  @@index([videoCampaignDraftId])
+  @@index([shoppingCampaignDraftId])
+  @@index([appCampaignDraftId])
+  @@index([hotelCampaignDraftId])
+  @@index([localCampaignDraftId])
+  @@index([localServicesCampaignDraftId])
 }
 
 model AuditEvent {
