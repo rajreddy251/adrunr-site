@@ -1,0 +1,477 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrganizationType {
+  PLATFORM
+  AGENCY
+}
+
+enum MembershipRole {
+  PLATFORM_OPS
+  AGENCY_OWNER
+  AGENCY_ADMIN
+  AGENCY_MANAGER
+  AGENT
+  VIEWER
+  FINANCE
+}
+
+enum ClientMemberRole {
+  CLIENT_ADMIN
+  CLIENT_USER
+  CLIENT_VIEWER
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
+enum ProviderCategory {
+  ADS
+  ANALYTICS
+  HEATMAP
+  OTHER
+}
+
+enum ConnectionStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+  ERROR
+}
+
+enum ExternalAccountStatus {
+  UNKNOWN
+  ENABLED
+  CANCELED
+  SUSPENDED
+  NOT_ENABLED
+  DISCONNECTED
+}
+
+enum ExternalEntityType {
+  CAMPAIGN
+  AD_GROUP
+  AD
+  PROPERTY
+  PROJECT
+  PIXEL
+  OTHER
+}
+
+enum CampaignOpKind {
+  SEARCH_CREATE
+}
+
+enum CampaignOpStatus {
+  DRAFT
+  DRY_RUN_VALIDATED
+  APPLIED_PAUSED
+  REJECTED
+  FAILED
+}
+
+enum SyncJobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
+enum PermissionResource {
+  ORGANIZATION
+  MEMBERSHIP
+  CLIENT
+  WORKSPACE
+  INTEGRATION_PROVIDER
+  OAUTH_CONNECTION
+  EXTERNAL_ACCOUNT
+  EXTERNAL_ENTITY
+  CAMPAIGN_OP
+  SYNC_JOB
+  AUDIT_EVENT
+  BILLING
+}
+
+enum PermissionAction {
+  CREATE
+  READ
+  UPDATE
+  DELETE
+  CONNECT
+  DISCONNECT
+  LIST
+  DRY_RUN
+  APPLY_PAUSED
+  INVITE
+  ASSIGN
+  SYNC
+}
+
+model Organization {
+  id        String           @id @default(cuid())
+  type      OrganizationType @default(AGENCY)
+  name      String
+  slug      String           @unique
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  memberships      Membership[]
+  invitations      Invitation[]
+  clients          Client[]
+  workspaces       Workspace[]
+  oauthConnections OAuthConnection[]
+  externalAccounts ExternalAccount[]
+  campaignOps      CampaignOp[]
+  syncJobs         SyncJob[]
+  auditEvents      AuditEvent[]
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  imageUrl      String?
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  memberships       Membership[]
+  clientMemberships ClientMembership[]
+  invitationsSent   Invitation[]       @relation("InvitationInviter")
+  oauthConnections  OAuthConnection[]
+  campaignOps       CampaignOp[]
+  changeRequests    ChangeRequest[]
+  auditEvents       AuditEvent[]
+}
+
+model Membership {
+  id             String         @id @default(cuid())
+  organizationId String
+  userId         String
+  role           MembershipRole
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+}
+
+model Invitation {
+  id             String           @id @default(cuid())
+  organizationId String
+  email          String
+  role           MembershipRole
+  status         InvitationStatus @default(PENDING)
+  tokenHash      String           @unique
+  invitedById    String
+  expiresAt      DateTime
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy    User         @relation("InvitationInviter", fields: [invitedById], references: [id])
+
+  @@index([organizationId, email])
+}
+
+model Client {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  slug           String
+  externalRef    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization     Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  memberships      ClientMembership[]
+  workspaces       Workspace[]
+  externalAccounts ExternalAccount[]
+  campaignOps      CampaignOp[]
+  agentAssignments AgentClientAssignment[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+}
+
+model ClientMembership {
+  id        String           @id @default(cuid())
+  clientId  String
+  userId    String
+  role      ClientMemberRole
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, userId])
+  @@index([userId])
+}
+
+model AgentClientAssignment {
+  id             String   @id @default(cuid())
+  organizationId String
+  clientId       String
+  userId         String
+  createdAt      DateTime @default(now())
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, userId])
+  @@index([organizationId, userId])
+}
+
+model Workspace {
+  id             String   @id @default(cuid())
+  organizationId String
+  clientId       String?
+  name           String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  campaignOps  CampaignOp[]
+
+  @@index([organizationId])
+  @@index([clientId])
+}
+
+model IntegrationProvider {
+  id            String           @id @default(cuid())
+  slug          String           @unique
+  name          String
+  category      ProviderCategory
+  isActive      Boolean          @default(true)
+  oauthAuthUrl  String?
+  oauthTokenUrl String?
+  defaultScopes String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  oauthConnections OAuthConnection[]
+  externalAccounts ExternalAccount[]
+  campaignOps      CampaignOp[]
+  syncJobs         SyncJob[]
+  changeRequests   ChangeRequest[]
+}
+
+model OAuthConnection {
+  id                    String           @id @default(cuid())
+  organizationId        String
+  userId                String?
+  providerId            String
+  providerAccountEmail  String?
+  scopes                String
+  accessTokenEncrypted  String?
+  refreshTokenEncrypted String
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  tokenType             String           @default("Bearer")
+  status                ConnectionStatus @default(ACTIVE)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  revokedAt             DateTime?
+
+  organization     Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user             User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  provider         IntegrationProvider @relation(fields: [providerId], references: [id])
+  externalAccounts ExternalAccount[]
+
+  @@index([organizationId, providerId])
+  @@index([userId])
+}
+
+model ExternalAccount {
+  id                String                @id @default(cuid())
+  organizationId    String
+  clientId          String
+  providerId        String
+  oauthConnectionId String?
+  externalId        String
+  displayName       String?
+  currencyCode      String?
+  timeZone          String?
+  isManager         Boolean               @default(false)
+  isTest            Boolean               @default(false)
+  status            ExternalAccountStatus @default(UNKNOWN)
+  parentExternalId  String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client          Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  provider        IntegrationProvider @relation(fields: [providerId], references: [id])
+  oauthConnection OAuthConnection?    @relation(fields: [oauthConnectionId], references: [id], onDelete: SetNull)
+  entities        ExternalEntity[]
+  campaignOps     CampaignOp[]
+  dryRunJobs      DryRunJob[]
+  syncJobs        SyncJob[]
+
+  @@unique([organizationId, providerId, externalId])
+  @@index([clientId])
+  @@index([providerId])
+  @@index([oauthConnectionId])
+}
+
+model ExternalEntity {
+  id                String             @id @default(cuid())
+  organizationId    String
+  providerId        String
+  externalAccountId String
+  entityType        ExternalEntityType
+  externalId        String
+  displayName       String?
+  status            String?
+  attributesText    String?
+  lastSyncedAt      DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, externalAccountId, entityType, externalId])
+  @@index([organizationId, providerId])
+}
+
+model CampaignOp {
+  id                 String           @id @default(cuid())
+  organizationId     String
+  clientId           String
+  workspaceId        String?
+  providerId         String
+  externalAccountId  String
+  requestedById      String
+  kind               CampaignOpKind   @default(SEARCH_CREATE)
+  status             CampaignOpStatus @default(DRAFT)
+  name               String
+  dailyBudgetMicros  BigInt?
+  dryRun             Boolean          @default(true)
+  confirmPhrase      String?
+  requestPayload     String
+  responsePayload    String?
+  googleValidateOnly Boolean          @default(true)
+  errorMessage       String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  appliedAt          DateTime?
+
+  organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client          Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  workspace       Workspace?          @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  provider        IntegrationProvider @relation(fields: [providerId], references: [id])
+  externalAccount ExternalAccount     @relation(fields: [externalAccountId], references: [id], onDelete: Restrict)
+  requestedBy     User                @relation(fields: [requestedById], references: [id])
+  dryRunJobs      DryRunJob[]
+  changeRequests  ChangeRequest[]
+
+  @@index([organizationId, status])
+  @@index([providerId, externalAccountId])
+  @@index([clientId])
+}
+
+model DryRunJob {
+  id                String   @id @default(cuid())
+  organizationId    String
+  providerId        String
+  campaignOpId      String
+  externalAccountId String
+  validateOnly      Boolean  @default(true)
+  requestBody       String
+  responseBody      String?
+  success           Boolean  @default(false)
+  createdAt         DateTime @default(now())
+
+  campaignOp      CampaignOp      @relation(fields: [campaignOpId], references: [id], onDelete: Cascade)
+  externalAccount ExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, createdAt])
+  @@index([campaignOpId])
+}
+
+model ChangeRequest {
+  id             String   @id @default(cuid())
+  organizationId String
+  providerId     String
+  campaignOpId   String
+  requestedById  String
+  summary        String
+  approved       Boolean?
+  reviewedAt     DateTime?
+  createdAt      DateTime @default(now())
+
+  provider    IntegrationProvider @relation(fields: [providerId], references: [id])
+  campaignOp  CampaignOp          @relation(fields: [campaignOpId], references: [id], onDelete: Cascade)
+  requestedBy User                @relation(fields: [requestedById], references: [id])
+
+  @@index([organizationId, createdAt])
+  @@index([providerId])
+}
+
+model SyncJob {
+  id                String        @id @default(cuid())
+  organizationId    String
+  providerId        String
+  externalAccountId String?
+  status            SyncJobStatus @default(QUEUED)
+  jobType           String
+  requestBody       String?
+  responseBody      String?
+  errorMessage      String?
+  startedAt         DateTime?
+  finishedAt        DateTime?
+  createdAt         DateTime      @default(now())
+
+  organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  provider        IntegrationProvider @relation(fields: [providerId], references: [id])
+  externalAccount ExternalAccount?    @relation(fields: [externalAccountId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, providerId, createdAt])
+  @@index([status])
+}
+
+model AuditEvent {
+  id             String   @id @default(cuid())
+  organizationId String?
+  actorUserId    String?
+  providerId     String?
+  action         String
+  resourceType   String
+  resourceId     String?
+  ip             String?
+  userAgent      String?
+  metadataText   String?
+  createdAt      DateTime @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  actor        User?         @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([providerId, resourceType, resourceId])
+  @@index([actorUserId])
+}
+
+model RolePermission {
+  id       String             @id @default(cuid())
+  role     MembershipRole
+  resource PermissionResource
+  action   PermissionAction
+
+  @@unique([role, resource, action])
+  @@index([role])
+}
