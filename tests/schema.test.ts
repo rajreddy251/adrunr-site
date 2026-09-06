@@ -53,6 +53,10 @@ const v111Migration = readFileSync(
   resolve(process.cwd(), "prisma/migrations/20260906270000_schema_v1_11/migration.sql"),
   "utf8",
 );
+const v112Migration = readFileSync(
+  resolve(process.cwd(), "prisma/migrations/20260906280000_schema_v1_12/migration.sql"),
+  "utf8",
+);
 
 describe("schema v1.2 locks", () => {
   it("does not use JSONB / Prisma Json types", () => {
@@ -126,6 +130,10 @@ describe("schema v1.2 locks", () => {
       "LocalServicesCampaignDraft",
       "LocalServicesCategoryDraft",
       "LocalServicesTargetDraft",
+      "SyncedCampaign",
+      "SyncedAdGroup",
+      "SyncedAd",
+      "SyncedKeyword",
       "DryRunJob",
       "ChangeRequest",
       "AuditEvent",
@@ -418,6 +426,35 @@ describe("schema v1.10 locks", () => {
   });
 });
 
+describe("schema v1.12 locks", () => {
+  it("adds Synced listing models and extends SyncJob without JSONB", () => {
+    expect(schema).toContain("model SyncedCampaign");
+    expect(schema).toContain("model SyncedAdGroup");
+    expect(schema).toContain("model SyncedAd");
+    expect(schema).toContain("model SyncedKeyword");
+    expect(schema).toContain("model SyncJob");
+    expect(schema).toContain("SYNCED_CAMPAIGN");
+    expect(schema).toContain("KEYWORD");
+    expect(schema).toContain("readOnly");
+    expect(schema).toContain("advertisingChannelType");
+    expect(schema).toContain("headlinesText");
+    expect(schema).toContain("isNegative");
+    expect(schema).toContain("lastSyncJobId");
+    expect(schema).not.toMatch(/\bJson\b/);
+    expect(v112Migration).toContain('ALTER TYPE "PermissionResource" ADD VALUE \'SYNCED_CAMPAIGN\'');
+    expect(v112Migration).toContain('ALTER TYPE "ExternalEntityType" ADD VALUE \'KEYWORD\'');
+    expect(v112Migration).toContain('CREATE TABLE "SyncedCampaign"');
+    expect(v112Migration).toContain('CREATE TABLE "SyncedAdGroup"');
+    expect(v112Migration).toContain('CREATE TABLE "SyncedAd"');
+    expect(v112Migration).toContain('CREATE TABLE "SyncedKeyword"');
+    expect(v112Migration).toContain('ALTER TABLE "SyncJob" ADD COLUMN "readOnly"');
+    expect(v112Migration).toContain('ALTER TABLE "SyncJob" ADD COLUMN "dryRun"');
+    expect(v112Migration).toContain("SyncedCampaign_lastSyncJobId_fkey");
+    expect(v112Migration).not.toMatch(/DROP TABLE/i);
+    expect(v112Migration).not.toMatch(/jsonb/i);
+  });
+});
+
 describe("schema v1.11 locks", () => {
   it("adds Hotel, Local, and Local Services draft models without JSONB", () => {
     expect(schema).toContain("enum HotelDraftStatus");
@@ -505,7 +542,7 @@ describe("role permissions", () => {
 describe("client role permissions", () => {
   it("seeds READ/LIST defaults without mutating agency RolePermission", () => {
     const rows = buildClientRolePermissionRows();
-    expect(rows).toHaveLength(74);
+    expect(rows).toHaveLength(80);
     expect(rows.every((row) => row.action === "READ" || row.action === "LIST")).toBe(true);
 
     expect(clientRoleHasPermission("CLIENT_ADMIN", "AUDIT_EVENT", "READ")).toBe(true);
@@ -549,6 +586,9 @@ describe("client role permissions", () => {
       expect(clientRoleHasPermission(role, "LOCAL_SERVICES_CAMPAIGN_DRAFT", "READ")).toBe(true);
       expect(clientRoleHasPermission(role, "LOCAL_SERVICES_CAMPAIGN_DRAFT", "LIST")).toBe(true);
       expect(clientRoleHasPermission(role, "LOCAL_SERVICES_CAMPAIGN_DRAFT", "APPLY_PAUSED")).toBe(false);
+      expect(clientRoleHasPermission(role, "SYNCED_CAMPAIGN", "READ")).toBe(true);
+      expect(clientRoleHasPermission(role, "SYNCED_CAMPAIGN", "LIST")).toBe(true);
+      expect(clientRoleHasPermission(role, "SYNCED_CAMPAIGN", "APPLY_PAUSED")).toBe(false);
     }
   });
 });

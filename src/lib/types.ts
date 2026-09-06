@@ -634,3 +634,69 @@ export type ClientMemoryFact = {
   value: string;
   source: string;
 };
+
+export type SyncedKeywordView = {
+  id?: string;
+  externalId: string;
+  resourceName: string | null;
+  text: string;
+  matchType: string | null;
+  status: string | null;
+  isNegative: boolean;
+};
+
+export type SyncedAdView = {
+  id?: string;
+  externalId: string;
+  resourceName: string | null;
+  name: string | null;
+  type: string | null;
+  status: string | null;
+  headlinesText: string | null;
+  descriptionsText: string | null;
+  finalUrl: string | null;
+};
+
+export type SyncedAdGroupView = {
+  id?: string;
+  externalId: string;
+  resourceName: string | null;
+  name: string;
+  status: string | null;
+  type: string | null;
+  ads: SyncedAdView[];
+  keywords: SyncedKeywordView[];
+};
+
+export type SyncedCampaignView = {
+  id?: string;
+  externalId: string;
+  resourceName: string | null;
+  name: string;
+  advertisingChannelType: string | null;
+  status: string | null;
+  servingStatus: string | null;
+  biddingStrategyType: string | null;
+  lastSyncedAt: string | null;
+  adGroups: SyncedAdGroupView[];
+};
+
+export type SyncJobView = {
+  id: string;
+  jobType: string;
+  status: string;
+  readOnly: boolean;
+  dryRun: boolean;
+  errorMessage: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  createdAt: string;
+  counts?: ListingSyncCounts;
+};
+
+export type ListingSyncCounts = {
+  campaigns: number;
+  adGroups: number;
+  ads: number;
+  keywords: number;
+};

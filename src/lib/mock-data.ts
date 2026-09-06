@@ -4,7 +4,7 @@ import {
   PLATFORM_MCC_ID,
   formatCustomerId,
 } from "./ids";
-import type { AdsAccountView } from "./types";
+import type { AdsAccountView, SyncedCampaignView } from "./types";
 
 export const MOCK_EMAIL = "ops@adrunr.local";
 
@@ -59,4 +59,90 @@ export function mockGa4Report(propertyId: string) {
     totals: { sessions: 388, conversions: 13 },
     note: "Placeholder GA4 report (ADRUNR_MOCK). Soft-fails live when GA4_PROPERTY_ID or Analytics scope is missing.",
   };
+}
+
+export function mockListings(customerId: string): SyncedCampaignView[] {
+  return [
+    {
+      externalId: "1111111111",
+      resourceName: `customers/${customerId}/campaigns/1111111111`,
+      name: "Demo Search — Brand",
+      advertisingChannelType: "SEARCH",
+      status: "PAUSED",
+      servingStatus: "PENDING",
+      biddingStrategyType: "MANUAL_CPC",
+      lastSyncedAt: null,
+      adGroups: [
+        {
+          externalId: "2222222222",
+          resourceName: `customers/${customerId}/adGroups/2222222222`,
+          name: "Brand exact",
+          status: "PAUSED",
+          type: "SEARCH_STANDARD",
+          ads: [
+            {
+              externalId: "3333333333",
+              resourceName: `customers/${customerId}/adGroupAds/2222222222~3333333333`,
+              name: "Brand RSA",
+              type: "RESPONSIVE_SEARCH_AD",
+              status: "PAUSED",
+              headlinesText: "Adrunr ads ops\nPaused Search demo\nCreate without spend",
+              descriptionsText: "Read-only sync fixture.\nWizards stay PAUSED.",
+              finalUrl: "https://adrunr.com",
+            },
+          ],
+          keywords: [
+            {
+              externalId: "4444444444",
+              resourceName: `customers/${customerId}/adGroupCriteria/2222222222~4444444444`,
+              text: "adrunr ads",
+              matchType: "EXACT",
+              status: "ENABLED",
+              isNegative: false,
+            },
+            {
+              externalId: "4444444445",
+              resourceName: `customers/${customerId}/adGroupCriteria/2222222222~4444444445`,
+              text: "enable spend",
+              matchType: "PHRASE",
+              status: "ENABLED",
+              isNegative: true,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      externalId: "5555555555",
+      resourceName: `customers/${customerId}/campaigns/5555555555`,
+      name: "Demo Display — Prospecting",
+      advertisingChannelType: "DISPLAY",
+      status: "ENABLED",
+      servingStatus: "SERVING",
+      biddingStrategyType: "MAXIMIZE_CONVERSIONS",
+      lastSyncedAt: null,
+      adGroups: [
+        {
+          externalId: "6666666666",
+          resourceName: `customers/${customerId}/adGroups/6666666666`,
+          name: "Prospecting",
+          status: "ENABLED",
+          type: "DISPLAY_STANDARD",
+          ads: [
+            {
+              externalId: "7777777777",
+              resourceName: `customers/${customerId}/adGroupAds/6666666666~7777777777`,
+              name: "Display RDA",
+              type: "RESPONSIVE_DISPLAY_AD",
+              status: "ENABLED",
+              headlinesText: "Ops tools, not autopilot",
+              descriptionsText: "Cached ENABLED is a snapshot. Sync never unpauses live Ads.",
+              finalUrl: "https://adrunr.com/ops",
+            },
+          ],
+          keywords: [],
+        },
+      ],
+    },
+  ];
 }

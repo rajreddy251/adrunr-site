@@ -62,6 +62,7 @@ enum ExternalEntityType {
   CAMPAIGN
   AD_GROUP
   AD
+  KEYWORD
   PROPERTY
   PROJECT
   PIXEL
@@ -121,6 +122,7 @@ enum PermissionResource {
   HOTEL_CAMPAIGN_DRAFT
   LOCAL_CAMPAIGN_DRAFT
   LOCAL_SERVICES_CAMPAIGN_DRAFT
+  SYNCED_CAMPAIGN
   SYNC_JOB
   AUDIT_EVENT
   BILLING
@@ -486,6 +488,7 @@ model Organization {
   hotelDrafts      HotelCampaignDraft[]
   localDrafts      LocalCampaignDraft[]
   localServicesDrafts LocalServicesCampaignDraft[]
+  syncedCampaigns  SyncedCampaign[]
   syncJobs         SyncJob[]
   auditEvents      AuditEvent[]
   agentAssignments AgentClientAssignment[]
@@ -649,6 +652,7 @@ model IntegrationProvider {
   externalAccounts ExternalAccount[]
   campaignOps      CampaignOp[]
   syncJobs         SyncJob[]
+  syncedCampaigns  SyncedCampaign[]
   changeRequests   ChangeRequest[]
 }
 
@@ -713,6 +717,7 @@ model ExternalAccount {
   localServicesDrafts LocalServicesCampaignDraft[]
   dryRunJobs      DryRunJob[]
   syncJobs        SyncJob[]
+  syncedCampaigns SyncedCampaign[]
 
   @@unique([organizationId, providerId, externalId])
   @@index([clientId])
@@ -1897,6 +1902,104 @@ model ChangeRequest {
   @@index([providerId])
 }
 
+model SyncedCampaign {
+  id                     String    @id @default(cuid())
+  organizationId         String
+  providerId             String
+  externalAccountId      String
+  lastSyncJobId          String?
+  externalId             String
+  resourceName           String?
+  name                   String
+  advertisingChannelType String?
+  status                 String?
+  servingStatus          String?
+  biddingStrategyType    String?
+  attributesText         String?
+  lastSyncedAt           DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  provider        IntegrationProvider @relation(fields: [providerId], references: [id])
+  externalAccount ExternalAccount     @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
+  lastSyncJob     SyncJob?            @relation(fields: [lastSyncJobId], references: [id], onDelete: SetNull)
+  adGroups        SyncedAdGroup[]
+
+  @@unique([providerId, externalAccountId, externalId])
+  @@index([organizationId, providerId])
+  @@index([externalAccountId])
+  @@index([lastSyncJobId])
+}
+
+model SyncedAdGroup {
+  id                String    @id @default(cuid())
+  organizationId    String
+  syncedCampaignId  String
+  externalAccountId String
+  externalId        String
+  resourceName      String?
+  name              String
+  status            String?
+  type              String?
+  attributesText    String?
+  lastSyncedAt      DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  campaign SyncedCampaign  @relation(fields: [syncedCampaignId], references: [id], onDelete: Cascade)
+  ads      SyncedAd[]
+  keywords SyncedKeyword[]
+
+  @@unique([syncedCampaignId, externalId])
+  @@index([organizationId])
+  @@index([externalAccountId])
+}
+
+model SyncedAd {
+  id               String    @id @default(cuid())
+  organizationId   String
+  syncedAdGroupId  String
+  externalId       String
+  resourceName     String?
+  name             String?
+  type             String?
+  status           String?
+  headlinesText    String?
+  descriptionsText String?
+  finalUrl         String?
+  attributesText   String?
+  lastSyncedAt     DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  adGroup SyncedAdGroup @relation(fields: [syncedAdGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([syncedAdGroupId, externalId])
+  @@index([organizationId])
+}
+
+model SyncedKeyword {
+  id              String    @id @default(cuid())
+  organizationId  String
+  syncedAdGroupId String
+  externalId      String
+  resourceName    String?
+  text            String
+  matchType       String?
+  status          String?
+  isNegative      Boolean   @default(false)
+  attributesText  String?
+  lastSyncedAt    DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  adGroup SyncedAdGroup @relation(fields: [syncedAdGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([syncedAdGroupId, externalId])
+  @@index([organizationId])
+}
+
 model SyncJob {
   id                String        @id @default(cuid())
   organizationId    String
@@ -1904,6 +2007,8 @@ model SyncJob {
   externalAccountId String?
   status            SyncJobStatus @default(QUEUED)
   jobType           String
+  readOnly          Boolean       @default(true)
+  dryRun            Boolean       @default(false)
   requestBody       String?
   responseBody      String?
   errorMessage      String?
@@ -1914,9 +2019,11 @@ model SyncJob {
   organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   provider        IntegrationProvider @relation(fields: [providerId], references: [id])
   externalAccount ExternalAccount?    @relation(fields: [externalAccountId], references: [id], onDelete: SetNull)
+  syncedCampaigns SyncedCampaign[]
 
   @@index([organizationId, providerId, createdAt])
   @@index([status])
+  @@index([jobType, createdAt])
 }
 
 model AuditEvent {
