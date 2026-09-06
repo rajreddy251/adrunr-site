@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { DemandGenWizard, type DemandGenWizardHandle } from "@/components/demand-gen-wizard";
 import { DisplayWizard, type DisplayWizardHandle } from "@/components/display-wizard";
+import { EditPanel } from "@/components/edit-panel";
 import { ListingsPanel } from "@/components/listings-panel";
 import { MetricsPanel } from "@/components/metrics-panel";
 import { PmaxWizard, type PmaxWizardHandle } from "@/components/pmax-wizard";
@@ -150,8 +151,8 @@ export function OpsConsole() {
           <p className="font-mono text-xs uppercase tracking-[0.2em] text-lime-400">Adrunr · ads ops</p>
           <h1 className="mt-1 text-3xl font-medium text-white">Campaign tools, not autopilot.</h1>
           <p className="mt-2 max-w-2xl text-sm text-moss-400">
-            Provider-agnostic foundation (Schema v1.13). Google Ads Search + Display + Performance Max
-            + Demand Gen + Video + Shopping + App + Hotel + Local + Local Services wizards + fill-first assistant + read-only listings and budget/spend sync; other providers are seeded stubs. MCC{" "}
+            Provider-agnostic foundation (Schema v1.14). Google Ads Search + Display + Performance Max
+            + Demand Gen + Video + Shopping + App + Hotel + Local + Local Services wizards + fill-first assistant + read-only listings and budget/spend sync + safe campaign edit; other providers are seeded stubs. MCC{" "}
             <span className="font-mono text-moss-300">{PLATFORM_MCC_DISPLAY}</span> · GCP{" "}
             <span className="font-mono text-moss-300">adrunr-ads-ops</span> · Neon + Prisma
           </p>
@@ -375,6 +376,12 @@ export function OpsConsole() {
         onFinished={loadAudit}
       />
 
+      <EditPanel
+        customerId={selectedId}
+        connected={status.connected}
+        onFinished={loadAudit}
+      />
+
       <SearchWorkspace accounts={accounts} connected={status.connected} onFinished={loadAudit} />
 
       <section className="rounded-2xl border border-ink-700 bg-ink-900 p-5">
@@ -402,8 +409,8 @@ export function OpsConsole() {
       </section>
 
       <footer className="pb-8 text-xs text-moss-500">
-        Adrunr · Schema v1.13 · Neon Postgres + Prisma · encrypted OAuth columns · no file tokens · no
-        JSONB · listings + metrics sync are read-only · no spend/enable path
+        Adrunr · Schema v1.14 · Neon Postgres + Prisma · encrypted OAuth columns · no file tokens · no
+        JSONB · listings + metrics sync are read-only · safe edit never enables · no spend/enable path
       </footer>
     </div>
   );

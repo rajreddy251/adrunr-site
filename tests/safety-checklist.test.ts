@@ -3,7 +3,15 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { IMPLEMENTED_CAMPAIGN_OP_KINDS } from "@/lib/campaign";
-import { CONFIRM_PAUSED_PHRASE, LISTINGS_SYNC_READ_ONLY_NOTE, METRICS_SYNC_READ_ONLY_NOTE, assertPausedOnly } from "@/lib/safety";
+import {
+  CAMPAIGN_EDIT_NOTE,
+  CONFIRM_EDIT_PHRASE,
+  CONFIRM_PAUSED_PHRASE,
+  LISTINGS_SYNC_READ_ONLY_NOTE,
+  METRICS_SYNC_READ_ONLY_NOTE,
+  assertEditDoesNotEnable,
+  assertPausedOnly,
+} from "@/lib/safety";
 import {
   AD_SEARCH_QUERY,
   CAMPAIGN_SEARCH_QUERY,
@@ -15,6 +23,66 @@ import { METRICS_SYNC_JOB_TYPE, buildMetricsSearchQuery } from "@/lib/metrics";
 const schema = readFileSync(resolve(process.cwd(), "prisma/schema.prisma"), "utf8");
 const envExample = readFileSync(resolve(process.cwd(), ".env.example"), "utf8");
 const gitignore = readFileSync(resolve(process.cwd(), ".gitignore"), "utf8");
+
+describe("P10 Ops Edit safety checklist", () => {
+  it("keeps create wizards, listings, and metrics working, with edit refusing ENABLE", () => {
+    expect(IMPLEMENTED_CAMPAIGN_OP_KINDS).toEqual([
+      "SEARCH_CREATE",
+      "DISPLAY_CREATE",
+      "PMAX_CREATE",
+      "DEMAND_GEN_CREATE",
+      "VIDEO_CREATE",
+      "SHOPPING_CREATE",
+      "APP_CREATE",
+      "HOTEL_CREATE",
+      "LOCAL_CREATE",
+      "LOCAL_SERVICES_CREATE",
+      "CAMPAIGN_EDIT",
+    ]);
+    expect(CONFIRM_PAUSED_PHRASE).toBe("CREATE PAUSED");
+    expect(CONFIRM_EDIT_PHRASE).toBe("EDIT SAFE");
+    expect(CAMPAIGN_EDIT_NOTE).toMatch(/never enables/i);
+    expect(LISTINGS_SYNC_READ_ONLY_NOTE).toMatch(/read-only/i);
+    expect(METRICS_SYNC_READ_ONLY_NOTE).toMatch(/read-only/i);
+    expect(() => assertPausedOnly("ENABLED")).toThrow(/enable path/);
+    expect(() => assertEditDoesNotEnable("ENABLED")).toThrow(/enable path/);
+    expect(() => assertEditDoesNotEnable("PAUSED")).toThrow(/never set status/);
+  });
+
+  it("stores CampaignEditDraft as TEXT children, not JSONB", () => {
+    expect(schema).toContain("model CampaignEditDraft");
+    expect(schema).toContain("proposedName");
+    expect(schema).toContain("proposedDailyBudgetMicros");
+    expect(schema).toContain("proposedBidMicros");
+    expect(schema).toContain("criterionText");
+    expect(schema).toContain("CAMPAIGN_EDIT");
+    expect(schema).not.toMatch(/\bJson\b/);
+  });
+
+  it("validate-then-confirm edit APIs never ship an enable path", () => {
+    const edit = readFileSync(resolve(process.cwd(), "src/lib/campaign-edit.ts"), "utf8");
+    const editOps = readFileSync(resolve(process.cwd(), "src/lib/campaign-edit-ops.ts"), "utf8");
+    const applyRoute = readFileSync(
+      resolve(process.cwd(), "src/app/api/ads/edits/drafts/[id]/apply/route.ts"),
+      "utf8",
+    );
+    const validateRoute = readFileSync(
+      resolve(process.cwd(), "src/app/api/ads/edits/drafts/[id]/validate/route.ts"),
+      "utf8",
+    );
+    expect(edit).toContain("refuseEnableOnEdit");
+    expect(edit).toContain("assertNoStatusInMutate");
+    expect(edit).toContain("EDIT SAFE");
+    expect(editOps).toContain("kind: \"CAMPAIGN_EDIT\"");
+    expect(editOps).toContain("enablePath: false");
+    expect(applyRoute).toContain("dryRun: false");
+    expect(validateRoute).toContain("dryRun: true");
+    expect(applyRoute).toContain("enablePath: false");
+    expect(validateRoute).toContain("enablePath: false");
+    expect(edit).not.toMatch(/status:\s*"ENABLED"/);
+    expect(editOps).not.toMatch(/status:\s*"ENABLED"/);
+  });
+});
 
 describe("P9 Ops Metrics snapshot safety checklist", () => {
   it("keeps create wizards and listings sync working, with metrics read-only", () => {
@@ -29,6 +97,7 @@ describe("P9 Ops Metrics snapshot safety checklist", () => {
       "HOTEL_CREATE",
       "LOCAL_CREATE",
       "LOCAL_SERVICES_CREATE",
+      "CAMPAIGN_EDIT",
     ]);
     expect(LISTINGS_SYNC_JOB_TYPE).toBe("sync_listings");
     expect(METRICS_SYNC_JOB_TYPE).toBe("sync_metrics");
@@ -87,6 +156,7 @@ describe("P8 Ops Sync listings safety checklist", () => {
       "HOTEL_CREATE",
       "LOCAL_CREATE",
       "LOCAL_SERVICES_CREATE",
+      "CAMPAIGN_EDIT",
     ]);
     expect(LISTINGS_SYNC_JOB_TYPE).toBe("sync_listings");
     expect(LISTINGS_SYNC_READ_ONLY_NOTE).toMatch(/read-only/i);
@@ -140,6 +210,7 @@ describe("P7 Hotel / Local / Local Services safety checklist", () => {
       "HOTEL_CREATE",
       "LOCAL_CREATE",
       "LOCAL_SERVICES_CREATE",
+      "CAMPAIGN_EDIT",
     ]);
     expect(CONFIRM_PAUSED_PHRASE).toBe("CREATE PAUSED");
     expect(() => assertPausedOnly("ENABLED")).toThrow(/enable path/);
