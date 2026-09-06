@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
 
 import { CONFIRM_PAUSED_PHRASE } from "@/lib/safety";
 import {
@@ -115,9 +115,7 @@ export function SearchWizard({
     () => accounts.filter((account) => !account.manager),
     [accounts],
   );
-  const [customerId, setCustomerId] = useState(
-    () => selectable.find((account) => !account.warning)?.customerId ?? "",
-  );
+  const [customerId, setCustomerId] = useState("");
   const [name, setName] = useState("Adrunr paused search");
   const [budgetDollars, setBudgetDollars] = useState("1.00");
   const [startDate, setStartDate] = useState("");
@@ -128,6 +126,12 @@ export function SearchWizard({
     { type: "LANGUAGE", valueText: "English", criterionText: "languageConstants/1000", included: true },
   ]);
   const [enhancedCpc, setEnhancedCpc] = useState(false);
+
+  useEffect(() => {
+    if (customerId) return;
+    const next = selectable.find((account) => !account.warning)?.customerId;
+    if (next) setCustomerId(next);
+  }, [customerId, selectable]);
 
   const selected = accounts.find((account) => account.customerId === customerId) ?? null;
 
