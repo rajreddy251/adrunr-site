@@ -19,8 +19,16 @@
 .marketing-shell {
   color-scheme: light;
   min-height: 100%;
-  background: #fff;
-  color: #202124;
+  color: #121714;
+  background:
+    radial-gradient(1100px 560px at 6% -14%, rgba(200, 245, 66, 0.28), transparent 54%),
+    radial-gradient(880px 480px at 100% -10%, rgba(26, 115, 232, 0.07), transparent 46%),
+    #f4f5f0;
+}
+
+.marketing-shell ::selection {
+  background: #c8f542;
+  color: #0b0e0c;
 }
 
 html,
