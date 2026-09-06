@@ -12,40 +12,49 @@ import {
   type RefObject,
 } from "react";
 
-import { CONFIRM_PAUSED_PHRASE } from "@/lib/safety";
 import {
-  DESCRIPTION_MAX,
+  AUDIENCE_PRESETS,
+  DEFAULT_LOGO_IMAGE,
+  DEFAULT_MARKETING_IMAGE,
+  DEFAULT_SQUARE_IMAGE,
+  DISPLAY_DESCRIPTION_MAX,
+  DISPLAY_HEADLINE_MAX,
   GEO_PRESETS,
-  HEADLINE_MAX,
-  LANGUAGE_PRESETS,
-  SEARCH_KEYWORD_MATCH_TYPES,
-} from "@/lib/search-draft";
-import { hydrateWizardFromDraft } from "@/lib/search-wizard-map";
-import type { AdsAccountView, SearchDraftClientView } from "@/lib/types";
+  audienceCriterionForCustomer,
+} from "@/lib/display-draft";
+import { hydrateDisplayWizardFromDraft } from "@/lib/display-wizard-map";
+import { CONFIRM_PAUSED_PHRASE } from "@/lib/safety";
+import type { AdsAccountView, DisplayDraftClientView } from "@/lib/types";
 
-type WizardKeyword = {
-  text: string;
-  matchType: (typeof SEARCH_KEYWORD_MATCH_TYPES)[number];
-  isNegative: boolean;
+type WizardAsset = {
+  kind: "MARKETING_IMAGE" | "SQUARE_MARKETING_IMAGE" | "LOGO" | "YOUTUBE_VIDEO";
+  urlText: string;
 };
 
 type WizardAd = {
   headlines: string[];
+  longHeadline: string;
   descriptions: string[];
+  businessName: string;
   finalUrl: string;
-  path1: string;
-  path2: string;
+  assets: WizardAsset[];
 };
 
 type WizardAdGroup = {
   name: string;
   defaultBidDollars: string;
-  keywords: WizardKeyword[];
   ads: WizardAd[];
 };
 
 type WizardTarget = {
   type: "GEO" | "LANGUAGE";
+  valueText: string;
+  criterionText: string;
+  included: boolean;
+};
+
+type WizardAudience = {
+  kind: "USER_LIST";
   valueText: string;
   criterionText: string;
   included: boolean;
@@ -66,15 +75,13 @@ type WizardResult = {
 };
 
 const STEPS = [
-  { id: "S0", title: "Account" },
-  { id: "S1", title: "Basics" },
-  { id: "S2", title: "Ad groups" },
-  { id: "S3", title: "Keywords" },
-  { id: "S4", title: "RSA" },
-  { id: "S5", title: "Targeting" },
-  { id: "S6", title: "Bidding" },
-  { id: "S7", title: "Review" },
-  { id: "S8", title: "Result" },
+  { id: "D0", title: "Account" },
+  { id: "D1", title: "Basics" },
+  { id: "D2", title: "Creatives" },
+  { id: "D3", title: "Audiences / geo" },
+  { id: "D4", title: "Bidding" },
+  { id: "D5", title: "Review" },
+  { id: "D6", title: "Result" },
 ] as const;
 
 function dollarsToMicros(value: string): number {
@@ -85,41 +92,45 @@ function dollarsToMicros(value: string): number {
 
 function emptyAd(): WizardAd {
   return {
-    headlines: ["Adrunr Search Ads", "Paused Campaign Tools", "Ops, Not Autopilot"],
+    headlines: ["Adrunr Display Ads", "Paused Campaign Tools", "Ops, Not Autopilot"],
+    longHeadline: "Create Display campaigns as PAUSED. Dry-run is the default path.",
     descriptions: [
-      "Create Search campaigns as PAUSED. Dry-run is the default path.",
+      "Remarketing is a Display audience, not a separate campaign type.",
       "Validate the full tree before any Google Ads apply.",
     ],
+    businessName: "Adrunr",
     finalUrl: "https://adrunr.app",
-    path1: "search",
-    path2: "paused",
+    assets: [
+      { kind: "MARKETING_IMAGE", urlText: DEFAULT_MARKETING_IMAGE },
+      { kind: "SQUARE_MARKETING_IMAGE", urlText: DEFAULT_SQUARE_IMAGE },
+      { kind: "LOGO", urlText: DEFAULT_LOGO_IMAGE },
+    ],
   };
 }
 
 function emptyGroup(index: number): WizardAdGroup {
   return {
-    name: `Ad group ${index + 1}`,
+    name: `Display ad group ${index + 1}`,
     defaultBidDollars: "1.00",
-    keywords: [{ text: "adrunr search", matchType: "PHRASE", isNegative: false }],
     ads: [emptyAd()],
   };
 }
 
-export type SearchWizardHandle = {
+export type DisplayWizardHandle = {
   getCustomerId: () => string;
   getDraftId: () => string | null;
   persist: () => Promise<string | null>;
-  applyDraft: (draft: SearchDraftClientView) => void;
+  applyDraft: (draft: DisplayDraftClientView) => void;
 };
 
-export const SearchWizard = forwardRef<
-  SearchWizardHandle,
+export const DisplayWizard = forwardRef<
+  DisplayWizardHandle,
   {
     accounts: AdsAccountView[];
     connected: boolean;
     onFinished: () => Promise<void> | void;
   }
->(function SearchWizard({ accounts, connected, onFinished }, ref) {
+>(function DisplayWizard({ accounts, connected, onFinished }, ref) {
   const [step, setStep] = useState(0);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -133,15 +144,15 @@ export const SearchWizard = forwardRef<
     [accounts],
   );
   const [customerId, setCustomerId] = useState("");
-  const [name, setName] = useState("Adrunr paused search");
+  const [name, setName] = useState("Adrunr paused display");
   const [budgetDollars, setBudgetDollars] = useState("1.00");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [groups, setGroups] = useState<WizardAdGroup[]>([emptyGroup(0)]);
   const [targets, setTargets] = useState<WizardTarget[]>([
     { type: "GEO", valueText: "United States", criterionText: "geoTargetConstants/2840", included: true },
-    { type: "LANGUAGE", valueText: "English", criterionText: "languageConstants/1000", included: true },
   ]);
+  const [audiences, setAudiences] = useState<WizardAudience[]>([]);
   const [enhancedCpc, setEnhancedCpc] = useState(false);
 
   useEffect(() => {
@@ -149,6 +160,29 @@ export const SearchWizard = forwardRef<
     const next = selectable.find((account) => !account.warning)?.customerId;
     if (next) setCustomerId(next);
   }, [customerId, selectable]);
+
+  useEffect(() => {
+    if (!customerId) return;
+    setAudiences((current) => {
+      if (current.length) {
+        return current.map((audience) => ({
+          ...audience,
+          criterionText: audience.criterionText.includes("/userLists/")
+            ? audienceCriterionForCustomer(customerId, audience.criterionText.split("/").pop() || "111")
+            : audience.criterionText,
+        }));
+      }
+      const preset = AUDIENCE_PRESETS[0];
+      return [
+        {
+          kind: "USER_LIST",
+          valueText: preset.valueText,
+          criterionText: audienceCriterionForCustomer(customerId, preset.listSuffix),
+          included: true,
+        },
+      ];
+    });
+  }, [customerId]);
 
   const selected = accounts.find((account) => account.customerId === customerId) ?? null;
 
@@ -166,15 +200,15 @@ export const SearchWizard = forwardRef<
         name: group.name,
         defaultBidMicros: dollarsToMicros(group.defaultBidDollars),
         sortOrder: index,
-        keywords: group.keywords,
         ads: group.ads,
       })),
       targets,
+      audiences,
     };
   }
 
-  function applyDraft(draft: SearchDraftClientView) {
-    const next = hydrateWizardFromDraft(draft);
+  function applyDraft(draft: DisplayDraftClientView) {
+    const next = hydrateDisplayWizardFromDraft(draft);
     setDraftId(next.draftId);
     setCustomerId(next.customerId);
     setName(next.name);
@@ -183,6 +217,16 @@ export const SearchWizard = forwardRef<
     setEndDate(next.endDate);
     setGroups(next.groups);
     setTargets(next.targets.length ? next.targets : targets);
+    setAudiences(
+      next.audiences
+        .filter((audience) => audience.kind === "USER_LIST")
+        .map((audience) => ({
+          kind: "USER_LIST" as const,
+          valueText: audience.valueText,
+          criterionText: audience.criterionText,
+          included: audience.included,
+        })),
+    );
     setEnhancedCpc(next.enhancedCpc);
     setStep((current) => (current === 0 ? 1 : current));
     setError(null);
@@ -198,12 +242,12 @@ export const SearchWizard = forwardRef<
     }),
     // persistDraft closes over current wizard fields
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [customerId, draftId, name, budgetDollars, startDate, endDate, groups, targets, enhancedCpc],
+    [customerId, draftId, name, budgetDollars, startDate, endDate, groups, targets, audiences, enhancedCpc],
   );
 
   async function persistDraft(): Promise<string | null> {
     const body = payload();
-    const res = await fetch(draftId ? `/api/ads/search/drafts/${draftId}` : "/api/ads/search/drafts", {
+    const res = await fetch(draftId ? `/api/ads/display/drafts/${draftId}` : "/api/ads/display/drafts", {
       method: draftId ? "PATCH" : "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
@@ -243,7 +287,7 @@ export const SearchWizard = forwardRef<
       setBusy(false);
       return;
     }
-    const res = await fetch(`/api/ads/search/drafts/${id}/${kind}`, {
+    const res = await fetch(`/api/ads/display/drafts/${id}/${kind}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -259,7 +303,7 @@ export const SearchWizard = forwardRef<
       return;
     }
     setError(null);
-    setStep(8);
+    setStep(6);
     setBusy(false);
     await onFinished();
   }
@@ -274,21 +318,21 @@ export const SearchWizard = forwardRef<
   }
 
   return (
-    <section className="rounded-2xl border border-ink-700 bg-ink-900 p-5">
-      <h2 className="text-lg text-white">Search campaign wizard (PAUSED)</h2>
+    <section className="rounded-2xl border border-ink-700 bg-ink-900 p-5" data-testid="display-wizard">
+      <h2 className="text-lg text-white">Display campaign wizard (PAUSED)</h2>
       <p className="mt-1 text-sm text-moss-400">
-        Schema v1.5 drafts in Neon. The assistant can fill fields; Validate is a full-tree{" "}
-        <code className="font-mono text-moss-300">validateOnly</code> dry-run. Apply still creates
-        PAUSED only — there is no enable path.
+        Schema v1.5 drafts in Neon. Remarketing is a Display audience, not a campaign type. Validate
+        is a full-tree <code className="font-mono text-moss-300">validateOnly</code> dry-run. Apply
+        still creates PAUSED only — there is no enable path.
       </p>
 
-      <ol className="mt-4 flex flex-wrap gap-2" aria-label="Wizard steps">
+      <ol className="mt-4 flex flex-wrap gap-2" aria-label="Display wizard steps">
         {STEPS.map((item, index) => (
           <li key={item.id}>
             <button
               type="button"
               onClick={() => {
-                if (index <= step || (index === 8 && result)) setStep(index);
+                if (index <= step || (index === 6 && result)) setStep(index);
               }}
               className={`rounded-full px-3 py-1 font-mono text-xs ${
                 index === step
@@ -331,11 +375,17 @@ export const SearchWizard = forwardRef<
             onEnd={setEndDate}
           />
         ) : null}
-        {step === 2 ? <AdGroupsStep groups={groups} onChange={setGroups} /> : null}
-        {step === 3 ? <KeywordsStep groups={groups} onChange={setGroups} /> : null}
-        {step === 4 ? <AdsStep groups={groups} onChange={setGroups} /> : null}
-        {step === 5 ? <TargetingStep targets={targets} onChange={setTargets} /> : null}
-        {step === 6 ? (
+        {step === 2 ? <CreativesStep groups={groups} onChange={setGroups} /> : null}
+        {step === 3 ? (
+          <AudienceGeoStep
+            customerId={customerId}
+            targets={targets}
+            audiences={audiences}
+            onTargets={setTargets}
+            onAudiences={setAudiences}
+          />
+        ) : null}
+        {step === 4 ? (
           <BiddingStep
             groups={groups}
             enhancedCpc={enhancedCpc}
@@ -343,7 +393,7 @@ export const SearchWizard = forwardRef<
             onChange={setGroups}
           />
         ) : null}
-        {step === 7 ? (
+        {step === 5 ? (
           <ReviewStep
             customerId={customerId}
             selected={selected}
@@ -351,6 +401,7 @@ export const SearchWizard = forwardRef<
             budgetDollars={budgetDollars}
             groups={groups}
             targets={targets}
+            audiences={audiences}
             enhancedCpc={enhancedCpc}
             startDate={startDate}
             endDate={endDate}
@@ -359,11 +410,11 @@ export const SearchWizard = forwardRef<
             onConfirm={setConfirmPhrase}
           />
         ) : null}
-        {step === 8 ? <ResultStep result={result} draftId={draftId} /> : null}
+        {step === 6 ? <ResultStep result={result} draftId={draftId} /> : null}
       </div>
 
       <div className="mt-6 flex flex-wrap gap-3">
-        {step > 0 && step < 8 ? (
+        {step > 0 && step < 6 ? (
           <button
             type="button"
             onClick={() => setStep((current) => current - 1)}
@@ -372,7 +423,7 @@ export const SearchWizard = forwardRef<
             Back
           </button>
         ) : null}
-        {step < 7 ? (
+        {step < 5 ? (
           <button
             type="button"
             onClick={() => void goNext()}
@@ -382,11 +433,11 @@ export const SearchWizard = forwardRef<
             {busy ? "Saving…" : "Save and continue"}
           </button>
         ) : null}
-        {step === 7 ? (
+        {step === 5 ? (
           <>
             <button
               type="button"
-              data-testid="wizard-validate"
+              data-testid="display-wizard-validate"
               onClick={() => void runAction("validate")}
               disabled={!connected || busy}
               className="rounded-lg bg-lime-400 px-4 py-2 text-sm font-medium text-ink-950 hover:bg-lime-500 disabled:opacity-40"
@@ -395,7 +446,7 @@ export const SearchWizard = forwardRef<
             </button>
             <button
               type="button"
-              data-testid="wizard-apply"
+              data-testid="display-wizard-apply"
               onClick={() => void runAction("apply")}
               disabled={!connected || busy}
               className="rounded-lg border border-amber-400/40 px-4 py-2 text-sm text-amber-400 hover:bg-amber-400/10 disabled:opacity-40"
@@ -404,7 +455,7 @@ export const SearchWizard = forwardRef<
             </button>
           </>
         ) : null}
-        {step === 8 ? (
+        {step === 6 ? (
           <button
             type="button"
             onClick={startOver}
@@ -437,13 +488,13 @@ function AccountStep({
   }
   return (
     <fieldset>
-      <legend className="text-sm text-white">S0 · Select customer</legend>
+      <legend className="text-sm text-white">D0 · Select customer</legend>
       <div className="mt-3 space-y-2">
         {accounts.map((account) => (
           <label key={account.customerId} className="flex cursor-pointer items-start gap-3 text-sm">
             <input
               type="radio"
-              name="wizard-customer"
+              name="display-wizard-customer"
               className="mt-1 accent-lime-400"
               checked={customerId === account.customerId}
               disabled={Boolean(account.warning)}
@@ -483,11 +534,7 @@ function BasicsStep({
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <Field label="Campaign name">
-        <input
-          value={name}
-          onChange={(event) => onName(event.target.value)}
-          className="input"
-        />
+        <input value={name} onChange={(event) => onName(event.target.value)} className="input" />
       </Field>
       <Field label="Daily budget (USD — campaign stays PAUSED)">
         <input
@@ -507,164 +554,7 @@ function BasicsStep({
   );
 }
 
-function AdGroupsStep({
-  groups,
-  onChange,
-}: {
-  groups: WizardAdGroup[];
-  onChange: (groups: WizardAdGroup[]) => void;
-}) {
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-moss-400">S2 · At least one ad group. Default CPC bid is used for Manual CPC.</p>
-      {groups.map((group, index) => (
-        <div key={`g-${index}`} className="grid gap-3 rounded-xl border border-ink-700 bg-ink-950 p-4 md:grid-cols-2">
-          <Field label="Ad group name">
-            <input
-              value={group.name}
-              onChange={(event) => {
-                const next = [...groups];
-                next[index] = { ...group, name: event.target.value };
-                onChange(next);
-              }}
-              className="input"
-            />
-          </Field>
-          <Field label="Default CPC bid (USD)">
-            <input
-              value={group.defaultBidDollars}
-              onChange={(event) => {
-                const next = [...groups];
-                next[index] = { ...group, defaultBidDollars: event.target.value };
-                onChange(next);
-              }}
-              inputMode="decimal"
-              className="input font-mono"
-            />
-          </Field>
-          {groups.length > 1 ? (
-            <button
-              type="button"
-              className="text-left text-xs text-coral-400"
-              onClick={() => onChange(groups.filter((_, i) => i !== index))}
-            >
-              Remove ad group
-            </button>
-          ) : null}
-        </div>
-      ))}
-      <button
-        type="button"
-        className="font-mono text-xs text-lime-400 hover:underline"
-        onClick={() => onChange([...groups, emptyGroup(groups.length)])}
-      >
-        Add ad group
-      </button>
-    </div>
-  );
-}
-
-function KeywordsStep({
-  groups,
-  onChange,
-}: {
-  groups: WizardAdGroup[];
-  onChange: (groups: WizardAdGroup[]) => void;
-}) {
-  return (
-    <div className="space-y-5">
-      <p className="text-sm text-moss-400">S3 · Keywords per ad group. Negative keywords skip bids.</p>
-      {groups.map((group, groupIndex) => (
-        <div key={`kw-${groupIndex}`} className="rounded-xl border border-ink-700 bg-ink-950 p-4">
-          <p className="text-sm text-white">{group.name}</p>
-          <div className="mt-3 space-y-2">
-            {group.keywords.map((keyword, keywordIndex) => (
-              <div key={`kw-${groupIndex}-${keywordIndex}`} className="grid gap-2 md:grid-cols-[1fr_8rem_auto_auto]">
-                <input
-                  value={keyword.text}
-                  onChange={(event) => {
-                    const next = [...groups];
-                    const keywords = [...group.keywords];
-                    keywords[keywordIndex] = { ...keyword, text: event.target.value };
-                    next[groupIndex] = { ...group, keywords };
-                    onChange(next);
-                  }}
-                  className="input"
-                  placeholder="keyword"
-                />
-                <select
-                  value={keyword.matchType}
-                  onChange={(event) => {
-                    const next = [...groups];
-                    const keywords = [...group.keywords];
-                    keywords[keywordIndex] = {
-                      ...keyword,
-                      matchType: event.target.value as WizardKeyword["matchType"],
-                    };
-                    next[groupIndex] = { ...group, keywords };
-                    onChange(next);
-                  }}
-                  className="input"
-                >
-                  {SEARCH_KEYWORD_MATCH_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-                <label className="flex items-center gap-2 text-xs text-moss-400">
-                  <input
-                    type="checkbox"
-                    className="accent-lime-400"
-                    checked={keyword.isNegative}
-                    onChange={(event) => {
-                      const next = [...groups];
-                      const keywords = [...group.keywords];
-                      keywords[keywordIndex] = { ...keyword, isNegative: event.target.checked };
-                      next[groupIndex] = { ...group, keywords };
-                      onChange(next);
-                    }}
-                  />
-                  Negative
-                </label>
-                <button
-                  type="button"
-                  className="text-xs text-coral-400"
-                  onClick={() => {
-                    const next = [...groups];
-                    next[groupIndex] = {
-                      ...group,
-                      keywords: group.keywords.filter((_, i) => i !== keywordIndex),
-                    };
-                    onChange(next);
-                  }}
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
-          </div>
-          <button
-            type="button"
-            className="mt-3 font-mono text-xs text-lime-400 hover:underline"
-            onClick={() => {
-              const next = [...groups];
-              next[groupIndex] = {
-                ...group,
-                keywords: [...group.keywords, { text: "", matchType: "PHRASE", isNegative: false }],
-              };
-              onChange(next);
-            }}
-          >
-            Add keyword
-          </button>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function AdsStep({
+function CreativesStep({
   groups,
   onChange,
 }: {
@@ -674,52 +564,114 @@ function AdsStep({
   return (
     <div className="space-y-5">
       <p className="text-sm text-moss-400">
-        S4 · Responsive search ads. {HEADLINE_MAX} headlines max, {DESCRIPTION_MAX} descriptions max.
+        D2 · Ad group + responsive display ad + image assets. {DISPLAY_HEADLINE_MAX} headlines max,{" "}
+        {DISPLAY_DESCRIPTION_MAX} descriptions max.
       </p>
-      {groups.map((group, groupIndex) =>
-        group.ads.map((ad, adIndex) => (
-          <div key={`ad-${groupIndex}-${adIndex}`} className="space-y-3 rounded-xl border border-ink-700 bg-ink-950 p-4">
-            <p className="text-sm text-white">
-              {group.name} · RSA {adIndex + 1}
-            </p>
-            <Field label="Final URL">
+      {groups.map((group, groupIndex) => (
+        <div key={`dg-${groupIndex}`} className="space-y-4 rounded-xl border border-ink-700 bg-ink-950 p-4">
+          <div className="grid gap-3 md:grid-cols-2">
+            <Field label="Ad group name">
               <input
-                value={ad.finalUrl}
-                onChange={(event) => updateAd(groups, onChange, groupIndex, adIndex, { finalUrl: event.target.value })}
+                value={group.name}
+                onChange={(event) => {
+                  const next = [...groups];
+                  next[groupIndex] = { ...group, name: event.target.value };
+                  onChange(next);
+                }}
+                className="input"
+              />
+            </Field>
+            <Field label="Default CPC bid (USD)">
+              <input
+                value={group.defaultBidDollars}
+                onChange={(event) => {
+                  const next = [...groups];
+                  next[groupIndex] = { ...group, defaultBidDollars: event.target.value };
+                  onChange(next);
+                }}
+                inputMode="decimal"
                 className="input font-mono"
               />
             </Field>
-            <div className="grid gap-3 md:grid-cols-2">
-              <Field label="Path 1">
-                <input
-                  value={ad.path1}
-                  onChange={(event) => updateAd(groups, onChange, groupIndex, adIndex, { path1: event.target.value })}
-                  className="input font-mono"
-                />
-              </Field>
-              <Field label="Path 2">
-                <input
-                  value={ad.path2}
-                  onChange={(event) => updateAd(groups, onChange, groupIndex, adIndex, { path2: event.target.value })}
-                  className="input font-mono"
-                />
-              </Field>
-            </div>
-            <ListEditor
-              label="Headlines"
-              values={ad.headlines}
-              max={HEADLINE_MAX}
-              onChange={(headlines) => updateAd(groups, onChange, groupIndex, adIndex, { headlines })}
-            />
-            <ListEditor
-              label="Descriptions"
-              values={ad.descriptions}
-              max={DESCRIPTION_MAX}
-              onChange={(descriptions) => updateAd(groups, onChange, groupIndex, adIndex, { descriptions })}
-            />
           </div>
-        )),
-      )}
+          {group.ads.map((ad, adIndex) => (
+            <div key={`dad-${groupIndex}-${adIndex}`} className="space-y-3">
+              <Field label="Business name">
+                <input
+                  value={ad.businessName}
+                  onChange={(event) =>
+                    updateAd(groups, onChange, groupIndex, adIndex, { businessName: event.target.value })
+                  }
+                  className="input"
+                />
+              </Field>
+              <Field label="Final URL">
+                <input
+                  value={ad.finalUrl}
+                  onChange={(event) =>
+                    updateAd(groups, onChange, groupIndex, adIndex, { finalUrl: event.target.value })
+                  }
+                  className="input font-mono"
+                />
+              </Field>
+              <Field label="Long headline">
+                <input
+                  value={ad.longHeadline}
+                  onChange={(event) =>
+                    updateAd(groups, onChange, groupIndex, adIndex, { longHeadline: event.target.value })
+                  }
+                  className="input"
+                />
+              </Field>
+              <ListEditor
+                label="Headlines"
+                values={ad.headlines}
+                max={DISPLAY_HEADLINE_MAX}
+                onChange={(headlines) => updateAd(groups, onChange, groupIndex, adIndex, { headlines })}
+              />
+              <ListEditor
+                label="Descriptions"
+                values={ad.descriptions}
+                max={DISPLAY_DESCRIPTION_MAX}
+                onChange={(descriptions) => updateAd(groups, onChange, groupIndex, adIndex, { descriptions })}
+              />
+              <div className="space-y-2">
+                <p className="text-xs text-moss-500">Assets (URLs stored as TEXT)</p>
+                {ad.assets.map((asset, assetIndex) => (
+                  <div key={`asset-${assetIndex}`} className="grid gap-2 md:grid-cols-[12rem_1fr]">
+                    <select
+                      value={asset.kind}
+                      onChange={(event) => {
+                        const assets = [...ad.assets];
+                        assets[assetIndex] = {
+                          ...asset,
+                          kind: event.target.value as WizardAsset["kind"],
+                        };
+                        updateAd(groups, onChange, groupIndex, adIndex, { assets });
+                      }}
+                      className="input"
+                    >
+                      <option value="MARKETING_IMAGE">Landscape</option>
+                      <option value="SQUARE_MARKETING_IMAGE">Square</option>
+                      <option value="LOGO">Logo</option>
+                      <option value="YOUTUBE_VIDEO">YouTube</option>
+                    </select>
+                    <input
+                      value={asset.urlText}
+                      onChange={(event) => {
+                        const assets = [...ad.assets];
+                        assets[assetIndex] = { ...asset, urlText: event.target.value };
+                        updateAd(groups, onChange, groupIndex, adIndex, { assets });
+                      }}
+                      className="input font-mono"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }
@@ -738,20 +690,24 @@ function updateAd(
   onChange(next);
 }
 
-function TargetingStep({
+function AudienceGeoStep({
+  customerId,
   targets,
-  onChange,
+  audiences,
+  onTargets,
+  onAudiences,
 }: {
+  customerId: string;
   targets: WizardTarget[];
-  onChange: (targets: WizardTarget[]) => void;
+  audiences: WizardAudience[];
+  onTargets: (targets: WizardTarget[]) => void;
+  onAudiences: (audiences: WizardAudience[]) => void;
 }) {
   const geos = targets.filter((target) => target.type === "GEO");
-  const languages = targets.filter((target) => target.type === "LANGUAGE");
   return (
     <div className="grid gap-6 md:grid-cols-2">
       <fieldset>
-        <legend className="text-sm text-white">S5 · Geo (MVP)</legend>
-        <p className="mt-1 text-xs text-moss-500">Audiences / schedule / device stay schema-ready.</p>
+        <legend className="text-sm text-white">D3 · Geo (MVP)</legend>
         <div className="mt-3 space-y-2">
           {GEO_PRESETS.map((preset) => {
             const checked = geos.some((target) => target.criterionText === preset.criterionText && target.included);
@@ -765,10 +721,8 @@ function TargetingStep({
                     const others = targets.filter(
                       (target) => !(target.type === "GEO" && target.criterionText === preset.criterionText),
                     );
-                    onChange(
-                      event.target.checked
-                        ? [...others, { type: "GEO", ...preset, included: true }]
-                        : others,
+                    onTargets(
+                      event.target.checked ? [...others, { type: "GEO", ...preset, included: true }] : others,
                     );
                   }}
                 />
@@ -779,25 +733,35 @@ function TargetingStep({
         </div>
       </fieldset>
       <fieldset>
-        <legend className="text-sm text-white">Languages</legend>
+        <legend className="text-sm text-white">Remarketing audiences</legend>
+        <p className="mt-1 text-xs text-moss-500">
+          These are Display audiences (USER_LIST), not a separate campaign type.
+        </p>
         <div className="mt-3 space-y-2">
-          {LANGUAGE_PRESETS.map((preset) => {
-            const checked = languages.some(
-              (target) => target.criterionText === preset.criterionText && target.included,
-            );
+          {AUDIENCE_PRESETS.map((preset) => {
+            const criterion = customerId
+              ? audienceCriterionForCustomer(customerId, preset.listSuffix)
+              : `customers/0000000000/userLists/${preset.listSuffix}`;
+            const checked = audiences.some((audience) => audience.criterionText === criterion && audience.included);
             return (
-              <label key={preset.criterionText} className="flex items-center gap-2 text-sm text-moss-300">
+              <label key={preset.listSuffix} className="flex items-center gap-2 text-sm text-moss-300">
                 <input
                   type="checkbox"
                   className="accent-lime-400"
                   checked={checked}
                   onChange={(event) => {
-                    const others = targets.filter(
-                      (target) => !(target.type === "LANGUAGE" && target.criterionText === preset.criterionText),
-                    );
-                    onChange(
+                    const others = audiences.filter((audience) => audience.criterionText !== criterion);
+                    onAudiences(
                       event.target.checked
-                        ? [...others, { type: "LANGUAGE", ...preset, included: true }]
+                        ? [
+                            ...others,
+                            {
+                              kind: "USER_LIST",
+                              valueText: preset.valueText,
+                              criterionText: criterion,
+                              included: true,
+                            },
+                          ]
                         : others,
                     );
                   }}
@@ -826,7 +790,7 @@ function BiddingStep({
   return (
     <div className="space-y-4">
       <p className="text-sm text-moss-400">
-        S6 · Manual CPC is the Phase 2 MVP. Maximize conversions / tROAS remain schema-ready and are
+        D4 · Manual CPC is the Display MVP. Maximize conversions / tROAS remain schema-ready and are
         not applied.
       </p>
       <label className="flex items-center gap-2 text-sm text-moss-300">
@@ -839,7 +803,7 @@ function BiddingStep({
         Enhanced CPC (still Manual CPC, campaign stays PAUSED)
       </label>
       {groups.map((group, index) => (
-        <Field key={`bid-${index}`} label={`${group.name} default CPC (USD)`}>
+        <Field key={`dbid-${index}`} label={`${group.name} default CPC (USD)`}>
           <input
             value={group.defaultBidDollars}
             onChange={(event) => {
@@ -863,6 +827,7 @@ function ReviewStep({
   budgetDollars,
   groups,
   targets,
+  audiences,
   enhancedCpc,
   startDate,
   endDate,
@@ -876,6 +841,7 @@ function ReviewStep({
   budgetDollars: string;
   groups: WizardAdGroup[];
   targets: WizardTarget[];
+  audiences: WizardAudience[];
   enhancedCpc: boolean;
   startDate: string;
   endDate: string;
@@ -886,7 +852,7 @@ function ReviewStep({
   return (
     <div className="space-y-4 text-sm">
       <p className="text-moss-400">
-        S7 · Review, then validate (preferred) or type {CONFIRM_PAUSED_PHRASE} to apply PAUSED.
+        D5 · Review, then validate (preferred) or type {CONFIRM_PAUSED_PHRASE} to apply PAUSED.
       </p>
       <dl className="grid gap-3 md:grid-cols-2">
         <div>
@@ -898,7 +864,7 @@ function ReviewStep({
         <div>
           <dt className="text-moss-500">Campaign</dt>
           <dd className="text-white">
-            {name} · ${budgetDollars}/day · PAUSED · Manual CPC
+            {name} · ${budgetDollars}/day · PAUSED · Display · Manual CPC
             {enhancedCpc ? " + eCPC" : ""}
           </dd>
         </div>
@@ -909,9 +875,15 @@ function ReviewStep({
           </dd>
         </div>
         <div>
-          <dt className="text-moss-500">Targeting</dt>
+          <dt className="text-moss-500">Geo</dt>
           <dd className="text-moss-300">
             {targets.map((target) => `${target.type}:${target.valueText}`).join(", ") || "none"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-moss-500">Remarketing audiences</dt>
+          <dd className="text-moss-300">
+            {audiences.map((audience) => audience.valueText).join(", ") || "none"}
           </dd>
         </div>
       </dl>
@@ -919,7 +891,7 @@ function ReviewStep({
         {groups.map((group) => (
           <li key={group.name} className="rounded-lg border border-ink-700 bg-ink-950 px-3 py-2">
             <span className="text-white">{group.name}</span> · bid ${group.defaultBidDollars} ·{" "}
-            {group.keywords.length} keywords · {group.ads.length} RSA
+            {group.ads.length} RDA · {group.ads[0]?.assets.length ?? 0} assets
           </li>
         ))}
       </ul>
@@ -929,7 +901,7 @@ function ReviewStep({
         </span>
         <input
           ref={confirmRef}
-          data-testid="wizard-confirm"
+          data-testid="display-wizard-confirm"
           value={confirmPhrase}
           onChange={(event) => onConfirm(event.target.value)}
           className="input mt-1 font-mono"
@@ -941,12 +913,12 @@ function ReviewStep({
 
 function ResultStep({ result, draftId }: { result: WizardResult | null; draftId: string | null }) {
   if (!result) {
-    return <p className="text-sm text-moss-500">S8 · Run validate or Create PAUSED from review to see a result.</p>;
+    return <p className="text-sm text-moss-500">D6 · Run validate or Create PAUSED from review to see a result.</p>;
   }
   return (
     <div className="space-y-3">
       <p className="text-sm text-white">
-        S8 · {result.ok ? (result.applied ? "Applied PAUSED" : "Validated") : "Failed"}{" "}
+        D6 · {result.ok ? (result.applied ? "Applied PAUSED" : "Validated") : "Failed"}{" "}
         {result.draft?.statusDraft ? `· draft ${result.draft.statusDraft}` : ""}
       </p>
       {result.safety?.note ? <p className="text-sm text-amber-400">{result.safety.note}</p> : null}

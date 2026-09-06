@@ -29,7 +29,7 @@ export async function planAssistantTurn(input: {
       temperature: 0.2,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: assistantSystemPrompt() },
+        { role: "system", content: assistantSystemPrompt(input.pack.kind ?? "SEARCH") },
         {
           role: "user",
           content: JSON.stringify({

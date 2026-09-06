@@ -2,18 +2,21 @@
 
 import { useState, type FormEvent, type RefObject } from "react";
 
+import type { DisplayWizardHandle } from "@/components/display-wizard";
 import type { SearchWizardHandle } from "@/components/search-wizard";
 import type {
+  AssistantCampaignKind,
   AssistantMessageView,
   AssistantQuestion,
   AssistantThreadView,
+  DisplayDraftClientView,
   SearchDraftClientView,
 } from "@/lib/types";
 
 type TurnResponse = {
   ok: boolean;
   thread?: AssistantThreadView;
-  draft?: SearchDraftClientView | null;
+  draft?: SearchDraftClientView | DisplayDraftClientView | null;
   questions?: AssistantQuestion[];
   patchedFields?: string[];
   source?: "mock" | "llm";
@@ -26,9 +29,11 @@ type TurnResponse = {
 export function SearchAssistant({
   wizard,
   connected,
+  kind = "SEARCH",
 }: {
-  wizard: RefObject<SearchWizardHandle | null>;
+  wizard: RefObject<SearchWizardHandle | DisplayWizardHandle | null>;
   connected: boolean;
+  kind?: AssistantCampaignKind;
 }) {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -70,6 +75,7 @@ export function SearchAssistant({
         threadId: thread?.id,
         draftId,
         customerId,
+        kind,
       }),
     });
     const json = (await res.json()) as TurnResponse;
@@ -82,7 +88,9 @@ export function SearchAssistant({
     setQuestions(json.questions ?? []);
     setPatched(json.patchedFields ?? []);
     setSource(json.source ?? null);
-    if (json.draft) handle?.applyDraft(json.draft);
+    if (json.draft) {
+      handle?.applyDraft(json.draft as SearchDraftClientView & DisplayDraftClientView);
+    }
     setInput("");
     setBusy(false);
   }
@@ -90,12 +98,13 @@ export function SearchAssistant({
   return (
     <aside
       className="flex min-h-[32rem] flex-col rounded-2xl border border-ink-700 bg-ink-900 p-5"
-      data-testid="search-assistant"
+      data-testid={kind === "DISPLAY" ? "display-assistant" : "search-assistant"}
     >
-      <h2 className="text-lg text-white">Search assistant</h2>
+      <h2 className="text-lg text-white">{kind === "DISPLAY" ? "Display" : "Search"} assistant</h2>
       <p className="mt-1 text-sm text-moss-400">
         Paste a URL or brief. I fill the draft first, then ask only for gaps. Chat cannot Validate,
         Create PAUSED, or enable.
+        {kind === "DISPLAY" ? " Remarketing is a Display audience, not a campaign type." : ""}
       </p>
       {source ? (
         <p className="mt-2 font-mono text-xs text-moss-500">

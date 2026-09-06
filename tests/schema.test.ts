@@ -25,6 +25,10 @@ const v14Migration = readFileSync(
   resolve(process.cwd(), "prisma/migrations/20260906180000_schema_v1_4/migration.sql"),
   "utf8",
 );
+const v15Migration = readFileSync(
+  resolve(process.cwd(), "prisma/migrations/20260906200000_schema_v1_5/migration.sql"),
+  "utf8",
+);
 
 describe("schema v1.2 locks", () => {
   it("does not use JSONB / Prisma Json types", () => {
@@ -51,6 +55,12 @@ describe("schema v1.2 locks", () => {
       "SearchKeywordDraft",
       "SearchAdDraft",
       "SearchTargetDraft",
+      "DisplayCampaignDraft",
+      "DisplayAdGroupDraft",
+      "DisplayAdDraft",
+      "DisplayAssetDraft",
+      "DisplayAudienceDraft",
+      "DisplayTargetDraft",
       "DryRunJob",
       "ChangeRequest",
       "AuditEvent",
@@ -91,7 +101,7 @@ describe("schema v1.2 locks", () => {
     for (const kind of CAMPAIGN_OP_KINDS) {
       expect(enumBlock).toContain(kind);
     }
-    expect(IMPLEMENTED_CAMPAIGN_OP_KINDS).toEqual(["SEARCH_CREATE"]);
+    expect(IMPLEMENTED_CAMPAIGN_OP_KINDS).toEqual(["SEARCH_CREATE", "DISPLAY_CREATE"]);
   });
 
   it("wires AgentClientAssignment to Organization, Client, and User", () => {
@@ -168,6 +178,31 @@ describe("schema v1.4 locks", () => {
   });
 });
 
+describe("schema v1.5 locks", () => {
+  it("adds Display draft models and DISPLAY_CAMPAIGN_DRAFT without JSONB", () => {
+    expect(schema).toContain("enum DisplayDraftStatus");
+    expect(schema).toContain("enum DisplayAudienceKind");
+    expect(schema).toContain("enum DisplayAssetKind");
+    expect(schema).toContain("DISPLAY_CAMPAIGN_DRAFT");
+    expect(schema).toContain("displayCampaignDraftId");
+    expect(schema).toContain("displayDraftId");
+    expect(schema).toContain("longHeadline");
+    expect(schema).toContain("businessName");
+    expect(schema).not.toMatch(/\bJson\b/);
+    expect(v15Migration).toContain('ALTER TYPE "PermissionResource" ADD VALUE \'DISPLAY_CAMPAIGN_DRAFT\'');
+    expect(v15Migration).toContain('CREATE TABLE "DisplayCampaignDraft"');
+    expect(v15Migration).toContain('CREATE TABLE "DisplayAdGroupDraft"');
+    expect(v15Migration).toContain('CREATE TABLE "DisplayAdDraft"');
+    expect(v15Migration).toContain('CREATE TABLE "DisplayAssetDraft"');
+    expect(v15Migration).toContain('CREATE TABLE "DisplayAudienceDraft"');
+    expect(v15Migration).toContain('CREATE TABLE "DisplayTargetDraft"');
+    expect(v15Migration).toContain("CampaignOp_displayCampaignDraftId_fkey");
+    expect(v15Migration).toContain("AssistantThread_displayDraftId_fkey");
+    expect(v15Migration).not.toMatch(/DROP TABLE/i);
+    expect(v15Migration).not.toMatch(/jsonb/i);
+  });
+});
+
 describe("seeded provider registry", () => {
   it("includes the required slugs", () => {
     expect(SEED_PROVIDERS.map((p) => p.slug)).toEqual([
@@ -200,7 +235,7 @@ describe("role permissions", () => {
 describe("client role permissions", () => {
   it("seeds READ/LIST defaults without mutating agency RolePermission", () => {
     const rows = buildClientRolePermissionRows();
-    expect(rows).toHaveLength(20);
+    expect(rows).toHaveLength(26);
     expect(rows.every((row) => row.action === "READ" || row.action === "LIST")).toBe(true);
 
     expect(clientRoleHasPermission("CLIENT_ADMIN", "AUDIT_EVENT", "READ")).toBe(true);
@@ -217,6 +252,9 @@ describe("client role permissions", () => {
       expect(clientRoleHasPermission(role, "SEARCH_CAMPAIGN_DRAFT", "READ")).toBe(true);
       expect(clientRoleHasPermission(role, "SEARCH_CAMPAIGN_DRAFT", "LIST")).toBe(true);
       expect(clientRoleHasPermission(role, "SEARCH_CAMPAIGN_DRAFT", "APPLY_PAUSED")).toBe(false);
+      expect(clientRoleHasPermission(role, "DISPLAY_CAMPAIGN_DRAFT", "READ")).toBe(true);
+      expect(clientRoleHasPermission(role, "DISPLAY_CAMPAIGN_DRAFT", "LIST")).toBe(true);
+      expect(clientRoleHasPermission(role, "DISPLAY_CAMPAIGN_DRAFT", "APPLY_PAUSED")).toBe(false);
     }
   });
 });

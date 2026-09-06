@@ -16,6 +16,7 @@ export const ALL_RESOURCES: PermissionResource[] = [
   "EXTERNAL_ENTITY",
   "CAMPAIGN_OP",
   "SEARCH_CAMPAIGN_DRAFT",
+  "DISPLAY_CAMPAIGN_DRAFT",
   "SYNC_JOB",
   "AUDIT_EVENT",
   "BILLING",
@@ -69,7 +70,7 @@ const ROLE_GRANTS: Record<
     ...expand(["EXTERNAL_ACCOUNT", "EXTERNAL_ENTITY"], ["READ", "UPDATE", "LIST", "SYNC"]),
     ...expand(["CAMPAIGN_OP"], ["CREATE", "READ", "LIST", "DRY_RUN", "APPLY_PAUSED"]),
     ...expand(
-      ["SEARCH_CAMPAIGN_DRAFT"],
+      ["SEARCH_CAMPAIGN_DRAFT", "DISPLAY_CAMPAIGN_DRAFT"],
       ["CREATE", "READ", "UPDATE", "DELETE", "LIST", "DRY_RUN", "APPLY_PAUSED"],
     ),
     ...expand(["SYNC_JOB"], ["CREATE", "READ", "LIST", "SYNC"]),
@@ -80,7 +81,7 @@ const ROLE_GRANTS: Record<
       READ_LIST,
     ),
     ...expand(["CAMPAIGN_OP"], ["CREATE", "READ", "LIST", "DRY_RUN"]),
-    ...expand(["SEARCH_CAMPAIGN_DRAFT"], ["CREATE", "READ", "UPDATE", "LIST", "DRY_RUN"]),
+    ...expand(["SEARCH_CAMPAIGN_DRAFT", "DISPLAY_CAMPAIGN_DRAFT"], ["CREATE", "READ", "UPDATE", "LIST", "DRY_RUN"]),
     ...expand(["OAUTH_CONNECTION"], READ_LIST),
   ],
   VIEWER: expand(
@@ -94,6 +95,7 @@ const ROLE_GRANTS: Record<
       "EXTERNAL_ENTITY",
       "CAMPAIGN_OP",
       "SEARCH_CAMPAIGN_DRAFT",
+      "DISPLAY_CAMPAIGN_DRAFT",
       "SYNC_JOB",
       "AUDIT_EVENT",
     ],
@@ -102,7 +104,7 @@ const ROLE_GRANTS: Record<
   FINANCE: [
     ...expand(["BILLING"], ["READ", "LIST", "UPDATE"]),
     ...expand(
-      ["ORGANIZATION", "CLIENT", "CAMPAIGN_OP", "SEARCH_CAMPAIGN_DRAFT", "AUDIT_EVENT", "EXTERNAL_ACCOUNT"],
+      ["ORGANIZATION", "CLIENT", "CAMPAIGN_OP", "SEARCH_CAMPAIGN_DRAFT", "DISPLAY_CAMPAIGN_DRAFT", "AUDIT_EVENT", "EXTERNAL_ACCOUNT"],
       READ_LIST,
     ),
   ],
@@ -113,11 +115,17 @@ const CLIENT_ROLE_GRANTS: Record<
   Array<{ resource: PermissionResource; action: PermissionAction }>
 > = {
   CLIENT_ADMIN: expand(
-    ["EXTERNAL_ACCOUNT", "CAMPAIGN_OP", "SEARCH_CAMPAIGN_DRAFT", "AUDIT_EVENT"],
+    ["EXTERNAL_ACCOUNT", "CAMPAIGN_OP", "SEARCH_CAMPAIGN_DRAFT", "DISPLAY_CAMPAIGN_DRAFT", "AUDIT_EVENT"],
     READ_LIST,
   ),
-  CLIENT_USER: expand(["EXTERNAL_ACCOUNT", "CAMPAIGN_OP", "SEARCH_CAMPAIGN_DRAFT"], READ_LIST),
-  CLIENT_VIEWER: expand(["EXTERNAL_ACCOUNT", "CAMPAIGN_OP", "SEARCH_CAMPAIGN_DRAFT"], READ_LIST),
+  CLIENT_USER: expand(
+    ["EXTERNAL_ACCOUNT", "CAMPAIGN_OP", "SEARCH_CAMPAIGN_DRAFT", "DISPLAY_CAMPAIGN_DRAFT"],
+    READ_LIST,
+  ),
+  CLIENT_VIEWER: expand(
+    ["EXTERNAL_ACCOUNT", "CAMPAIGN_OP", "SEARCH_CAMPAIGN_DRAFT", "DISPLAY_CAMPAIGN_DRAFT"],
+    READ_LIST,
+  ),
 };
 
 export function buildRolePermissionRows(): Array<{
