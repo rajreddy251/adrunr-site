@@ -8,6 +8,7 @@ import { DisplayWizard, type DisplayWizardHandle } from "@/components/display-wi
 import { PmaxWizard, type PmaxWizardHandle } from "@/components/pmax-wizard";
 import { SearchAssistant } from "@/components/search-assistant";
 import { SearchWizard, type SearchWizardHandle } from "@/components/search-wizard";
+import { AppWizard, type AppWizardHandle } from "@/components/app-wizard";
 import { ShoppingWizard, type ShoppingWizardHandle } from "@/components/shopping-wizard";
 import { VideoWizard, type VideoWizardHandle } from "@/components/video-wizard";
 import { SAFETY_COPY } from "@/lib/safety";
@@ -144,8 +145,8 @@ export function OpsConsole() {
           <p className="font-mono text-xs uppercase tracking-[0.2em] text-lime-400">Adrunr · ads ops</p>
           <h1 className="mt-1 text-3xl font-medium text-white">Campaign tools, not autopilot.</h1>
           <p className="mt-2 max-w-2xl text-sm text-moss-400">
-            Provider-agnostic foundation (Schema v1.9). Google Ads Search + Display + Performance Max
-            + Demand Gen + Video + Shopping wizards + fill-first assistant; other providers are seeded stubs. MCC{" "}
+            Provider-agnostic foundation (Schema v1.10). Google Ads Search + Display + Performance Max
+            + Demand Gen + Video + Shopping + App wizards + fill-first assistant; other providers are seeded stubs. MCC{" "}
             <span className="font-mono text-moss-300">{PLATFORM_MCC_DISPLAY}</span> · GCP{" "}
             <span className="font-mono text-moss-300">adrunr-ads-ops</span> · Neon + Prisma
           </p>
@@ -384,7 +385,7 @@ export function OpsConsole() {
       </section>
 
       <footer className="pb-8 text-xs text-moss-500">
-        Adrunr · Schema v1.9 · Neon Postgres + Prisma · encrypted OAuth columns · no file tokens · no
+        Adrunr · Schema v1.10 · Neon Postgres + Prisma · encrypted OAuth columns · no file tokens · no
         JSONB · no spend/enable path
       </footer>
     </div>
@@ -407,6 +408,7 @@ function SearchWorkspace({
   const demandGenRef = useRef<DemandGenWizardHandle>(null);
   const videoRef = useRef<VideoWizardHandle>(null);
   const shoppingRef = useRef<ShoppingWizardHandle>(null);
+  const appRef = useRef<AppWizardHandle>(null);
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap gap-2" role="tablist" aria-label="Campaign type">
@@ -482,6 +484,18 @@ function SearchWorkspace({
         >
           Shopping
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={kind === "APP"}
+          data-testid="ops-kind-app"
+          onClick={() => setKind("APP")}
+          className={`rounded-full px-4 py-1.5 font-mono text-xs ${
+            kind === "APP" ? "bg-lime-400 text-ink-950" : "border border-ink-700 text-moss-400"
+          }`}
+        >
+          App
+        </button>
       </div>
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)]">
         {kind === "SEARCH" ? (
@@ -509,10 +523,15 @@ function SearchWorkspace({
             <VideoWizard ref={videoRef} accounts={accounts} connected={connected} onFinished={onFinished} />
             <SearchAssistant wizard={videoRef} connected={connected} kind="VIDEO" />
           </>
-        ) : (
+        ) : kind === "SHOPPING" ? (
           <>
             <ShoppingWizard ref={shoppingRef} accounts={accounts} connected={connected} onFinished={onFinished} />
             <SearchAssistant wizard={shoppingRef} connected={connected} kind="SHOPPING" />
+          </>
+        ) : (
+          <>
+            <AppWizard ref={appRef} accounts={accounts} connected={connected} onFinished={onFinished} />
+            <SearchAssistant wizard={appRef} connected={connected} kind="APP" />
           </>
         )}
       </div>

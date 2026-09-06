@@ -2,7 +2,7 @@ export const SAFETY_COPY = {
   headline: "Ops tools, not autopilot. No spend without an explicit confirm.",
   bullets: [
     "Developer token is Test Account access until Basic Access is approved. Production MCC reads can fail or be limited.",
-    "New Search, Display, Performance Max, Demand Gen, Video, and Shopping campaigns are created PAUSED. Dry-run (validateOnly) is the default and preferred path.",
+    "New Search, Display, Performance Max, Demand Gen, Video, Shopping, and App campaigns are created PAUSED. Dry-run (validateOnly) is the default and preferred path.",
     "No enable/go-live action. A paused campaign with a budget still cannot spend until separately enabled outside this app.",
   ],
 } as const;

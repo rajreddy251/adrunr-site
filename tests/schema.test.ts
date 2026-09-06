@@ -45,6 +45,10 @@ const v19Migration = readFileSync(
   resolve(process.cwd(), "prisma/migrations/20260906250000_schema_v1_9/migration.sql"),
   "utf8",
 );
+const v110Migration = readFileSync(
+  resolve(process.cwd(), "prisma/migrations/20260906260000_schema_v1_10/migration.sql"),
+  "utf8",
+);
 
 describe("schema v1.2 locks", () => {
   it("does not use JSONB / Prisma Json types", () => {
@@ -100,6 +104,12 @@ describe("schema v1.2 locks", () => {
       "ShoppingProductGroupDraft",
       "ShoppingListingDraft",
       "ShoppingTargetDraft",
+      "AppCampaignDraft",
+      "AppPlatformDraft",
+      "AppAdGroupDraft",
+      "AppAdDraft",
+      "AppAssetDraft",
+      "AppTargetDraft",
       "DryRunJob",
       "ChangeRequest",
       "AuditEvent",
@@ -139,6 +149,7 @@ describe("schema v1.2 locks", () => {
       "DEMAND_GEN_CREATE",
       "VIDEO_CREATE",
       "SHOPPING_CREATE",
+      "APP_CREATE",
     ]);
     for (const kind of CAMPAIGN_OP_KINDS) {
       expect(enumBlock).toContain(kind);
@@ -150,6 +161,7 @@ describe("schema v1.2 locks", () => {
       "DEMAND_GEN_CREATE",
       "VIDEO_CREATE",
       "SHOPPING_CREATE",
+      "APP_CREATE",
     ]);
   });
 
@@ -357,6 +369,33 @@ describe("schema v1.9 locks", () => {
   });
 });
 
+describe("schema v1.10 locks", () => {
+  it("adds App draft models and APP_CAMPAIGN_DRAFT without JSONB", () => {
+    expect(schema).toContain("enum AppDraftStatus");
+    expect(schema).toContain("enum AppPlatform");
+    expect(schema).toContain("enum AppGoal");
+    expect(schema).toContain("APP_CAMPAIGN_DRAFT");
+    expect(schema).toContain("APP_CREATE");
+    expect(schema).toContain("appCampaignDraftId");
+    expect(schema).toContain("appDraftId");
+    expect(schema).toContain("INSTALLS");
+    expect(schema).toContain("ANDROID");
+    expect(schema).not.toMatch(/\bJson\b/);
+    expect(v110Migration).toContain('ALTER TYPE "PermissionResource" ADD VALUE \'APP_CAMPAIGN_DRAFT\'');
+    expect(v110Migration).toContain('ALTER TYPE "CampaignOpKind" ADD VALUE \'APP_CREATE\'');
+    expect(v110Migration).toContain('CREATE TABLE "AppCampaignDraft"');
+    expect(v110Migration).toContain('CREATE TABLE "AppPlatformDraft"');
+    expect(v110Migration).toContain('CREATE TABLE "AppAdGroupDraft"');
+    expect(v110Migration).toContain('CREATE TABLE "AppAdDraft"');
+    expect(v110Migration).toContain('CREATE TABLE "AppAssetDraft"');
+    expect(v110Migration).toContain('CREATE TABLE "AppTargetDraft"');
+    expect(v110Migration).toContain("CampaignOp_appCampaignDraftId_fkey");
+    expect(v110Migration).toContain("AssistantThread_appDraftId_fkey");
+    expect(v110Migration).not.toMatch(/DROP TABLE/i);
+    expect(v110Migration).not.toMatch(/jsonb/i);
+  });
+});
+
 describe("seeded provider registry", () => {
   it("includes the required slugs", () => {
     expect(SEED_PROVIDERS.map((p) => p.slug)).toEqual([
@@ -389,7 +428,7 @@ describe("role permissions", () => {
 describe("client role permissions", () => {
   it("seeds READ/LIST defaults without mutating agency RolePermission", () => {
     const rows = buildClientRolePermissionRows();
-    expect(rows).toHaveLength(50);
+    expect(rows).toHaveLength(56);
     expect(rows.every((row) => row.action === "READ" || row.action === "LIST")).toBe(true);
 
     expect(clientRoleHasPermission("CLIENT_ADMIN", "AUDIT_EVENT", "READ")).toBe(true);
@@ -421,6 +460,9 @@ describe("client role permissions", () => {
       expect(clientRoleHasPermission(role, "SHOPPING_CAMPAIGN_DRAFT", "READ")).toBe(true);
       expect(clientRoleHasPermission(role, "SHOPPING_CAMPAIGN_DRAFT", "LIST")).toBe(true);
       expect(clientRoleHasPermission(role, "SHOPPING_CAMPAIGN_DRAFT", "APPLY_PAUSED")).toBe(false);
+      expect(clientRoleHasPermission(role, "APP_CAMPAIGN_DRAFT", "READ")).toBe(true);
+      expect(clientRoleHasPermission(role, "APP_CAMPAIGN_DRAFT", "LIST")).toBe(true);
+      expect(clientRoleHasPermission(role, "APP_CAMPAIGN_DRAFT", "APPLY_PAUSED")).toBe(false);
     }
   });
 });

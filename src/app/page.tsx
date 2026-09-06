@@ -14,7 +14,7 @@ const CAPABILITIES = [
   {
     kicker: "02",
     title: "Operate without autopilot",
-    body: "Create Search, Display, Performance Max, Demand Gen, Video, and Shopping campaigns as PAUSED. Dry-run (validateOnly) is the default. There is no enable or go-live action, so a budgeted campaign still cannot spend until you enable it outside Adrunr.",
+    body: "Create Search, Display, Performance Max, Demand Gen, Video, Shopping, and App campaigns as PAUSED. Dry-run (validateOnly) is the default. There is no enable or go-live action, so a budgeted campaign still cannot spend until you enable it outside Adrunr.",
   },
   {
     kicker: "03",

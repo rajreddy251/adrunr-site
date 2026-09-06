@@ -394,7 +394,61 @@ export type ShoppingDraftClientView = {
   }>;
 };
 
-export type AssistantCampaignKind = "SEARCH" | "DISPLAY" | "PMAX" | "DEMAND_GEN" | "VIDEO" | "SHOPPING";
+export type AppDraftClientView = {
+  id: string;
+  customerId: string;
+  externalAccountId: string;
+  name: string;
+  dailyBudgetMicros: string;
+  biddingStrategy: string;
+  goal: string;
+  targetCpaMicros: string | null;
+  targetRoasText: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  statusDraft: string;
+  googleCampaignResourceName: string | null;
+  campaignOpId: string | null;
+  notesText: string | null;
+  createdAt: string;
+  updatedAt: string;
+  platforms: Array<{
+    id: string;
+    platform: string;
+    appId: string;
+    included: boolean;
+    sortOrder: number;
+  }>;
+  adGroups: Array<{
+    id: string;
+    name: string;
+    defaultBidMicros: string;
+    sortOrder: number;
+    googleAdGroupResourceName: string | null;
+    ads: Array<{
+      id: string;
+      headlines: string[];
+      descriptions: string[];
+      googleAdResourceName: string | null;
+      assets: Array<{
+        id: string;
+        kind: string;
+        urlText: string;
+        assetResourceName: string | null;
+        sortOrder: number;
+      }>;
+    }>;
+  }>;
+  targets: Array<{
+    id: string;
+    type: string;
+    valueText: string;
+    criterionText: string;
+    included: boolean;
+  }>;
+};
+
+export type AssistantCampaignKind = "SEARCH" | "DISPLAY" | "PMAX" | "DEMAND_GEN" | "VIDEO" | "SHOPPING" | "APP";
 
 export type AssistantMessageView = {
   id: string;
@@ -415,6 +469,7 @@ export type AssistantThreadView = {
   demandGenDraftId: string | null;
   videoDraftId: string | null;
   shoppingDraftId: string | null;
+  appDraftId: string | null;
   kind: AssistantCampaignKind;
   createdById: string;
   title: string | null;
