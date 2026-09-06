@@ -123,6 +123,7 @@ enum PermissionResource {
   LOCAL_CAMPAIGN_DRAFT
   LOCAL_SERVICES_CAMPAIGN_DRAFT
   SYNCED_CAMPAIGN
+  CAMPAIGN_METRIC_SNAPSHOT
   SYNC_JOB
   AUDIT_EVENT
   BILLING
@@ -489,6 +490,7 @@ model Organization {
   localDrafts      LocalCampaignDraft[]
   localServicesDrafts LocalServicesCampaignDraft[]
   syncedCampaigns  SyncedCampaign[]
+  campaignMetricSnapshots CampaignMetricSnapshot[]
   syncJobs         SyncJob[]
   auditEvents      AuditEvent[]
   agentAssignments AgentClientAssignment[]
@@ -653,6 +655,7 @@ model IntegrationProvider {
   campaignOps      CampaignOp[]
   syncJobs         SyncJob[]
   syncedCampaigns  SyncedCampaign[]
+  campaignMetricSnapshots CampaignMetricSnapshot[]
   changeRequests   ChangeRequest[]
 }
 
@@ -718,6 +721,7 @@ model ExternalAccount {
   dryRunJobs      DryRunJob[]
   syncJobs        SyncJob[]
   syncedCampaigns SyncedCampaign[]
+  campaignMetricSnapshots CampaignMetricSnapshot[]
 
   @@unique([organizationId, providerId, externalId])
   @@index([clientId])
@@ -1925,6 +1929,7 @@ model SyncedCampaign {
   externalAccount ExternalAccount     @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
   lastSyncJob     SyncJob?            @relation(fields: [lastSyncJobId], references: [id], onDelete: SetNull)
   adGroups        SyncedAdGroup[]
+  metricSnapshots CampaignMetricSnapshot[]
 
   @@unique([providerId, externalAccountId, externalId])
   @@index([organizationId, providerId])
@@ -2020,10 +2025,54 @@ model SyncJob {
   provider        IntegrationProvider @relation(fields: [providerId], references: [id])
   externalAccount ExternalAccount?    @relation(fields: [externalAccountId], references: [id], onDelete: SetNull)
   syncedCampaigns SyncedCampaign[]
+  campaignMetricSnapshots CampaignMetricSnapshot[]
 
   @@index([organizationId, providerId, createdAt])
   @@index([status])
   @@index([jobType, createdAt])
+}
+
+model CampaignMetricSnapshot {
+  id                     String    @id @default(cuid())
+  organizationId         String
+  providerId             String
+  externalAccountId      String
+  lastSyncJobId          String?
+  syncedCampaignId       String?
+  externalCampaignId     String
+  resourceName           String?
+  campaignName           String
+  advertisingChannelType String?
+  campaignStatus         String?
+  currencyCode           String?
+  budgetResourceName     String?
+  budgetAmountMicros     BigInt?
+  budgetPeriod           String?
+  dateFrom               String
+  dateTo                 String
+  costMicros             BigInt?
+  impressions            BigInt?
+  clicks                 BigInt?
+  conversionsText        String?
+  conversionsValueText   String?
+  averageCpcMicros       BigInt?
+  averageCpmMicros       BigInt?
+  attributesText         String?
+  lastSyncedAt           DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  provider        IntegrationProvider @relation(fields: [providerId], references: [id])
+  externalAccount ExternalAccount     @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
+  lastSyncJob     SyncJob?            @relation(fields: [lastSyncJobId], references: [id], onDelete: SetNull)
+  syncedCampaign  SyncedCampaign?     @relation(fields: [syncedCampaignId], references: [id], onDelete: SetNull)
+
+  @@unique([providerId, externalAccountId, externalCampaignId, dateFrom, dateTo], map: "CampaignMetricSnapshot_account_campaign_window_key")
+  @@index([organizationId, providerId])
+  @@index([externalAccountId, dateFrom, dateTo])
+  @@index([lastSyncJobId])
+  @@index([syncedCampaignId])
 }
 
 model AuditEvent {

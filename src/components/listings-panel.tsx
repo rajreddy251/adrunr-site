@@ -152,7 +152,7 @@ export function ListingsPanel({
           Last SyncJob {lastJob.status.toLowerCase()} · {lastJob.dryRun ? "dry-run" : "cached"} ·
           read-only {lastJob.readOnly ? "yes" : "no"} · {lastJob.createdAt}
           {lastJob.counts
-            ? ` · ${lastJob.counts.campaigns}c / ${lastJob.counts.adGroups}g / ${lastJob.counts.ads}a / ${lastJob.counts.keywords}k`
+            ? ` · ${lastJob.counts.campaigns}c / ${lastJob.counts.adGroups ?? 0}g / ${lastJob.counts.ads ?? 0}a / ${lastJob.counts.keywords ?? 0}k`
             : ""}
         </p>
       ) : null}

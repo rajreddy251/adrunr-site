@@ -3,17 +3,76 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { IMPLEMENTED_CAMPAIGN_OP_KINDS } from "@/lib/campaign";
-import { CONFIRM_PAUSED_PHRASE, LISTINGS_SYNC_READ_ONLY_NOTE, assertPausedOnly } from "@/lib/safety";
+import { CONFIRM_PAUSED_PHRASE, LISTINGS_SYNC_READ_ONLY_NOTE, METRICS_SYNC_READ_ONLY_NOTE, assertPausedOnly } from "@/lib/safety";
 import {
   AD_SEARCH_QUERY,
   CAMPAIGN_SEARCH_QUERY,
   KEYWORD_SEARCH_QUERY,
   LISTINGS_SYNC_JOB_TYPE,
 } from "@/lib/listings";
+import { METRICS_SYNC_JOB_TYPE, buildMetricsSearchQuery } from "@/lib/metrics";
 
 const schema = readFileSync(resolve(process.cwd(), "prisma/schema.prisma"), "utf8");
 const envExample = readFileSync(resolve(process.cwd(), ".env.example"), "utf8");
 const gitignore = readFileSync(resolve(process.cwd(), ".gitignore"), "utf8");
+
+describe("P9 Ops Metrics snapshot safety checklist", () => {
+  it("keeps create wizards and listings sync working, with metrics read-only", () => {
+    expect(IMPLEMENTED_CAMPAIGN_OP_KINDS).toEqual([
+      "SEARCH_CREATE",
+      "DISPLAY_CREATE",
+      "PMAX_CREATE",
+      "DEMAND_GEN_CREATE",
+      "VIDEO_CREATE",
+      "SHOPPING_CREATE",
+      "APP_CREATE",
+      "HOTEL_CREATE",
+      "LOCAL_CREATE",
+      "LOCAL_SERVICES_CREATE",
+    ]);
+    expect(LISTINGS_SYNC_JOB_TYPE).toBe("sync_listings");
+    expect(METRICS_SYNC_JOB_TYPE).toBe("sync_metrics");
+    expect(LISTINGS_SYNC_READ_ONLY_NOTE).toMatch(/read-only/i);
+    expect(METRICS_SYNC_READ_ONLY_NOTE).toMatch(/read-only/i);
+    expect(METRICS_SYNC_READ_ONLY_NOTE).toMatch(/spend/i);
+    expect(() => assertPausedOnly("ENABLED")).toThrow(/enable path/);
+  });
+
+  it("stores CampaignMetricSnapshot as typed budget/spend columns, not JSONB", () => {
+    expect(schema).toContain("model CampaignMetricSnapshot");
+    expect(schema).toContain("budgetAmountMicros");
+    expect(schema).toContain("costMicros");
+    expect(schema).toContain("averageCpcMicros");
+    expect(schema).toContain("conversionsText");
+    expect(schema).toContain("model SyncJob");
+    expect(schema).not.toMatch(/\bJson\b/);
+  });
+
+  it("uses GAQL search only for metrics pull — no mutate, enable, or spend path", () => {
+    const query = buildMetricsSearchQuery("2026-08-31", "2026-09-06");
+    expect(query).toMatch(/FROM campaign/i);
+    expect(query).toMatch(/metrics.cost_micros/);
+    expect(query).not.toMatch(/mutate/i);
+    const metrics = readFileSync(resolve(process.cwd(), "src/lib/metrics.ts"), "utf8");
+    const metricsSync = readFileSync(resolve(process.cwd(), "src/lib/metrics-sync.ts"), "utf8");
+    const syncRoute = readFileSync(
+      resolve(process.cwd(), "src/app/api/ads/metrics/sync/route.ts"),
+      "utf8",
+    );
+    const listingsSync = readFileSync(resolve(process.cwd(), "src/lib/listings-sync.ts"), "utf8");
+    for (const source of [metrics, metricsSync, syncRoute]) {
+      expect(source).not.toContain("googleAds:mutate");
+      expect(source).not.toContain("mutateGoogleAds");
+    }
+    expect(metrics).toContain("mutateOperations");
+    expect(metricsSync).not.toContain("mutateOperations");
+    expect(syncRoute).not.toContain("mutateOperations");
+    expect(metricsSync).toContain("searchGoogleAds");
+    expect(metricsSync).toContain("readOnly: true");
+    expect(listingsSync).toContain("searchGoogleAds");
+    expect(listingsSync).toContain("readOnly: true");
+  });
+});
 
 describe("P8 Ops Sync listings safety checklist", () => {
   it("keeps create wizards implemented and listings sync read-only", () => {

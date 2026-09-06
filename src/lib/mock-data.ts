@@ -4,7 +4,7 @@ import {
   PLATFORM_MCC_ID,
   formatCustomerId,
 } from "./ids";
-import type { AdsAccountView, SyncedCampaignView } from "./types";
+import type { AdsAccountView, CampaignMetricSnapshotView, SyncedCampaignView } from "./types";
 
 export const MOCK_EMAIL = "ops@adrunr.local";
 
@@ -143,6 +143,57 @@ export function mockListings(customerId: string): SyncedCampaignView[] {
           keywords: [],
         },
       ],
+    },
+  ];
+}
+
+export function mockMetrics(
+  customerId: string,
+  dateFrom: string,
+  dateTo: string,
+): CampaignMetricSnapshotView[] {
+  return [
+    {
+      externalCampaignId: "1111111111",
+      resourceName: `customers/${customerId}/campaigns/1111111111`,
+      campaignName: "Demo Search — Brand",
+      advertisingChannelType: "SEARCH",
+      campaignStatus: "PAUSED",
+      currencyCode: "USD",
+      budgetResourceName: `customers/${customerId}/campaignBudgets/111`,
+      budgetAmountMicros: "25000000",
+      budgetPeriod: "DAILY",
+      dateFrom,
+      dateTo,
+      costMicros: "0",
+      impressions: "0",
+      clicks: "0",
+      conversionsText: "0",
+      conversionsValueText: "0",
+      averageCpcMicros: null,
+      averageCpmMicros: null,
+      lastSyncedAt: null,
+    },
+    {
+      externalCampaignId: "5555555555",
+      resourceName: `customers/${customerId}/campaigns/5555555555`,
+      campaignName: "Demo Display — Prospecting",
+      advertisingChannelType: "DISPLAY",
+      campaignStatus: "ENABLED",
+      currencyCode: "USD",
+      budgetResourceName: `customers/${customerId}/campaignBudgets/555`,
+      budgetAmountMicros: "40000000",
+      budgetPeriod: "DAILY",
+      dateFrom,
+      dateTo,
+      costMicros: "123450000",
+      impressions: "18420",
+      clicks: "312",
+      conversionsText: "9.5",
+      conversionsValueText: "480.25",
+      averageCpcMicros: "395673",
+      averageCpmMicros: "6701954",
+      lastSyncedAt: null,
     },
   ];
 }
