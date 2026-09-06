@@ -3,11 +3,70 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { IMPLEMENTED_CAMPAIGN_OP_KINDS } from "@/lib/campaign";
-import { CONFIRM_PAUSED_PHRASE, assertPausedOnly } from "@/lib/safety";
+import { CONFIRM_PAUSED_PHRASE, LISTINGS_SYNC_READ_ONLY_NOTE, assertPausedOnly } from "@/lib/safety";
+import {
+  AD_SEARCH_QUERY,
+  CAMPAIGN_SEARCH_QUERY,
+  KEYWORD_SEARCH_QUERY,
+  LISTINGS_SYNC_JOB_TYPE,
+} from "@/lib/listings";
 
 const schema = readFileSync(resolve(process.cwd(), "prisma/schema.prisma"), "utf8");
 const envExample = readFileSync(resolve(process.cwd(), ".env.example"), "utf8");
 const gitignore = readFileSync(resolve(process.cwd(), ".gitignore"), "utf8");
+
+describe("P8 Ops Sync listings safety checklist", () => {
+  it("keeps create wizards implemented and listings sync read-only", () => {
+    expect(IMPLEMENTED_CAMPAIGN_OP_KINDS).toEqual([
+      "SEARCH_CREATE",
+      "DISPLAY_CREATE",
+      "PMAX_CREATE",
+      "DEMAND_GEN_CREATE",
+      "VIDEO_CREATE",
+      "SHOPPING_CREATE",
+      "APP_CREATE",
+      "HOTEL_CREATE",
+      "LOCAL_CREATE",
+      "LOCAL_SERVICES_CREATE",
+    ]);
+    expect(LISTINGS_SYNC_JOB_TYPE).toBe("sync_listings");
+    expect(LISTINGS_SYNC_READ_ONLY_NOTE).toMatch(/read-only/i);
+    expect(() => assertPausedOnly("ENABLED")).toThrow(/enable path/);
+  });
+
+  it("stores synced listings as TEXT children and extends SyncJob", () => {
+    expect(schema).toContain("model SyncedCampaign");
+    expect(schema).toContain("model SyncedAdGroup");
+    expect(schema).toContain("model SyncedAd");
+    expect(schema).toContain("model SyncedKeyword");
+    expect(schema).toContain("model SyncJob");
+    expect(schema).toContain("readOnly");
+    expect(schema).toContain("attributesText");
+    expect(schema).not.toMatch(/\bJson\b/);
+  });
+
+  it("uses GAQL search only for listings pull — no mutate path", () => {
+    expect(CAMPAIGN_SEARCH_QUERY).toMatch(/FROM campaign/i);
+    expect(AD_SEARCH_QUERY).toMatch(/FROM ad_group_ad/i);
+    expect(KEYWORD_SEARCH_QUERY).toMatch(/FROM ad_group_criterion/i);
+    expect(CAMPAIGN_SEARCH_QUERY).not.toMatch(/mutate/i);
+    const listings = readFileSync(resolve(process.cwd(), "src/lib/listings.ts"), "utf8");
+    const listingsSync = readFileSync(resolve(process.cwd(), "src/lib/listings-sync.ts"), "utf8");
+    const syncRoute = readFileSync(
+      resolve(process.cwd(), "src/app/api/ads/listings/sync/route.ts"),
+      "utf8",
+    );
+    for (const source of [listings, listingsSync, syncRoute]) {
+      expect(source).not.toContain("googleAds:mutate");
+      expect(source).not.toContain("mutateGoogleAds");
+    }
+    expect(listings).toContain("mutateOperations");
+    expect(listingsSync).not.toContain("mutateOperations");
+    expect(syncRoute).not.toContain("mutateOperations");
+    expect(listingsSync).toContain("searchGoogleAds");
+    expect(listingsSync).toContain("readOnly: true");
+  });
+});
 
 describe("P7 Hotel / Local / Local Services safety checklist", () => {
   it("keeps Search, Display, Performance Max, Demand Gen, Video, Shopping, App, Hotel, Local, and Local Services create implemented and never enables spend", () => {

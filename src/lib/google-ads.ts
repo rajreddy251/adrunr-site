@@ -514,6 +514,28 @@ export async function createPausedSearchCampaign(body: unknown): Promise<{
   }
 }
 
+export async function searchGoogleAds(
+  customerId: string,
+  query: string,
+): Promise<Array<Record<string, unknown>>> {
+  const { accessToken } = await requireLiveContext();
+  const results: Array<Record<string, unknown>> = [];
+  let pageToken: string | undefined;
+  do {
+    const body: Record<string, unknown> = { query };
+    if (pageToken) body.pageToken = pageToken;
+    const page = (await adsFetch(`customers/${customerId}/googleAds:search`, {
+      method: "POST",
+      accessToken,
+      customerId,
+      body,
+    })) as { results?: Array<Record<string, unknown>>; nextPageToken?: string };
+    results.push(...(page.results ?? []));
+    pageToken = page.nextPageToken || undefined;
+  } while (pageToken);
+  return results;
+}
+
 export async function mutateGoogleAds(input: {
   customerId: string;
   mutateOperations: Array<Record<string, unknown>>;
