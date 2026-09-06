@@ -514,6 +514,25 @@ export async function createPausedSearchCampaign(body: unknown): Promise<{
   }
 }
 
+export async function mutateGoogleAds(input: {
+  customerId: string;
+  mutateOperations: Array<Record<string, unknown>>;
+  validateOnly: boolean;
+  responseContentType?: string;
+}): Promise<unknown> {
+  const { accessToken } = await requireLiveContext();
+  return adsFetch(`customers/${input.customerId}/googleAds:mutate`, {
+    method: "POST",
+    accessToken,
+    customerId: input.customerId,
+    body: {
+      mutateOperations: input.mutateOperations,
+      validateOnly: input.validateOnly,
+      responseContentType: input.responseContentType ?? "MUTABLE_RESOURCE",
+    },
+  });
+}
+
 export async function getPersistedGoogleAdsAccounts(): Promise<AdsAccountView[]> {
   const ctx = await ensurePlatformContext();
   const provider = await requireProvider(GOOGLE_ADS_SLUG);

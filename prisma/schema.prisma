@@ -104,9 +104,39 @@ enum PermissionResource {
   EXTERNAL_ACCOUNT
   EXTERNAL_ENTITY
   CAMPAIGN_OP
+  SEARCH_CAMPAIGN_DRAFT
   SYNC_JOB
   AUDIT_EVENT
   BILLING
+}
+
+enum SearchDraftStatus {
+  DRAFT
+  VALIDATED
+  APPLIED
+  FAILED
+}
+
+enum SearchKeywordMatchType {
+  BROAD
+  PHRASE
+  EXACT
+}
+
+enum SearchTargetType {
+  GEO
+  LANGUAGE
+  AUDIENCE
+  SCHEDULE
+  DEVICE
+}
+
+enum SearchBiddingStrategy {
+  MANUAL_CPC
+  MAXIMIZE_CLICKS
+  MAXIMIZE_CONVERSIONS
+  TARGET_CPA
+  TARGET_ROAS
 }
 
 enum PermissionAction {
@@ -139,6 +169,7 @@ model Organization {
   oauthConnections OAuthConnection[]
   externalAccounts ExternalAccount[]
   campaignOps      CampaignOp[]
+  searchDrafts     SearchCampaignDraft[]
   syncJobs         SyncJob[]
   auditEvents      AuditEvent[]
   agentAssignments AgentClientAssignment[]
@@ -158,6 +189,7 @@ model User {
   invitationsSent   Invitation[]       @relation("InvitationInviter")
   oauthConnections  OAuthConnection[]
   campaignOps       CampaignOp[]
+  searchDrafts      SearchCampaignDraft[]
   changeRequests    ChangeRequest[]
   auditEvents       AuditEvent[]
   agentAssignments  AgentClientAssignment[]
@@ -210,6 +242,7 @@ model Client {
   workspaces       Workspace[]
   externalAccounts ExternalAccount[]
   campaignOps      CampaignOp[]
+  searchDrafts     SearchCampaignDraft[]
   agentAssignments AgentClientAssignment[]
 
   @@unique([organizationId, slug])
@@ -330,6 +363,7 @@ model ExternalAccount {
   oauthConnection OAuthConnection?    @relation(fields: [oauthConnectionId], references: [id], onDelete: SetNull)
   entities        ExternalEntity[]
   campaignOps     CampaignOp[]
+  searchDrafts    SearchCampaignDraft[]
   dryRunJobs      DryRunJob[]
   syncJobs        SyncJob[]
 
@@ -373,26 +407,134 @@ model CampaignOp {
   dailyBudgetMicros  BigInt?
   dryRun             Boolean          @default(true)
   confirmPhrase      String?
-  requestPayload     String
-  responsePayload    String?
-  googleValidateOnly Boolean          @default(true)
-  errorMessage       String?
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
-  appliedAt          DateTime?
+  requestPayload             String
+  responsePayload            String?
+  googleValidateOnly         Boolean          @default(true)
+  googleCampaignResourceName String?
+  searchCampaignDraftId      String?
+  errorMessage               String?
+  createdAt                  DateTime         @default(now())
+  updatedAt                  DateTime         @updatedAt
+  appliedAt                  DateTime?
 
-  organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  client          Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  workspace       Workspace?          @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
-  provider        IntegrationProvider @relation(fields: [providerId], references: [id])
-  externalAccount ExternalAccount     @relation(fields: [externalAccountId], references: [id], onDelete: Restrict)
-  requestedBy     User                @relation(fields: [requestedById], references: [id])
-  dryRunJobs      DryRunJob[]
-  changeRequests  ChangeRequest[]
+  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client              Client               @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  workspace           Workspace?           @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  provider            IntegrationProvider  @relation(fields: [providerId], references: [id])
+  externalAccount     ExternalAccount      @relation(fields: [externalAccountId], references: [id], onDelete: Restrict)
+  requestedBy         User                 @relation(fields: [requestedById], references: [id])
+  searchCampaignDraft SearchCampaignDraft? @relation(fields: [searchCampaignDraftId], references: [id], onDelete: SetNull)
+  dryRunJobs          DryRunJob[]
+  changeRequests      ChangeRequest[]
 
   @@index([organizationId, status])
   @@index([providerId, externalAccountId])
   @@index([clientId])
+  @@index([searchCampaignDraftId])
+}
+
+model SearchCampaignDraft {
+  id                         String                @id @default(cuid())
+  organizationId             String
+  clientId                   String
+  externalAccountId          String
+  createdById                String
+  name                       String
+  dailyBudgetMicros          BigInt
+  biddingStrategy            SearchBiddingStrategy @default(MANUAL_CPC)
+  enhancedCpcEnabled         Boolean               @default(false)
+  targetCpaMicros            BigInt?
+  targetRoasText             String?
+  targetGoogleSearch         Boolean               @default(true)
+  targetSearchNetwork        Boolean               @default(true)
+  targetContentNetwork       Boolean               @default(false)
+  targetPartnerSearchNetwork Boolean               @default(false)
+  startDate                  String?
+  endDate                    String?
+  statusDraft                SearchDraftStatus     @default(DRAFT)
+  googleCampaignResourceName String?
+  campaignOpId               String?
+  notesText                  String?
+  createdAt                  DateTime              @default(now())
+  updatedAt                  DateTime              @updatedAt
+
+  organization    Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client          Client               @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  externalAccount ExternalAccount      @relation(fields: [externalAccountId], references: [id], onDelete: Restrict)
+  createdBy       User                 @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  campaignOps     CampaignOp[]
+  adGroups        SearchAdGroupDraft[]
+  targets         SearchTargetDraft[]
+
+  @@index([organizationId, statusDraft])
+  @@index([clientId])
+  @@index([externalAccountId])
+  @@index([createdById])
+}
+
+model SearchAdGroupDraft {
+  id                       String   @id @default(cuid())
+  draftId                  String
+  name                     String
+  defaultBidMicros         BigInt
+  sortOrder                Int      @default(0)
+  googleAdGroupResourceName String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  draft    SearchCampaignDraft  @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  keywords SearchKeywordDraft[]
+  ads      SearchAdDraft[]
+
+  @@index([draftId, sortOrder])
+}
+
+model SearchKeywordDraft {
+  id                        String                 @id @default(cuid())
+  adGroupDraftId            String
+  text                      String
+  matchType                 SearchKeywordMatchType @default(PHRASE)
+  bidMicros                 BigInt?
+  isNegative                Boolean                @default(false)
+  googleCriterionResourceName String?
+  createdAt                 DateTime               @default(now())
+  updatedAt                 DateTime               @updatedAt
+
+  adGroup SearchAdGroupDraft @relation(fields: [adGroupDraftId], references: [id], onDelete: Cascade)
+
+  @@index([adGroupDraftId])
+}
+
+model SearchAdDraft {
+  id                    String   @id @default(cuid())
+  adGroupDraftId        String
+  headlinesText         String
+  descriptionsText      String
+  finalUrl              String
+  path1                 String?
+  path2                 String?
+  googleAdResourceName  String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  adGroup SearchAdGroupDraft @relation(fields: [adGroupDraftId], references: [id], onDelete: Cascade)
+
+  @@index([adGroupDraftId])
+}
+
+model SearchTargetDraft {
+  id            String           @id @default(cuid())
+  draftId       String
+  type          SearchTargetType
+  valueText     String
+  criterionText String
+  included      Boolean          @default(true)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  draft SearchCampaignDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@index([draftId, type])
 }
 
 model DryRunJob {

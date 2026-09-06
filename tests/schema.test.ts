@@ -17,6 +17,10 @@ const v12Migration = readFileSync(
   resolve(process.cwd(), "prisma/migrations/20260906140000_schema_v1_2/migration.sql"),
   "utf8",
 );
+const v13Migration = readFileSync(
+  resolve(process.cwd(), "prisma/migrations/20260906160000_schema_v1_3/migration.sql"),
+  "utf8",
+);
 
 describe("schema v1.2 locks", () => {
   it("does not use JSONB / Prisma Json types", () => {
@@ -38,6 +42,11 @@ describe("schema v1.2 locks", () => {
       "ExternalEntity",
       "SyncJob",
       "CampaignOp",
+      "SearchCampaignDraft",
+      "SearchAdGroupDraft",
+      "SearchKeywordDraft",
+      "SearchAdDraft",
+      "SearchTargetDraft",
       "DryRunJob",
       "ChangeRequest",
       "AuditEvent",
@@ -112,6 +121,27 @@ describe("schema v1.2 locks", () => {
   });
 });
 
+describe("schema v1.3 locks", () => {
+  it("adds Search draft models and SEARCH_CAMPAIGN_DRAFT without JSONB", () => {
+    expect(schema).toContain("enum SearchDraftStatus");
+    expect(schema).toContain("SEARCH_CAMPAIGN_DRAFT");
+    expect(schema).toContain("searchCampaignDraftId");
+    expect(schema).toContain("googleCampaignResourceName");
+    expect(schema).toContain("headlinesText");
+    expect(schema).toContain("criterionText");
+    expect(schema).not.toMatch(/\bJson\b/);
+    expect(v13Migration).toContain('ALTER TYPE "PermissionResource" ADD VALUE \'SEARCH_CAMPAIGN_DRAFT\'');
+    expect(v13Migration).toContain('CREATE TABLE "SearchCampaignDraft"');
+    expect(v13Migration).toContain('CREATE TABLE "SearchAdGroupDraft"');
+    expect(v13Migration).toContain('CREATE TABLE "SearchKeywordDraft"');
+    expect(v13Migration).toContain('CREATE TABLE "SearchAdDraft"');
+    expect(v13Migration).toContain('CREATE TABLE "SearchTargetDraft"');
+    expect(v13Migration).toContain("CampaignOp_searchCampaignDraftId_fkey");
+    expect(v13Migration).not.toMatch(/DROP TABLE/i);
+    expect(v13Migration).not.toMatch(/jsonb/i);
+  });
+});
+
 describe("seeded provider registry", () => {
   it("includes the required slugs", () => {
     expect(SEED_PROVIDERS.map((p) => p.slug)).toEqual([
@@ -144,7 +174,7 @@ describe("role permissions", () => {
 describe("client role permissions", () => {
   it("seeds READ/LIST defaults without mutating agency RolePermission", () => {
     const rows = buildClientRolePermissionRows();
-    expect(rows).toHaveLength(14);
+    expect(rows).toHaveLength(20);
     expect(rows.every((row) => row.action === "READ" || row.action === "LIST")).toBe(true);
 
     expect(clientRoleHasPermission("CLIENT_ADMIN", "AUDIT_EVENT", "READ")).toBe(true);
@@ -158,6 +188,9 @@ describe("client role permissions", () => {
       expect(clientRoleHasPermission(role, "CAMPAIGN_OP", "READ")).toBe(true);
       expect(clientRoleHasPermission(role, "CAMPAIGN_OP", "LIST")).toBe(true);
       expect(clientRoleHasPermission(role, "CAMPAIGN_OP", "APPLY_PAUSED")).toBe(false);
+      expect(clientRoleHasPermission(role, "SEARCH_CAMPAIGN_DRAFT", "READ")).toBe(true);
+      expect(clientRoleHasPermission(role, "SEARCH_CAMPAIGN_DRAFT", "LIST")).toBe(true);
+      expect(clientRoleHasPermission(role, "SEARCH_CAMPAIGN_DRAFT", "APPLY_PAUSED")).toBe(false);
     }
   });
 });

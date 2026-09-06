@@ -16,6 +16,20 @@
   color: #0b0e0c;
 }
 
+.ops-shell .input {
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid #2a332c;
+  background: #0b0e0c;
+  padding: 0.5rem 0.75rem;
+  color: #f4f5f0;
+  outline: none;
+}
+
+.ops-shell .input:focus {
+  border-color: #c8f542;
+}
+
 .marketing-shell {
   color-scheme: light;
   min-height: 100%;
