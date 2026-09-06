@@ -4,7 +4,7 @@ import { google } from "googleapis";
 
 import { upsertExternalAccount } from "./accounts";
 import { writeAudit } from "./audit";
-import { decryptSecret } from "./crypto";
+import { TokenDecryptError, decryptOAuthTokenFields, isOpaqueCryptoDecryptError } from "./crypto";
 import { getEnv } from "./env";
 import { loadActiveConnection } from "./connections";
 import { mockGa4Report } from "./mock-data";
@@ -105,10 +105,9 @@ export async function runGa4SampleReport(): Promise<Ga4ReportResult> {
   }
 
   try {
-    const refreshPlain = decryptSecret(loaded.connection.refreshTokenEncrypted);
-    const accessPlain = loaded.connection.accessTokenEncrypted
-      ? decryptSecret(loaded.connection.accessTokenEncrypted)
-      : undefined;
+    const { refreshToken: refreshPlain, accessToken: accessPlain } = decryptOAuthTokenFields(
+      loaded.connection,
+    );
     const client = createOAuthClient();
     const refreshToken = refreshPlain.startsWith("access-only:") ? undefined : refreshPlain;
     client.setCredentials({
@@ -160,6 +159,10 @@ export async function runGa4SampleReport(): Promise<Ga4ReportResult> {
       },
     };
   } catch (error) {
+    if (error instanceof TokenDecryptError || isOpaqueCryptoDecryptError(error)) {
+      const mapped = error instanceof TokenDecryptError ? error : new TokenDecryptError();
+      return stub(`${mapped.message} ${mapped.info.hint}`, env.ga4PropertyId);
+    }
     const message = error instanceof Error ? error.message : "GA4 Data API request failed.";
     return stub(`GA4 soft-fail: ${message}`, env.ga4PropertyId);
   }

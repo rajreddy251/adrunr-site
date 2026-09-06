@@ -1,6 +1,27 @@
 import { AdsApiError } from "./ads-errors";
+import { TokenDecryptError, isOpaqueCryptoDecryptError } from "./crypto";
+
+function tokenDecryptJson(error: TokenDecryptError) {
+  return Response.json(
+    {
+      ok: false,
+      error: error.message,
+      kind: error.info.kind,
+      hint: error.info.hint,
+      recovery: error.info.recovery,
+    },
+    { status: error.status },
+  );
+}
 
 export function jsonError(error: unknown, fallbackStatus = 500) {
+  if (error instanceof TokenDecryptError) {
+    return tokenDecryptJson(error);
+  }
+  if (isOpaqueCryptoDecryptError(error)) {
+    return tokenDecryptJson(new TokenDecryptError());
+  }
+
   if (error instanceof AdsApiError) {
     return Response.json(
       { ok: false, error: error.info.message, ...error.info },
