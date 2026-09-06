@@ -6,19 +6,23 @@ import {
   detectForbiddenAssistantIntent,
   diffDisplayDraftFields,
   diffDraftFields,
+  diffPmaxDraftFields,
   extractBudgetMicros,
   extractUrlFromText,
   mergeDisplayDraftPatch,
   mergeDraftPatch,
+  mergePmaxDraftPatch,
   mockAssistantTurn,
   parseAssistantTurnPlan,
   type AssistantContextPack,
 } from "@/lib/assistant";
 import { defaultDisplayDraftTree, parseDisplayDraftWrite } from "@/lib/display-draft";
 import { hydrateDisplayWizardFromDraft } from "@/lib/display-wizard-map";
+import { defaultPmaxDraftTree, parsePmaxDraftWrite } from "@/lib/pmax-draft";
+import { hydratePmaxWizardFromDraft } from "@/lib/pmax-wizard-map";
 import { defaultSearchDraftTree, parseSearchDraftWrite } from "@/lib/search-draft";
 import { hydrateWizardFromDraft } from "@/lib/search-wizard-map";
-import type { DisplayDraftClientView, SearchDraftClientView } from "@/lib/types";
+import type { DisplayDraftClientView, PmaxDraftClientView, SearchDraftClientView } from "@/lib/types";
 
 const emptyPack = (draft = defaultSearchDraftTree({ customerId: "1234567890" })): AssistantContextPack => ({
   kind: "SEARCH",
@@ -321,6 +325,140 @@ describe("display assistant fill-first", () => {
   });
 });
 
+const emptyPmaxPack = (
+  draft = defaultPmaxDraftTree({ customerId: "1234567890" }),
+): AssistantContextPack => ({
+  kind: "PMAX",
+  org: { id: "org", name: "Adrunr", slug: "adrunr" },
+  client: { id: "client-default", name: "Default client", slug: "default" },
+  accounts: [{ id: "acc", externalId: "1234567890", displayName: "Demo", status: "ENABLED", isManager: false }],
+  campaigns: [],
+  draft,
+  draftId: "pmax-1",
+  messages: [],
+  memory: [],
+});
+
+describe("performance max assistant fill-first", () => {
+  it("fills Performance Max draft fields from a URL before asking optional gaps", () => {
+    const plan = mockAssistantTurn({
+      message: "https://acmeboots.com/hiking",
+      pack: emptyPmaxPack(),
+    });
+    expect(plan.update_draft_fields).toBeTruthy();
+    expect(String(plan.update_draft_fields?.name)).toMatch(/Acmeboots/i);
+    const groups = plan.update_draft_fields?.assetGroups as Array<{
+      finalUrl: string;
+      headlines: string[];
+      longHeadlines: string[];
+      assets: Array<{ kind: string }>;
+    }>;
+    expect(groups[0].finalUrl).toContain("acmeboots.com");
+    expect(groups[0].headlines.length).toBeGreaterThanOrEqual(3);
+    expect(groups[0].longHeadlines.length).toBeGreaterThan(0);
+    expect(groups[0].assets.some((asset) => asset.kind === "MARKETING_IMAGE")).toBe(true);
+    expect(groups[0].assets.some((asset) => asset.kind === "SQUARE_MARKETING_IMAGE")).toBe(true);
+    const signals = plan.update_draft_fields?.signals as Array<{ kind: string }>;
+    expect(signals.some((signal) => signal.kind === "SEARCH_THEME")).toBe(true);
+    const required = plan.ask_questions.filter((question) => !question.optional);
+    expect(required).toHaveLength(0);
+    expect(plan.assistant_message.toLowerCase()).toMatch(/filled/);
+  });
+
+  it("refuses validate / apply / enable on Performance Max without emitting draft mutate actions", () => {
+    for (const message of ["Validate this", "Apply CREATE PAUSED", "enable and go live"]) {
+      const plan = mockAssistantTurn({ message, pack: emptyPmaxPack() });
+      expect(plan.update_draft_fields).toBeNull();
+      expect(plan.refusedAction).toBeTruthy();
+    }
+  });
+
+  it("merges structured patches onto the existing Performance Max draft tree", () => {
+    const current = parsePmaxDraftWrite({
+      customerId: "1234567890",
+      name: "Keep me",
+      dailyBudgetMicros: 1_000_000,
+      assetGroups: [{ name: "Existing", assets: [] }],
+    });
+    const merged = mergePmaxDraftPatch(current, { name: "Patched pmax", dailyBudgetMicros: 5_000_000 });
+    expect(merged.name).toBe("Patched pmax");
+    expect(merged.dailyBudgetMicros).toBe(5_000_000);
+    expect(merged.assetGroups[0].name).toBe("Existing");
+    expect(diffPmaxDraftFields(current, merged)).toEqual(["name", "dailyBudgetMicros"]);
+  });
+
+  it("hydrates Performance Max wizard fields from a draft view", () => {
+    const draft: PmaxDraftClientView = {
+      id: "d1",
+      customerId: "1234567890",
+      externalAccountId: "ea1",
+      name: "Hydrated PMax",
+      dailyBudgetMicros: "25000000",
+      biddingStrategy: "MAXIMIZE_CONVERSIONS",
+      targetCpaMicros: null,
+      targetRoasText: null,
+      urlExpansionOptOut: false,
+      brandGuidelinesEnabled: false,
+      merchantCenterId: null,
+      startDate: null,
+      endDate: null,
+      statusDraft: "DRAFT",
+      googleCampaignResourceName: null,
+      campaignOpId: null,
+      notesText: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      assetGroups: [
+        {
+          id: "g1",
+          name: "Coffee",
+          finalUrl: "https://example.com",
+          headlines: ["One", "Two", "Three"],
+          longHeadlines: ["Long coffee headline"],
+          descriptions: ["Desc one", "Desc two"],
+          businessName: "Acme",
+          sortOrder: 0,
+          googleAssetGroupResourceName: null,
+          assets: [
+            {
+              id: "as1",
+              kind: "MARKETING_IMAGE",
+              urlText: "https://placehold.co/1200x628/png",
+              assetResourceName: null,
+              sortOrder: 0,
+            },
+          ],
+          listings: [],
+        },
+      ],
+      targets: [
+        {
+          id: "t1",
+          type: "GEO",
+          valueText: "Canada",
+          criterionText: "geoTargetConstants/2124",
+          included: true,
+        },
+      ],
+      signals: [
+        {
+          id: "s1",
+          kind: "SEARCH_THEME",
+          valueText: "organic coffee",
+          criterionText: "organic coffee",
+          included: true,
+        },
+      ],
+    };
+    const state = hydratePmaxWizardFromDraft(draft);
+    expect(state.name).toBe("Hydrated PMax");
+    expect(state.budgetDollars).toBe("25.00");
+    expect(state.groups[0].businessName).toBe("Acme");
+    expect(state.targets[0].valueText).toBe("Canada");
+    expect(state.signals[0].kind).toBe("SEARCH_THEME");
+  });
+});
+
 describe("assistant safety source locks", () => {
   it("does not call validate or apply endpoints from assistant server modules", () => {
     const ops = readFileSync(resolve(process.cwd(), "src/lib/assistant-ops.ts"), "utf8");
@@ -329,10 +467,13 @@ describe("assistant safety source locks", () => {
     for (const source of [ops, llm, turn]) {
       expect(source).not.toMatch(/validateOrApplySearchDraft/);
       expect(source).not.toMatch(/validateOrApplyDisplayDraft/);
+      expect(source).not.toMatch(/validateOrApplyPmaxDraft/);
       expect(source).not.toMatch(/\/api\/ads\/search\/drafts\/.+\/validate/);
       expect(source).not.toMatch(/\/api\/ads\/search\/drafts\/.+\/apply/);
       expect(source).not.toMatch(/\/api\/ads\/display\/drafts\/.+\/validate/);
       expect(source).not.toMatch(/\/api\/ads\/display\/drafts\/.+\/apply/);
+      expect(source).not.toMatch(/\/api\/ads\/pmax\/drafts\/.+\/validate/);
+      expect(source).not.toMatch(/\/api\/ads\/pmax\/drafts\/.+\/apply/);
     }
   });
 });

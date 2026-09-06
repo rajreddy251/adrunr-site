@@ -6,6 +6,7 @@ import {
   detectForbiddenAssistantIntent,
   diffDisplayDraftFields,
   diffDraftFields,
+  diffPmaxDraftFields,
   type AssistantContextPack,
   type AssistantTurnPlan,
 } from "./assistant";
@@ -18,6 +19,13 @@ import {
   patchDisplayDraft,
   type DisplayDraftView,
 } from "./display-ops";
+import {
+  createPmaxDraft,
+  getPmaxDraft,
+  patchPmaxDraft,
+  pmaxDraftViewToTree,
+  type PmaxDraftView,
+} from "./pmax-ops";
 import { prisma } from "./prisma";
 import { GOOGLE_ADS_SLUG } from "./providers";
 import {
@@ -38,15 +46,42 @@ import type {
 
 export type AssistantTurnResult = {
   thread: AssistantThreadView;
-  draft: SearchDraftView | DisplayDraftView | null;
+  draft: SearchDraftView | DisplayDraftView | PmaxDraftView | null;
   questions: AssistantQuestion[];
   patchedFields: string[];
   source: "mock" | "llm";
   refusedAction: string | null;
 };
 
-function threadKind(row: { draftId: string | null; displayDraftId: string | null }): AssistantCampaignKind {
-  return row.displayDraftId ? "DISPLAY" : "SEARCH";
+function threadKind(row: {
+  draftId: string | null;
+  displayDraftId: string | null;
+  pmaxDraftId: string | null;
+}): AssistantCampaignKind {
+  if (row.pmaxDraftId) return "PMAX";
+  if (row.displayDraftId) return "DISPLAY";
+  return "SEARCH";
+}
+
+function assistantTitle(kind: AssistantCampaignKind): string {
+  if (kind === "DISPLAY") return "Display wizard assistant";
+  if (kind === "PMAX") return "Performance Max wizard assistant";
+  return "Search wizard assistant";
+}
+
+function draftResourceType(kind: AssistantCampaignKind): string {
+  if (kind === "DISPLAY") return "DISPLAY_CAMPAIGN_DRAFT";
+  if (kind === "PMAX") return "PERFORMANCE_MAX_CAMPAIGN_DRAFT";
+  return "SEARCH_CAMPAIGN_DRAFT";
+}
+
+function boundDraftId(
+  row: { draftId: string | null; displayDraftId: string | null; pmaxDraftId: string | null },
+  kind: AssistantCampaignKind,
+): string | null {
+  if (kind === "DISPLAY") return row.displayDraftId;
+  if (kind === "PMAX") return row.pmaxDraftId;
+  return row.draftId;
 }
 
 function scopedClientError(): Error {
@@ -91,7 +126,7 @@ async function loadThreadOrThrow(id: string): Promise<AssistantThreadView> {
   if (!row) {
     throw Object.assign(new Error("Assistant thread not found."), {
       status: 404,
-      info: { kind: "validation", hint: "Start a thread from the Search or Display wizard assistant." },
+      info: { kind: "validation", hint: "Start a thread from the Search, Display, or Performance Max wizard assistant." },
     });
   }
   return {
@@ -100,6 +135,7 @@ async function loadThreadOrThrow(id: string): Promise<AssistantThreadView> {
     clientId: row.clientId,
     draftId: row.draftId,
     displayDraftId: row.displayDraftId,
+    pmaxDraftId: row.pmaxDraftId,
     kind: threadKind(row),
     createdById: row.createdById,
     title: row.title,
@@ -118,6 +154,19 @@ async function assertDraftInScope(draftId: string, kind: AssistantCampaignKind =
     });
     if (!draft) {
       throw Object.assign(new Error("Display campaign draft not found for this client."), {
+        status: 404,
+        info: { kind: "rbac", hint: "Assistant threads cannot read another client's drafts." },
+      });
+    }
+    return draft;
+  }
+  if (kind === "PMAX") {
+    const draft = await prisma().performanceMaxCampaignDraft.findFirst({
+      where: { id: draftId, organizationId: ctx.org.id, clientId: ctx.client.id },
+      select: { id: true, name: true },
+    });
+    if (!draft) {
+      throw Object.assign(new Error("Performance Max campaign draft not found for this client."), {
         status: 404,
         info: { kind: "rbac", hint: "Assistant threads cannot read another client's drafts." },
       });
@@ -151,7 +200,9 @@ export async function listAssistantThreads(input?: {
       ...(input?.draftId
         ? kind === "DISPLAY"
           ? { displayDraftId: input.draftId }
-          : { draftId: input.draftId }
+          : kind === "PMAX"
+            ? { pmaxDraftId: input.draftId }
+            : { draftId: input.draftId }
         : {}),
     },
     include: { messages: { orderBy: { createdAt: "asc" } } },
@@ -164,6 +215,7 @@ export async function listAssistantThreads(input?: {
     clientId: row.clientId,
     draftId: row.draftId,
     displayDraftId: row.displayDraftId,
+    pmaxDraftId: row.pmaxDraftId,
     kind: threadKind(row),
     createdById: row.createdById,
     title: row.title,
@@ -192,8 +244,9 @@ export async function createAssistantThread(input: {
       clientId: ctx.client.id,
       draftId: kind === "SEARCH" ? input.draftId ?? null : null,
       displayDraftId: kind === "DISPLAY" ? input.draftId ?? null : null,
+      pmaxDraftId: kind === "PMAX" ? input.draftId ?? null : null,
       createdById: ctx.user.id,
-      title: input.title?.trim() || (kind === "DISPLAY" ? "Display wizard assistant" : "Search wizard assistant"),
+      title: input.title?.trim() || assistantTitle(kind),
     },
     include: { messages: true },
   });
@@ -271,7 +324,7 @@ export async function buildAssistantContextPack(input: {
   const ctx = await requireScopedContext();
   const provider = await requireProvider(GOOGLE_ADS_SLUG);
   const kind = input.kind ?? "SEARCH";
-  const [accounts, entities, searchDrafts, displayDrafts, memory, thread] = await Promise.all([
+  const [accounts, entities, searchDrafts, displayDrafts, pmaxDrafts, memory, thread] = await Promise.all([
     prisma().externalAccount.findMany({
       where: { organizationId: ctx.org.id, clientId: ctx.client.id, providerId: provider.id },
       orderBy: { updatedAt: "desc" },
@@ -293,6 +346,11 @@ export async function buildAssistantContextPack(input: {
       take: 20,
     }),
     prisma().displayCampaignDraft.findMany({
+      where: { organizationId: ctx.org.id, clientId: ctx.client.id },
+      orderBy: { updatedAt: "desc" },
+      take: 20,
+    }),
+    prisma().performanceMaxCampaignDraft.findMany({
       where: { organizationId: ctx.org.id, clientId: ctx.client.id },
       orderBy: { updatedAt: "desc" },
       take: 20,
@@ -326,6 +384,14 @@ export async function buildAssistantContextPack(input: {
       settings: draft.biddingStrategy,
       source: "display_draft" as const,
     })),
+    ...pmaxDrafts.map((draft) => ({
+      name: draft.name,
+      type: "PMAX_DRAFT",
+      status: draft.statusDraft,
+      budgetHint: draft.dailyBudgetMicros.toString(),
+      settings: draft.biddingStrategy,
+      source: "pmax_draft" as const,
+    })),
   ];
 
   let draftTree: AssistantContextPack["draft"] = null;
@@ -334,7 +400,9 @@ export async function buildAssistantContextPack(input: {
     draftTree =
       kind === "DISPLAY"
         ? displayDraftViewToTree(await getDisplayDraft(scoped.id))
-        : searchDraftViewToTree(await getSearchDraft(scoped.id));
+        : kind === "PMAX"
+          ? pmaxDraftViewToTree(await getPmaxDraft(scoped.id))
+          : searchDraftViewToTree(await getSearchDraft(scoped.id));
   }
 
   return {
@@ -387,6 +455,15 @@ export async function runAssistantTurn(input: {
         status: "PAUSED",
       });
       draftId = created.id;
+    } else if (kind === "PMAX") {
+      const created = await createPmaxDraft({
+        customerId: input.customerId,
+        name: "Adrunr paused Performance Max",
+        dailyBudgetMicros: 1_000_000,
+        biddingStrategy: "MAXIMIZE_CONVERSIONS",
+        status: "PAUSED",
+      });
+      draftId = created.id;
     } else {
       const created = await createSearchDraft({
         customerId: input.customerId,
@@ -402,7 +479,7 @@ export async function runAssistantTurn(input: {
   let threadId = input.threadId ?? null;
   if (threadId) {
     const existing = await loadThreadOrThrow(threadId);
-    const boundId = kind === "DISPLAY" ? existing.displayDraftId : existing.draftId;
+    const boundId = boundDraftId(existing, kind);
     if (draftId && boundId && boundId !== draftId) {
       throw Object.assign(new Error("Thread is bound to a different draft."), {
         status: 400,
@@ -412,7 +489,12 @@ export async function runAssistantTurn(input: {
     if (draftId && !boundId) {
       await prisma().assistantThread.update({
         where: { id: threadId },
-        data: kind === "DISPLAY" ? { displayDraftId: draftId } : { draftId },
+        data:
+          kind === "DISPLAY"
+            ? { displayDraftId: draftId }
+            : kind === "PMAX"
+              ? { pmaxDraftId: draftId }
+              : { draftId },
       });
     }
     draftId = draftId ?? boundId;
@@ -420,7 +502,7 @@ export async function runAssistantTurn(input: {
     const created = await createAssistantThread({
       draftId,
       kind,
-      title: kind === "DISPLAY" ? "Display wizard assistant" : "Search wizard assistant",
+      title: assistantTitle(kind),
     });
     threadId = created.id;
   }
@@ -447,10 +529,12 @@ export async function runAssistantTurn(input: {
       }
     : await planAssistantTurn({ message, pack });
 
-  let draft: SearchDraftView | DisplayDraftView | null = draftId
+  let draft: SearchDraftView | DisplayDraftView | PmaxDraftView | null = draftId
     ? kind === "DISPLAY"
       ? await getDisplayDraft(draftId)
-      : await getSearchDraft(draftId)
+      : kind === "PMAX"
+        ? await getPmaxDraft(draftId)
+        : await getSearchDraft(draftId)
     : null;
   let patchedFields: string[] = [];
   if (plan.update_draft_fields && draftId && !refused) {
@@ -459,6 +543,11 @@ export async function runAssistantTurn(input: {
       draft = await patchDisplayDraft(draftId, plan.update_draft_fields);
       const after = displayDraftViewToTree(draft);
       patchedFields = diffDisplayDraftFields(before, after);
+    } else if (kind === "PMAX") {
+      const before = pmaxDraftViewToTree((draft as PmaxDraftView) ?? (await getPmaxDraft(draftId)));
+      draft = await patchPmaxDraft(draftId, plan.update_draft_fields);
+      const after = pmaxDraftViewToTree(draft);
+      patchedFields = diffPmaxDraftFields(before, after);
     } else {
       const before = searchDraftViewToTree((draft as SearchDraftView) ?? (await getSearchDraft(draftId)));
       draft = await patchSearchDraft(draftId, plan.update_draft_fields);
@@ -470,7 +559,7 @@ export async function runAssistantTurn(input: {
         organizationId: ctx.org.id,
         actorUserId: ctx.user.id,
         action: "assistant.draft_patched",
-        resourceType: kind === "DISPLAY" ? "DISPLAY_CAMPAIGN_DRAFT" : "SEARCH_CAMPAIGN_DRAFT",
+        resourceType: draftResourceType(kind),
         resourceId: draftId,
         metadata: {
           threadId,

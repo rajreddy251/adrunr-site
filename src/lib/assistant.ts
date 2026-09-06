@@ -8,6 +8,14 @@ import {
   type DisplayDraftTree,
 } from "./display-draft";
 import {
+  DEFAULT_LOGO_IMAGE as PMAX_DEFAULT_LOGO_IMAGE,
+  DEFAULT_MARKETING_IMAGE as PMAX_DEFAULT_MARKETING_IMAGE,
+  DEFAULT_SQUARE_IMAGE as PMAX_DEFAULT_SQUARE_IMAGE,
+  SIGNAL_PRESETS,
+  parsePmaxDraftWrite,
+  type PmaxDraftTree,
+} from "./pmax-draft";
+import {
   GEO_PRESETS,
   LANGUAGE_PRESETS,
   parseSearchDraftWrite,
@@ -66,7 +74,7 @@ export type AssistantContextCampaign = {
   status: string | null;
   budgetHint: string | null;
   settings: string | null;
-  source: "external_entity" | "search_draft" | "display_draft";
+  source: "external_entity" | "search_draft" | "display_draft" | "pmax_draft";
 };
 
 export type AssistantContextPack = {
@@ -81,7 +89,7 @@ export type AssistantContextPack = {
     isManager: boolean;
   }>;
   campaigns: AssistantContextCampaign[];
-  draft: SearchDraftTree | DisplayDraftTree | null;
+  draft: SearchDraftTree | DisplayDraftTree | PmaxDraftTree | null;
   draftId: string | null;
   messages: Array<{ role: string; content: string }>;
   memory: AssistantMemoryWrite[];
@@ -184,6 +192,19 @@ export function mergeDisplayDraftPatch(current: DisplayDraftTree, patch: unknown
   });
 }
 
+export function mergePmaxDraftPatch(current: PmaxDraftTree, patch: unknown): PmaxDraftTree {
+  const raw = patch && typeof patch === "object" && !Array.isArray(patch) ? (patch as Record<string, unknown>) : {};
+  return parsePmaxDraftWrite({
+    ...current,
+    ...raw,
+    customerId: raw.customerId ?? current.customerId,
+    externalAccountId: raw.externalAccountId ?? current.externalAccountId,
+    assetGroups: Array.isArray(raw.assetGroups) && raw.assetGroups.length > 0 ? raw.assetGroups : current.assetGroups,
+    targets: Array.isArray(raw.targets) && raw.targets.length > 0 ? raw.targets : current.targets,
+    signals: Array.isArray(raw.signals) && raw.signals.length > 0 ? raw.signals : current.signals,
+  });
+}
+
 export function diffDraftFields(before: SearchDraftTree, after: SearchDraftTree): string[] {
   const fields: string[] = [];
   const keys: Array<keyof SearchDraftTree> = [
@@ -224,6 +245,29 @@ export function diffDisplayDraftFields(before: DisplayDraftTree, after: DisplayD
   if (JSON.stringify(before.adGroups) !== JSON.stringify(after.adGroups)) fields.push("adGroups");
   if (JSON.stringify(before.targets) !== JSON.stringify(after.targets)) fields.push("targets");
   if (JSON.stringify(before.audiences) !== JSON.stringify(after.audiences)) fields.push("audiences");
+  return fields;
+}
+
+export function diffPmaxDraftFields(before: PmaxDraftTree, after: PmaxDraftTree): string[] {
+  const fields: string[] = [];
+  const keys: Array<keyof PmaxDraftTree> = [
+    "name",
+    "dailyBudgetMicros",
+    "biddingStrategy",
+    "urlExpansionOptOut",
+    "merchantCenterId",
+    "startDate",
+    "endDate",
+    "notesText",
+  ];
+  for (const key of keys) {
+    if (JSON.stringify(before[key] ?? null) !== JSON.stringify(after[key] ?? null)) {
+      fields.push(String(key));
+    }
+  }
+  if (JSON.stringify(before.assetGroups) !== JSON.stringify(after.assetGroups)) fields.push("assetGroups");
+  if (JSON.stringify(before.targets) !== JSON.stringify(after.targets)) fields.push("targets");
+  if (JSON.stringify(before.signals) !== JSON.stringify(after.signals)) fields.push("signals");
   return fields;
 }
 
@@ -367,12 +411,22 @@ function draftLooksEmpty(draft: SearchDraftTree | null): boolean {
   return defaultish || defaultKw;
 }
 
-function isSearchDraft(draft: SearchDraftTree | DisplayDraftTree | null): draft is SearchDraftTree {
+function isSearchDraft(
+  draft: SearchDraftTree | DisplayDraftTree | PmaxDraftTree | null,
+): draft is SearchDraftTree {
   return Boolean(draft && Array.isArray((draft as SearchDraftTree).adGroups?.[0]?.keywords));
 }
 
-function isDisplayDraft(draft: SearchDraftTree | DisplayDraftTree | null): draft is DisplayDraftTree {
+function isDisplayDraft(
+  draft: SearchDraftTree | DisplayDraftTree | PmaxDraftTree | null,
+): draft is DisplayDraftTree {
   return Boolean(draft && Array.isArray((draft as DisplayDraftTree).audiences));
+}
+
+function isPmaxDraft(
+  draft: SearchDraftTree | DisplayDraftTree | PmaxDraftTree | null,
+): draft is PmaxDraftTree {
+  return Boolean(draft && Array.isArray((draft as PmaxDraftTree).assetGroups));
 }
 
 function displayDraftLooksEmpty(draft: DisplayDraftTree | null): boolean {
@@ -438,6 +492,9 @@ export function mockAssistantTurn(input: {
 
   if (input.pack.kind === "DISPLAY") {
     return mockDisplayAssistantTurn(input);
+  }
+  if (input.pack.kind === "PMAX") {
+    return mockPmaxAssistantTurn(input);
   }
 
   const searchDraft = isSearchDraft(input.pack.draft) ? input.pack.draft : null;
@@ -714,7 +771,212 @@ function mockDisplayAssistantTurn(input: {
   };
 }
 
+function pmaxDraftLooksEmpty(draft: PmaxDraftTree | null): boolean {
+  if (!draft) return true;
+  const defaultish = /untitled|adrunr paused performance max/i.test(draft.name);
+  const defaultAd = draft.assetGroups.every((group) => /adrunr\.app/i.test(group.finalUrl) || !group.finalUrl);
+  return defaultish || defaultAd;
+}
+
+function buildPmaxCreative(brand: string, theme: string | null, url: string, brief: string) {
+  const topic = theme ?? brand;
+  const headlines = [
+    clip(`${brand} Performance Max`, 30),
+    clip(`${topic} — Paused Draft`, 30),
+    clip("Ops, Not Autopilot", 30),
+    clip(`${brand} Asset Group`, 30),
+    clip("Validate Before Apply", 30),
+  ].filter((item, index, all) => all.indexOf(item) === index);
+  const longHeadlines = [
+    clip(
+      brief.replace(/https?:\/\/\S+/g, "").trim() ||
+        `Performance Max for ${brand}. Draft stays PAUSED until you validate or apply from the form.`,
+      90,
+    ),
+  ];
+  const descriptions = [
+    clip("Asset groups and search-theme signals — not a listing sync product.", 90),
+    clip("Filled from your brief. Review the wizard, then Validate (dry-run) — chat cannot apply.", 90),
+  ];
+  return {
+    name: theme ? `${brand} · ${theme}` : `${brand} asset group`,
+    finalUrl: url,
+    headlines: headlines.slice(0, 15),
+    longHeadlines,
+    descriptions,
+    businessName: clip(brand, 25),
+    sortOrder: 0,
+    assets: [
+      { kind: "MARKETING_IMAGE" as const, urlText: PMAX_DEFAULT_MARKETING_IMAGE, sortOrder: 0 },
+      { kind: "SQUARE_MARKETING_IMAGE" as const, urlText: PMAX_DEFAULT_SQUARE_IMAGE, sortOrder: 1 },
+      { kind: "LOGO" as const, urlText: PMAX_DEFAULT_LOGO_IMAGE, sortOrder: 2 },
+    ],
+    listings: [] as Array<{ kind: "ALL_PRODUCTS"; valueText: string; dimensionText: string; included: boolean }>,
+  };
+}
+
+function mockPmaxAssistantTurn(input: {
+  message: string;
+  pack: AssistantContextPack;
+}): AssistantTurnPlan {
+  const forbidden = detectForbiddenAssistantIntent(input.message);
+  if (forbidden) {
+    return {
+      update_draft_fields: null,
+      ask_questions: [],
+      memory: [],
+      refusedAction: forbidden,
+      assistant_message:
+        forbidden === "validate"
+          ? "I cannot Validate from chat. Use Validate (dry-run) on the wizard review step — that is validateOnly only."
+          : forbidden === "apply"
+            ? "I cannot Apply from chat. Create PAUSED lives on the form and requires typing CREATE PAUSED. There is no enable path."
+            : "I cannot enable, publish, or go live. Adrunr only drafts PAUSED campaigns; spend requires an action outside this app.",
+    };
+  }
+
+  const pmaxDraft = isPmaxDraft(input.pack.draft) ? input.pack.draft : null;
+  const url =
+    extractUrlFromText(input.message) ??
+    input.pack.memory.find((item) => item.key === "landing_url")?.value ??
+    pmaxDraft?.assetGroups[0]?.finalUrl ??
+    null;
+  const budgetMicros =
+    extractBudgetMicros(input.message) ??
+    (input.pack.memory.find((item) => item.key === "daily_budget_micros")
+      ? Number(input.pack.memory.find((item) => item.key === "daily_budget_micros")?.value)
+      : null);
+  const brand = inferBrand(input.message, url, input.pack.memory);
+  const theme = pathTheme(url);
+  const geo = resolveGeo(input.message, input.pack.memory);
+  const questions: AssistantQuestion[] = [];
+  const memory: AssistantMemoryWrite[] = [];
+  const patch: Record<string, unknown> = {};
+
+  if (brand) {
+    patch.name = `${brand}${theme ? ` ${theme}` : ""} Performance Max`;
+    memory.push({ key: "brand", value: brand, source: url ? "url" : "brief" });
+  }
+  if (budgetMicros) {
+    patch.dailyBudgetMicros = budgetMicros;
+    memory.push({ key: "daily_budget_micros", value: String(budgetMicros), source: "brief" });
+  }
+  if (url && url.startsWith("http")) {
+    memory.push({ key: "landing_url", value: url, source: "url" });
+  }
+  if (geo) {
+    memory.push({ key: "geo", value: geo.valueText, source: "brief" });
+  }
+
+  const canFillTree = Boolean(
+    brand || url || (input.message.trim().length > 12 && pmaxDraftLooksEmpty(pmaxDraft)),
+  );
+  if (canFillTree) {
+    const pmaxBrand = brand ?? "Performance Max";
+    const finalUrl = url && url.startsWith("http") ? url : "https://adrunr.app";
+    const creative = buildPmaxCreative(pmaxBrand, theme, finalUrl, input.message);
+    patch.assetGroups = [creative];
+    patch.targets = [
+      {
+        type: "GEO",
+        ...(geo ?? GEO_PRESETS[0]),
+        included: true,
+      },
+    ];
+    const themeText = theme ?? SIGNAL_PRESETS[0].valueText;
+    patch.signals = [
+      {
+        kind: "SEARCH_THEME",
+        valueText: themeText,
+        criterionText: themeText.slice(0, 80),
+        included: true,
+      },
+    ];
+    patch.notesText = input.message.trim().slice(0, 500);
+    patch.biddingStrategy = "MAXIMIZE_CONVERSIONS";
+  }
+
+  if (!url && !pmaxDraft?.assetGroups[0]?.finalUrl) {
+    questions.push({
+      id: "landing_url",
+      question: "What landing page URL should the Performance Max asset group use?",
+      field: "finalUrl",
+    });
+  }
+  if (!budgetMicros && !input.pack.memory.find((item) => item.key === "daily_budget_micros")) {
+    questions.push({
+      id: "daily_budget",
+      question: "Optional: what daily budget (USD) should I set? I left the current draft budget as a starting point.",
+      field: "dailyBudgetMicros",
+      optional: true,
+    });
+  }
+  if (!brand && !canFillTree) {
+    questions.push({
+      id: "brief",
+      question: "Paste a landing URL or a short brief (product + geo) and I will fill the Performance Max draft first.",
+      field: "notesText",
+    });
+  }
+
+  const filled = Object.keys(patch);
+  const messageParts: string[] = [];
+  if (filled.length) {
+    messageParts.push(
+      `Filled the Performance Max draft from your ${url ? "URL" : "brief"}: ${[
+        patch.name ? `name “${patch.name}”` : null,
+        budgetMicros ? `budget $${(budgetMicros / 1_000_000).toFixed(2)}/day` : null,
+        Array.isArray(patch.assetGroups) ? "asset group / headlines / images / search-theme signal" : null,
+        geo ? `geo ${geo.valueText}` : "geo United States (default)",
+      ]
+        .filter(Boolean)
+        .join(", ")}.`,
+    );
+    messageParts.push("The form is the source of truth — edit anything before you Validate or Create PAUSED there.");
+  } else if (!questions.length) {
+    messageParts.push("I have what I need on the draft. Tweak the form if you want polish; I will not block on it.");
+  }
+  if (questions.length) {
+    const required = questions.filter((item) => !item.optional);
+    const optional = questions.filter((item) => item.optional);
+    if (required.length) {
+      messageParts.push(required.map((item) => item.question).join(" "));
+    }
+    if (optional.length) {
+      messageParts.push(optional.map((item) => item.question).join(" "));
+    }
+  }
+
+  return {
+    update_draft_fields: filled.length ? patch : null,
+    ask_questions: questions,
+    memory,
+    assistant_message: messageParts.join(" "),
+  };
+}
+
 export function assistantSystemPrompt(kind: AssistantCampaignKind = "SEARCH"): string {
+  if (kind === "PMAX") {
+    return [
+      "You are the Adrunr Performance Max wizard assistant.",
+      "Fill or suggest Performance Max campaign draft fields FIRST from the URL, brief, client history, existing campaigns, and current draft.",
+      "Ask clarifying questions ONLY for gaps you cannot resolve. Never run a full questionnaire before filling.",
+      "Soft optional suggestions are OK. Do not block on polish.",
+      "You CANNOT validate, apply, enable, publish, or go live. Those stay on the form.",
+      "Validate is validateOnly. Apply is PAUSED + CREATE PAUSED confirm. There is no enable path.",
+      "Never instruct the system to call validate or apply endpoints.",
+      "Return JSON only: { update_draft_fields, ask_questions, memory, assistant_message }.",
+      "update_draft_fields may include name, dailyBudgetMicros, biddingStrategy (MAXIMIZE_CONVERSIONS), urlExpansionOptOut, merchantCenterId, startDate, endDate, notesText, assetGroups[], targets[], signals[].",
+      "assetGroups: { name, finalUrl, headlines, longHeadlines, descriptions, businessName, sortOrder, assets:[{kind,urlText}], listings:[] }.",
+      "targets: { type: GEO, valueText, criterionText, included }.",
+      "signals: { kind: SEARCH_THEME, valueText, criterionText, included }.",
+      "Use geoTargetConstants/2840 for United States when unspecified.",
+      "Headlines <= 30 chars (3-15). Long headlines <= 90 (1-5). Descriptions <= 90 chars (2-5). Business name <= 25.",
+      "Assets: at least one MARKETING_IMAGE and one SQUARE_MARKETING_IMAGE URL.",
+      "Listings are optional storage only unless merchantCenterId is set. Do not invent a listing sync product.",
+      "Scope is this organization + this client only. Never mention other clients.",
+    ].join(" ");
+  }
   if (kind === "DISPLAY") {
     return [
       "You are the Adrunr Display wizard assistant.",

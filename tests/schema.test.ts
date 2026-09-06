@@ -29,6 +29,10 @@ const v15Migration = readFileSync(
   resolve(process.cwd(), "prisma/migrations/20260906200000_schema_v1_5/migration.sql"),
   "utf8",
 );
+const v16Migration = readFileSync(
+  resolve(process.cwd(), "prisma/migrations/20260906220000_schema_v1_6/migration.sql"),
+  "utf8",
+);
 
 describe("schema v1.2 locks", () => {
   it("does not use JSONB / Prisma Json types", () => {
@@ -61,6 +65,12 @@ describe("schema v1.2 locks", () => {
       "DisplayAssetDraft",
       "DisplayAudienceDraft",
       "DisplayTargetDraft",
+      "PerformanceMaxCampaignDraft",
+      "PerformanceMaxAssetGroupDraft",
+      "PerformanceMaxAssetDraft",
+      "PerformanceMaxSignalDraft",
+      "PerformanceMaxListingDraft",
+      "PerformanceMaxTargetDraft",
       "DryRunJob",
       "ChangeRequest",
       "AuditEvent",
@@ -101,7 +111,7 @@ describe("schema v1.2 locks", () => {
     for (const kind of CAMPAIGN_OP_KINDS) {
       expect(enumBlock).toContain(kind);
     }
-    expect(IMPLEMENTED_CAMPAIGN_OP_KINDS).toEqual(["SEARCH_CREATE", "DISPLAY_CREATE"]);
+    expect(IMPLEMENTED_CAMPAIGN_OP_KINDS).toEqual(["SEARCH_CREATE", "DISPLAY_CREATE", "PMAX_CREATE"]);
   });
 
   it("wires AgentClientAssignment to Organization, Client, and User", () => {
@@ -203,6 +213,31 @@ describe("schema v1.5 locks", () => {
   });
 });
 
+describe("schema v1.6 locks", () => {
+  it("adds Performance Max draft models and PERFORMANCE_MAX_CAMPAIGN_DRAFT without JSONB", () => {
+    expect(schema).toContain("enum PerformanceMaxDraftStatus");
+    expect(schema).toContain("enum PerformanceMaxSignalKind");
+    expect(schema).toContain("enum PerformanceMaxListingKind");
+    expect(schema).toContain("PERFORMANCE_MAX_CAMPAIGN_DRAFT");
+    expect(schema).toContain("pmaxCampaignDraftId");
+    expect(schema).toContain("pmaxDraftId");
+    expect(schema).toContain("longHeadlinesText");
+    expect(schema).toContain("merchantCenterId");
+    expect(schema).not.toMatch(/\bJson\b/);
+    expect(v16Migration).toContain('ALTER TYPE "PermissionResource" ADD VALUE \'PERFORMANCE_MAX_CAMPAIGN_DRAFT\'');
+    expect(v16Migration).toContain('CREATE TABLE "PerformanceMaxCampaignDraft"');
+    expect(v16Migration).toContain('CREATE TABLE "PerformanceMaxAssetGroupDraft"');
+    expect(v16Migration).toContain('CREATE TABLE "PerformanceMaxAssetDraft"');
+    expect(v16Migration).toContain('CREATE TABLE "PerformanceMaxSignalDraft"');
+    expect(v16Migration).toContain('CREATE TABLE "PerformanceMaxListingDraft"');
+    expect(v16Migration).toContain('CREATE TABLE "PerformanceMaxTargetDraft"');
+    expect(v16Migration).toContain("CampaignOp_pmaxCampaignDraftId_fkey");
+    expect(v16Migration).toContain("AssistantThread_pmaxDraftId_fkey");
+    expect(v16Migration).not.toMatch(/DROP TABLE/i);
+    expect(v16Migration).not.toMatch(/jsonb/i);
+  });
+});
+
 describe("seeded provider registry", () => {
   it("includes the required slugs", () => {
     expect(SEED_PROVIDERS.map((p) => p.slug)).toEqual([
@@ -235,7 +270,7 @@ describe("role permissions", () => {
 describe("client role permissions", () => {
   it("seeds READ/LIST defaults without mutating agency RolePermission", () => {
     const rows = buildClientRolePermissionRows();
-    expect(rows).toHaveLength(26);
+    expect(rows).toHaveLength(32);
     expect(rows.every((row) => row.action === "READ" || row.action === "LIST")).toBe(true);
 
     expect(clientRoleHasPermission("CLIENT_ADMIN", "AUDIT_EVENT", "READ")).toBe(true);
@@ -255,6 +290,9 @@ describe("client role permissions", () => {
       expect(clientRoleHasPermission(role, "DISPLAY_CAMPAIGN_DRAFT", "READ")).toBe(true);
       expect(clientRoleHasPermission(role, "DISPLAY_CAMPAIGN_DRAFT", "LIST")).toBe(true);
       expect(clientRoleHasPermission(role, "DISPLAY_CAMPAIGN_DRAFT", "APPLY_PAUSED")).toBe(false);
+      expect(clientRoleHasPermission(role, "PERFORMANCE_MAX_CAMPAIGN_DRAFT", "READ")).toBe(true);
+      expect(clientRoleHasPermission(role, "PERFORMANCE_MAX_CAMPAIGN_DRAFT", "LIST")).toBe(true);
+      expect(clientRoleHasPermission(role, "PERFORMANCE_MAX_CAMPAIGN_DRAFT", "APPLY_PAUSED")).toBe(false);
     }
   });
 });
