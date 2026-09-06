@@ -17,9 +17,18 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://adrunr.app"),
   title: "Adrunr — Ads operations platform",
   description:
-    "Adrunr helps advertisers connect Google Ads accounts with OAuth and manage campaigns and reporting through the Google Ads API — only for accounts they authorize.",
+    "Ads ops for agencies and advertisers. Connect Google Ads with OAuth, run paused and dry-run campaign work, and grow onto GA4, Clarity, Meta, TikTok, and LinkedIn — only for accounts you authorize.",
+  openGraph: {
+    title: "Adrunr — Ads operations platform",
+    description:
+      "Multi-channel ads operations: Google Ads live, GA4/Clarity/Meta/TikTok/LinkedIn schema-ready. Ops tools, not autopilot.",
+    url: "https://adrunr.app",
+    siteName: "Adrunr",
+    type: "website",
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
