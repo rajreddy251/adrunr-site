@@ -796,6 +796,56 @@ export type CampaignImportJobView = {
   finishedAt: string | null;
 };
 
+export type CampaignReportSummaryView = {
+  campaignCount: number;
+  enabledSnapshotCount: number;
+  spendMicros: string | null;
+  clicks: string | null;
+  impressions: string | null;
+  conversionsText: string | null;
+  conversionsValueText: string | null;
+  currencyCode: string | null;
+  notesText: string | null;
+};
+
+export type CampaignReportRowView = {
+  id?: string;
+  metricSnapshotId?: string | null;
+  syncedCampaignId?: string | null;
+  externalCampaignId: string;
+  campaignName: string;
+  advertisingChannelType: string | null;
+  campaignStatus: string | null;
+  statusSnapshotNote: string | null;
+  spendMicros: string | null;
+  clicks: string | null;
+  impressions: string | null;
+  conversionsText: string | null;
+  conversionsValueText: string | null;
+  notesText: string | null;
+};
+
+export type CampaignReportJobView = {
+  id: string | null;
+  customerId: string;
+  externalAccountId: string;
+  dryRun: boolean;
+  readOnly: true;
+  neverEnable: true;
+  persisted: boolean;
+  status: string;
+  dateFrom: string;
+  dateTo: string;
+  source: "cache" | "search" | "mock";
+  previewText: string | null;
+  notesText: string | null;
+  errorMessage: string | null;
+  summary: CampaignReportSummaryView;
+  rows: CampaignReportRowView[];
+  createdAt: string | null;
+  finishedAt: string | null;
+};
+
 export type CampaignMetricSnapshotView = {
   id?: string;
   externalCampaignId: string;
