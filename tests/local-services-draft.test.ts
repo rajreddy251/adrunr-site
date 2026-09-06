@@ -73,6 +73,7 @@ describe("local services draft tree", () => {
       parseLocalServicesDraftTree({
         ...completeTree,
         categories: [
+          { kind: "PRIMARY", categoryId: "xcat:home_services:plumber", valueText: "Plumber", included: true },
           { kind: "ADDITIONAL", categoryId: "xcat:home_services:electrician", valueText: "Electrician", included: true },
         ],
       }),
