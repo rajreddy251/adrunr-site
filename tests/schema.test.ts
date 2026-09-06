@@ -61,6 +61,10 @@ const v113Migration = readFileSync(
   resolve(process.cwd(), "prisma/migrations/20260906290000_schema_v1_13/migration.sql"),
   "utf8",
 );
+const v114Migration = readFileSync(
+  resolve(process.cwd(), "prisma/migrations/20260906300000_schema_v1_14/migration.sql"),
+  "utf8",
+);
 
 describe("schema v1.2 locks", () => {
   it("does not use JSONB / Prisma Json types", () => {
@@ -139,6 +143,10 @@ describe("schema v1.2 locks", () => {
       "SyncedAd",
       "SyncedKeyword",
       "CampaignMetricSnapshot",
+      "CampaignEditDraft",
+      "CampaignEditFieldDraft",
+      "CampaignEditBidDraft",
+      "CampaignEditTargetDraft",
       "DryRunJob",
       "ChangeRequest",
       "AuditEvent",
@@ -182,6 +190,7 @@ describe("schema v1.2 locks", () => {
       "HOTEL_CREATE",
       "LOCAL_CREATE",
       "LOCAL_SERVICES_CREATE",
+      "CAMPAIGN_EDIT",
     ]);
     for (const kind of CAMPAIGN_OP_KINDS) {
       expect(enumBlock).toContain(kind);
@@ -197,6 +206,7 @@ describe("schema v1.2 locks", () => {
       "HOTEL_CREATE",
       "LOCAL_CREATE",
       "LOCAL_SERVICES_CREATE",
+      "CAMPAIGN_EDIT",
     ]);
   });
 
@@ -482,6 +492,32 @@ describe("schema v1.13 locks", () => {
   });
 });
 
+describe("schema v1.14 locks", () => {
+  it("adds CampaignEditDraft records and CAMPAIGN_EDIT without JSONB", () => {
+    expect(schema).toContain("model CampaignEditDraft");
+    expect(schema).toContain("model CampaignEditFieldDraft");
+    expect(schema).toContain("model CampaignEditBidDraft");
+    expect(schema).toContain("model CampaignEditTargetDraft");
+    expect(schema).toContain("CAMPAIGN_EDIT");
+    expect(schema).toContain("CAMPAIGN_EDIT_DRAFT");
+    expect(schema).toContain("campaignEditDraftId");
+    expect(schema).toContain("proposedDailyBudgetMicros");
+    expect(schema).toContain("proposedBidMicros");
+    expect(schema).toContain("enum CampaignEditFieldKind");
+    expect(schema).toContain("enum CampaignEditTargetType");
+    expect(schema).not.toMatch(/\bJson\b/);
+    expect(v114Migration).toContain('ALTER TYPE "CampaignOpKind" ADD VALUE \'CAMPAIGN_EDIT\'');
+    expect(v114Migration).toContain('ALTER TYPE "PermissionResource" ADD VALUE \'CAMPAIGN_EDIT_DRAFT\'');
+    expect(v114Migration).toContain('CREATE TABLE "CampaignEditDraft"');
+    expect(v114Migration).toContain('CREATE TABLE "CampaignEditFieldDraft"');
+    expect(v114Migration).toContain('CREATE TABLE "CampaignEditBidDraft"');
+    expect(v114Migration).toContain('CREATE TABLE "CampaignEditTargetDraft"');
+    expect(v114Migration).toContain("CampaignOp_campaignEditDraftId_fkey");
+    expect(v114Migration).not.toMatch(/DROP TABLE/i);
+    expect(v114Migration).not.toMatch(/jsonb/i);
+  });
+});
+
 describe("schema v1.11 locks", () => {
   it("adds Hotel, Local, and Local Services draft models without JSONB", () => {
     expect(schema).toContain("enum HotelDraftStatus");
@@ -569,7 +605,7 @@ describe("role permissions", () => {
 describe("client role permissions", () => {
   it("seeds READ/LIST defaults without mutating agency RolePermission", () => {
     const rows = buildClientRolePermissionRows();
-    expect(rows).toHaveLength(86);
+    expect(rows).toHaveLength(92);
     expect(rows.every((row) => row.action === "READ" || row.action === "LIST")).toBe(true);
 
     expect(clientRoleHasPermission("CLIENT_ADMIN", "AUDIT_EVENT", "READ")).toBe(true);
@@ -619,6 +655,9 @@ describe("client role permissions", () => {
       expect(clientRoleHasPermission(role, "CAMPAIGN_METRIC_SNAPSHOT", "READ")).toBe(true);
       expect(clientRoleHasPermission(role, "CAMPAIGN_METRIC_SNAPSHOT", "LIST")).toBe(true);
       expect(clientRoleHasPermission(role, "CAMPAIGN_METRIC_SNAPSHOT", "APPLY_PAUSED")).toBe(false);
+      expect(clientRoleHasPermission(role, "CAMPAIGN_EDIT_DRAFT", "READ")).toBe(true);
+      expect(clientRoleHasPermission(role, "CAMPAIGN_EDIT_DRAFT", "LIST")).toBe(true);
+      expect(clientRoleHasPermission(role, "CAMPAIGN_EDIT_DRAFT", "APPLY_PAUSED")).toBe(false);
     }
   });
 });

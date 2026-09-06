@@ -6,6 +6,7 @@ export const SAFETY_COPY = {
     "No enable/go-live action. A paused campaign with a budget still cannot spend until separately enabled outside this app.",
     "Listings sync is read-only. It pulls campaign / ad group / ad / keyword snapshots into Neon and never enables, unpauses, or mutates live Ads status.",
     "Metrics sync is read-only. It pulls campaign budget and spend snapshots into Neon and never enables, unpauses, mutates status, or spends.",
+    "Safe campaign edit is validateOnly first. Apply requires typing EDIT SAFE. Name, budget, bids, and targeting-safe fields only. Status ENABLED / enable / unpause / go-live are refused.",
   ],
 } as const;
 
@@ -15,7 +16,12 @@ export const LISTINGS_SYNC_READ_ONLY_NOTE =
 export const METRICS_SYNC_READ_ONLY_NOTE =
   "Metrics sync is read-only. Adrunr will not enable, unpause, mutate live Ads status, or spend.";
 
+export const CAMPAIGN_EDIT_NOTE =
+  "Safe campaign edit never enables, unpauses, or goes live. Name, budget, bids, and targeting-safe fields only.";
+
 export const CONFIRM_PAUSED_PHRASE = "CREATE PAUSED";
+
+export const CONFIRM_EDIT_PHRASE = "EDIT SAFE";
 
 export type CampaignStatus = "PAUSED" | "ENABLED" | "REMOVED";
 
@@ -26,6 +32,15 @@ export function assertPausedOnly(status: string | undefined): "PAUSED" {
     );
   }
   return "PAUSED";
+}
+
+export function assertEditDoesNotEnable(status: string | undefined): void {
+  if (status) {
+    assertPausedOnly(status);
+    throw new Error(
+      "Campaign edits never set status. Status ENABLED / enable / unpause / go-live are refused.",
+    );
+  }
 }
 
 export function resolveDryRun(dryRun: unknown): boolean {

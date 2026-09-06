@@ -129,6 +129,7 @@ describe("paused campaign payload", () => {
     expect(() => resolveCampaignOpKind("HOTEL_CREATE")).toThrow(/Hotel draft APIs/);
     expect(() => resolveCampaignOpKind("LOCAL_CREATE")).toThrow(/Local draft APIs/);
     expect(() => resolveCampaignOpKind("LOCAL_SERVICES_CREATE")).toThrow(/Local Services draft APIs/);
+    expect(() => resolveCampaignOpKind("CAMPAIGN_EDIT")).toThrow(/safe campaign edit APIs/);
     expect(() => resolveCampaignOpKind("META_CAMPAIGN_CREATE")).toThrow(
       /schema-ready but not implemented/,
     );

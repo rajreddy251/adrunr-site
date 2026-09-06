@@ -712,6 +712,46 @@ export type MetricSyncCounts = {
   withSpend: number;
 };
 
+export type CampaignEditBidView = {
+  id?: string;
+  adGroupExternalId: string;
+  googleAdGroupResourceName: string | null;
+  adGroupName: string | null;
+  currentBidMicros: string | null;
+  proposedBidMicros: string;
+};
+
+export type CampaignEditTargetView = {
+  id?: string;
+  type: string;
+  valueText: string;
+  criterionText: string;
+  included: boolean;
+};
+
+export type CampaignEditDraftView = {
+  id: string;
+  customerId: string;
+  externalAccountId: string;
+  syncedCampaignId: string | null;
+  campaignExternalId: string;
+  googleCampaignResourceName: string | null;
+  budgetResourceName: string | null;
+  advertisingChannelType: string | null;
+  currentName: string;
+  proposedName: string | null;
+  currentDailyBudgetMicros: string | null;
+  proposedDailyBudgetMicros: string | null;
+  notesText: string | null;
+  statusDraft: string;
+  campaignOpId: string | null;
+  fieldKinds: string[];
+  bids: CampaignEditBidView[];
+  targets: CampaignEditTargetView[];
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type CampaignMetricSnapshotView = {
   id?: string;
   externalCampaignId: string;

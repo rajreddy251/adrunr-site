@@ -16,6 +16,7 @@ export const CAMPAIGN_OP_KINDS = [
   "HOTEL_CREATE",
   "LOCAL_CREATE",
   "LOCAL_SERVICES_CREATE",
+  "CAMPAIGN_EDIT",
 ] as const;
 
 export type CampaignOpKindValue = (typeof CAMPAIGN_OP_KINDS)[number];
@@ -31,6 +32,7 @@ export const IMPLEMENTED_CAMPAIGN_OP_KINDS = [
   "HOTEL_CREATE",
   "LOCAL_CREATE",
   "LOCAL_SERVICES_CREATE",
+  "CAMPAIGN_EDIT",
 ] as const;
 
 export type CampaignCreateInput = {
@@ -154,6 +156,18 @@ export function resolveCampaignOpKind(kind: unknown): CampaignOpKindValue {
         info: {
           kind: "validation",
           hint: "POST /api/ads/local-services/drafts then validate / apply. POST /api/ads/campaigns stays SEARCH_CREATE.",
+        },
+      },
+    );
+  }
+  if (value === "CAMPAIGN_EDIT") {
+    throw Object.assign(
+      new Error("CAMPAIGN_EDIT uses the safe campaign edit APIs, not the Phase 1 Search shell."),
+      {
+        status: 400,
+        info: {
+          kind: "validation",
+          hint: "POST /api/ads/edits/drafts then validate / apply. POST /api/ads/campaigns stays SEARCH_CREATE.",
         },
       },
     );
