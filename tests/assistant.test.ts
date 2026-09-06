@@ -881,6 +881,9 @@ describe("assistant safety source locks", () => {
     const ops = readFileSync(resolve(process.cwd(), "src/lib/assistant-ops.ts"), "utf8");
     const llm = readFileSync(resolve(process.cwd(), "src/lib/assistant-llm.ts"), "utf8");
     const turn = readFileSync(resolve(process.cwd(), "src/app/api/assistant/turn/route.ts"), "utf8");
+    const threads = readFileSync(resolve(process.cwd(), "src/app/api/assistant/threads/route.ts"), "utf8");
+    expect(turn).toContain("parseAssistantCampaignKind");
+    expect(threads).toContain("parseAssistantCampaignKind");
     for (const source of [ops, llm, turn]) {
       expect(source).not.toMatch(/validateOrApplySearchDraft/);
       expect(source).not.toMatch(/validateOrApplyDisplayDraft/);

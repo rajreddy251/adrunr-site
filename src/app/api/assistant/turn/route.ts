@@ -1,3 +1,4 @@
+import { assistantKindLabel, parseAssistantCampaignKind } from "@/lib/assistant";
 import { runAssistantTurn } from "@/lib/assistant-ops";
 import { jsonError } from "@/lib/http";
 
@@ -12,28 +13,9 @@ export async function POST(request: Request) {
       draftId?: string;
       clientId?: string;
       customerId?: string;
-      kind?: "SEARCH" | "DISPLAY" | "PMAX" | "DEMAND_GEN" | "VIDEO";
+      kind?: string;
     };
-    const kind =
-      body.kind === "DISPLAY"
-        ? "DISPLAY"
-        : body.kind === "PMAX"
-          ? "PMAX"
-          : body.kind === "DEMAND_GEN"
-            ? "DEMAND_GEN"
-            : body.kind === "VIDEO"
-              ? "VIDEO"
-              : "SEARCH";
-    const label =
-      kind === "DISPLAY"
-        ? "Display"
-        : kind === "PMAX"
-          ? "Performance Max"
-          : kind === "DEMAND_GEN"
-            ? "Demand Gen"
-            : kind === "VIDEO"
-              ? "Video"
-              : "Search";
+    const kind = parseAssistantCampaignKind(body.kind);
     const result = await runAssistantTurn({
       message: String(body.message ?? ""),
       threadId: body.threadId,
@@ -49,7 +31,7 @@ export async function POST(request: Request) {
         validatePath: false,
         applyPath: false,
         enablePath: false,
-        note: `Chat can patch ${label} draft fields only. Validate / Create PAUSED stay on the wizard form.`,
+        note: `Chat can patch ${assistantKindLabel(kind)} draft fields only. Validate / Create PAUSED stay on the wizard form.`,
       },
     });
   } catch (error) {

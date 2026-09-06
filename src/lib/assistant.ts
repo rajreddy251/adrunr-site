@@ -45,6 +45,32 @@ import {
 } from "./shopping-draft";
 import type { AssistantCampaignKind } from "./types";
 
+export const ASSISTANT_CAMPAIGN_KINDS = [
+  "SEARCH",
+  "DISPLAY",
+  "PMAX",
+  "DEMAND_GEN",
+  "VIDEO",
+  "SHOPPING",
+] as const;
+
+export function parseAssistantCampaignKind(value: unknown): AssistantCampaignKind {
+  const raw = String(value ?? "SEARCH").toUpperCase();
+  if ((ASSISTANT_CAMPAIGN_KINDS as readonly string[]).includes(raw)) {
+    return raw as AssistantCampaignKind;
+  }
+  return "SEARCH";
+}
+
+export function assistantKindLabel(kind: AssistantCampaignKind): string {
+  if (kind === "DISPLAY") return "Display";
+  if (kind === "PMAX") return "Performance Max";
+  if (kind === "DEMAND_GEN") return "Demand Gen";
+  if (kind === "VIDEO") return "Video";
+  if (kind === "SHOPPING") return "Shopping";
+  return "Search";
+}
+
 export const ASSISTANT_FORBIDDEN_ACTIONS = [
   "validate",
   "apply",
