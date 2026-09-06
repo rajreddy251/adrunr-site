@@ -97,7 +97,7 @@ async function main() {
     create: {
       clientId: client.id,
       key: "ops_tone",
-      value: "Prefers PAUSED Search and Display drafts. Dry-run before apply. Chat never validates or enables. Remarketing is a Display audience.",
+      value: "Prefers PAUSED Search, Display, and Performance Max drafts. Dry-run before apply. Chat never validates or enables. Remarketing is a Display audience. PMax uses asset groups and search-theme signals.",
       source: "seed",
     },
     update: {},

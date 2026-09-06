@@ -106,6 +106,7 @@ enum PermissionResource {
   CAMPAIGN_OP
   SEARCH_CAMPAIGN_DRAFT
   DISPLAY_CAMPAIGN_DRAFT
+  PERFORMANCE_MAX_CAMPAIGN_DRAFT
   SYNC_JOB
   AUDIT_EVENT
   BILLING
@@ -174,6 +175,45 @@ enum DisplayAssetKind {
   YOUTUBE_VIDEO
 }
 
+enum PerformanceMaxDraftStatus {
+  DRAFT
+  VALIDATED
+  APPLIED
+  FAILED
+}
+
+enum PerformanceMaxBiddingStrategy {
+  MAXIMIZE_CONVERSIONS
+  MAXIMIZE_CONVERSION_VALUE
+  TARGET_CPA
+  TARGET_ROAS
+}
+
+enum PerformanceMaxTargetType {
+  GEO
+  LANGUAGE
+}
+
+enum PerformanceMaxSignalKind {
+  SEARCH_THEME
+  USER_LIST
+  CUSTOM
+}
+
+enum PerformanceMaxAssetKind {
+  MARKETING_IMAGE
+  SQUARE_MARKETING_IMAGE
+  PORTRAIT_MARKETING_IMAGE
+  LOGO
+  LANDSCAPE_LOGO
+  YOUTUBE_VIDEO
+}
+
+enum PerformanceMaxListingKind {
+  ALL_PRODUCTS
+  UNIT
+}
+
 enum AssistantMessageRole {
   USER
   ASSISTANT
@@ -212,6 +252,7 @@ model Organization {
   campaignOps      CampaignOp[]
   searchDrafts     SearchCampaignDraft[]
   displayDrafts    DisplayCampaignDraft[]
+  pmaxDrafts       PerformanceMaxCampaignDraft[]
   syncJobs         SyncJob[]
   auditEvents      AuditEvent[]
   agentAssignments AgentClientAssignment[]
@@ -234,6 +275,7 @@ model User {
   campaignOps       CampaignOp[]
   searchDrafts      SearchCampaignDraft[]
   displayDrafts     DisplayCampaignDraft[]
+  pmaxDrafts        PerformanceMaxCampaignDraft[]
   changeRequests    ChangeRequest[]
   auditEvents       AuditEvent[]
   agentAssignments  AgentClientAssignment[]
@@ -289,6 +331,7 @@ model Client {
   campaignOps      CampaignOp[]
   searchDrafts     SearchCampaignDraft[]
   displayDrafts    DisplayCampaignDraft[]
+  pmaxDrafts       PerformanceMaxCampaignDraft[]
   agentAssignments AgentClientAssignment[]
   assistantThreads AssistantThread[]
   clientMemories   ClientMemory[]
@@ -413,6 +456,7 @@ model ExternalAccount {
   campaignOps     CampaignOp[]
   searchDrafts    SearchCampaignDraft[]
   displayDrafts   DisplayCampaignDraft[]
+  pmaxDrafts      PerformanceMaxCampaignDraft[]
   dryRunJobs      DryRunJob[]
   syncJobs        SyncJob[]
 
@@ -462,6 +506,7 @@ model CampaignOp {
   googleCampaignResourceName String?
   searchCampaignDraftId      String?
   displayCampaignDraftId     String?
+  pmaxCampaignDraftId        String?
   errorMessage               String?
   createdAt                  DateTime         @default(now())
   updatedAt                  DateTime         @updatedAt
@@ -473,8 +518,9 @@ model CampaignOp {
   provider            IntegrationProvider  @relation(fields: [providerId], references: [id])
   externalAccount     ExternalAccount      @relation(fields: [externalAccountId], references: [id], onDelete: Restrict)
   requestedBy         User                 @relation(fields: [requestedById], references: [id])
-  searchCampaignDraft  SearchCampaignDraft?  @relation(fields: [searchCampaignDraftId], references: [id], onDelete: SetNull)
-  displayCampaignDraft DisplayCampaignDraft? @relation(fields: [displayCampaignDraftId], references: [id], onDelete: SetNull)
+  searchCampaignDraft  SearchCampaignDraft?          @relation(fields: [searchCampaignDraftId], references: [id], onDelete: SetNull)
+  displayCampaignDraft DisplayCampaignDraft?         @relation(fields: [displayCampaignDraftId], references: [id], onDelete: SetNull)
+  pmaxCampaignDraft    PerformanceMaxCampaignDraft?  @relation(fields: [pmaxCampaignDraftId], references: [id], onDelete: SetNull)
   dryRunJobs           DryRunJob[]
   changeRequests       ChangeRequest[]
 
@@ -483,6 +529,7 @@ model CampaignOp {
   @@index([clientId])
   @@index([searchCampaignDraftId])
   @@index([displayCampaignDraftId])
+  @@index([pmaxCampaignDraftId])
 }
 
 model SearchCampaignDraft {
@@ -706,6 +753,126 @@ model DisplayTargetDraft {
   @@index([draftId, type])
 }
 
+model PerformanceMaxCampaignDraft {
+  id                         String                          @id @default(cuid())
+  organizationId             String
+  clientId                   String
+  externalAccountId          String
+  createdById                String
+  name                       String
+  dailyBudgetMicros          BigInt
+  biddingStrategy            PerformanceMaxBiddingStrategy   @default(MAXIMIZE_CONVERSIONS)
+  targetCpaMicros            BigInt?
+  targetRoasText             String?
+  urlExpansionOptOut         Boolean                         @default(false)
+  brandGuidelinesEnabled     Boolean                         @default(false)
+  merchantCenterId           String?
+  startDate                  String?
+  endDate                    String?
+  statusDraft                PerformanceMaxDraftStatus       @default(DRAFT)
+  googleCampaignResourceName String?
+  campaignOpId               String?
+  notesText                  String?
+  createdAt                  DateTime                        @default(now())
+  updatedAt                  DateTime                        @updatedAt
+
+  organization     Organization                    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client           Client                          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  externalAccount  ExternalAccount                 @relation(fields: [externalAccountId], references: [id], onDelete: Restrict)
+  createdBy        User                            @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  campaignOps      CampaignOp[]
+  assetGroups      PerformanceMaxAssetGroupDraft[]
+  targets          PerformanceMaxTargetDraft[]
+  signals          PerformanceMaxSignalDraft[]
+  assistantThreads AssistantThread[]
+
+  @@index([organizationId, statusDraft])
+  @@index([clientId])
+  @@index([externalAccountId])
+  @@index([createdById])
+}
+
+model PerformanceMaxAssetGroupDraft {
+  id                          String   @id @default(cuid())
+  draftId                     String
+  name                        String
+  finalUrl                    String
+  headlinesText               String
+  longHeadlinesText           String
+  descriptionsText            String
+  businessName                String
+  sortOrder                   Int      @default(0)
+  googleAssetGroupResourceName String?
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  draft    PerformanceMaxCampaignDraft  @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  assets   PerformanceMaxAssetDraft[]
+  listings PerformanceMaxListingDraft[]
+
+  @@index([draftId, sortOrder])
+}
+
+model PerformanceMaxAssetDraft {
+  id                 String                   @id @default(cuid())
+  assetGroupDraftId  String
+  kind               PerformanceMaxAssetKind
+  urlText            String
+  assetResourceName  String?
+  sortOrder          Int                      @default(0)
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  assetGroup PerformanceMaxAssetGroupDraft @relation(fields: [assetGroupDraftId], references: [id], onDelete: Cascade)
+
+  @@index([assetGroupDraftId, kind])
+}
+
+model PerformanceMaxSignalDraft {
+  id            String                     @id @default(cuid())
+  draftId       String
+  kind          PerformanceMaxSignalKind
+  valueText     String
+  criterionText String
+  included      Boolean                    @default(true)
+  createdAt     DateTime                   @default(now())
+  updatedAt     DateTime                   @updatedAt
+
+  draft PerformanceMaxCampaignDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@index([draftId, kind])
+}
+
+model PerformanceMaxListingDraft {
+  id                String                     @id @default(cuid())
+  assetGroupDraftId String
+  kind              PerformanceMaxListingKind
+  valueText         String
+  dimensionText     String
+  included          Boolean                    @default(true)
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+
+  assetGroup PerformanceMaxAssetGroupDraft @relation(fields: [assetGroupDraftId], references: [id], onDelete: Cascade)
+
+  @@index([assetGroupDraftId, kind])
+}
+
+model PerformanceMaxTargetDraft {
+  id            String                     @id @default(cuid())
+  draftId       String
+  type          PerformanceMaxTargetType
+  valueText     String
+  criterionText String
+  included      Boolean                    @default(true)
+  createdAt     DateTime                   @default(now())
+  updatedAt     DateTime                   @updatedAt
+
+  draft PerformanceMaxCampaignDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@index([draftId, type])
+}
+
 model DryRunJob {
   id                String   @id @default(cuid())
   organizationId    String
@@ -813,6 +980,7 @@ model AssistantThread {
   clientId       String
   draftId        String?
   displayDraftId String?
+  pmaxDraftId    String?
   createdById    String
   title          String?
   createdAt      DateTime @default(now())
@@ -820,14 +988,16 @@ model AssistantThread {
 
   organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   client       Client                @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  draft        SearchCampaignDraft?  @relation(fields: [draftId], references: [id], onDelete: SetNull)
-  displayDraft DisplayCampaignDraft? @relation(fields: [displayDraftId], references: [id], onDelete: SetNull)
-  createdBy    User                  @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  draft        SearchCampaignDraft?          @relation(fields: [draftId], references: [id], onDelete: SetNull)
+  displayDraft DisplayCampaignDraft?         @relation(fields: [displayDraftId], references: [id], onDelete: SetNull)
+  pmaxDraft    PerformanceMaxCampaignDraft?  @relation(fields: [pmaxDraftId], references: [id], onDelete: SetNull)
+  createdBy    User                          @relation(fields: [createdById], references: [id], onDelete: Restrict)
   messages     AssistantMessage[]
 
   @@index([organizationId, clientId])
   @@index([clientId, draftId])
   @@index([clientId, displayDraftId])
+  @@index([clientId, pmaxDraftId])
   @@index([createdById])
 }
 

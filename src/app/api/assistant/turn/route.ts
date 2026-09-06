@@ -12,9 +12,10 @@ export async function POST(request: Request) {
       draftId?: string;
       clientId?: string;
       customerId?: string;
-      kind?: "SEARCH" | "DISPLAY";
+      kind?: "SEARCH" | "DISPLAY" | "PMAX";
     };
-    const kind = body.kind === "DISPLAY" ? "DISPLAY" : "SEARCH";
+    const kind = body.kind === "DISPLAY" ? "DISPLAY" : body.kind === "PMAX" ? "PMAX" : "SEARCH";
+    const label = kind === "DISPLAY" ? "Display" : kind === "PMAX" ? "Performance Max" : "Search";
     const result = await runAssistantTurn({
       message: String(body.message ?? ""),
       threadId: body.threadId,
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
         validatePath: false,
         applyPath: false,
         enablePath: false,
-        note: `Chat can patch ${kind === "DISPLAY" ? "Display" : "Search"} draft fields only. Validate / Create PAUSED stay on the wizard form.`,
+        note: `Chat can patch ${label} draft fields only. Validate / Create PAUSED stay on the wizard form.`,
       },
     });
   } catch (error) {

@@ -321,7 +321,7 @@ export const DisplayWizard = forwardRef<
     <section className="rounded-2xl border border-ink-700 bg-ink-900 p-5" data-testid="display-wizard">
       <h2 className="text-lg text-white">Display campaign wizard (PAUSED)</h2>
       <p className="mt-1 text-sm text-moss-400">
-        Schema v1.5 drafts in Neon. Remarketing is a Display audience, not a campaign type. Validate
+        Schema v1.6 drafts in Neon. Remarketing is a Display audience, not a campaign type. Validate
         is a full-tree <code className="font-mono text-moss-300">validateOnly</code> dry-run. Apply
         still creates PAUSED only — there is no enable path.
       </p>

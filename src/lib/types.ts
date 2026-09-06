@@ -157,7 +157,68 @@ export type DisplayDraftClientView = {
   }>;
 };
 
-export type AssistantCampaignKind = "SEARCH" | "DISPLAY";
+export type PmaxDraftClientView = {
+  id: string;
+  customerId: string;
+  externalAccountId: string;
+  name: string;
+  dailyBudgetMicros: string;
+  biddingStrategy: string;
+  targetCpaMicros: string | null;
+  targetRoasText: string | null;
+  urlExpansionOptOut: boolean;
+  brandGuidelinesEnabled: boolean;
+  merchantCenterId: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  statusDraft: string;
+  googleCampaignResourceName: string | null;
+  campaignOpId: string | null;
+  notesText: string | null;
+  createdAt: string;
+  updatedAt: string;
+  assetGroups: Array<{
+    id: string;
+    name: string;
+    finalUrl: string;
+    headlines: string[];
+    longHeadlines: string[];
+    descriptions: string[];
+    businessName: string;
+    sortOrder: number;
+    googleAssetGroupResourceName: string | null;
+    assets: Array<{
+      id: string;
+      kind: string;
+      urlText: string;
+      assetResourceName: string | null;
+      sortOrder: number;
+    }>;
+    listings: Array<{
+      id: string;
+      kind: string;
+      valueText: string;
+      dimensionText: string;
+      included: boolean;
+    }>;
+  }>;
+  targets: Array<{
+    id: string;
+    type: string;
+    valueText: string;
+    criterionText: string;
+    included: boolean;
+  }>;
+  signals: Array<{
+    id: string;
+    kind: string;
+    valueText: string;
+    criterionText: string;
+    included: boolean;
+  }>;
+};
+
+export type AssistantCampaignKind = "SEARCH" | "DISPLAY" | "PMAX";
 
 export type AssistantMessageView = {
   id: string;
@@ -174,6 +235,7 @@ export type AssistantThreadView = {
   clientId: string;
   draftId: string | null;
   displayDraftId: string | null;
+  pmaxDraftId: string | null;
   kind: AssistantCampaignKind;
   createdById: string;
   title: string | null;

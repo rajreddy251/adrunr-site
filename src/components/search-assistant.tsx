@@ -3,6 +3,7 @@
 import { useState, type FormEvent, type RefObject } from "react";
 
 import type { DisplayWizardHandle } from "@/components/display-wizard";
+import type { PmaxWizardHandle } from "@/components/pmax-wizard";
 import type { SearchWizardHandle } from "@/components/search-wizard";
 import type {
   AssistantCampaignKind,
@@ -10,13 +11,14 @@ import type {
   AssistantQuestion,
   AssistantThreadView,
   DisplayDraftClientView,
+  PmaxDraftClientView,
   SearchDraftClientView,
 } from "@/lib/types";
 
 type TurnResponse = {
   ok: boolean;
   thread?: AssistantThreadView;
-  draft?: SearchDraftClientView | DisplayDraftClientView | null;
+  draft?: SearchDraftClientView | DisplayDraftClientView | PmaxDraftClientView | null;
   questions?: AssistantQuestion[];
   patchedFields?: string[];
   source?: "mock" | "llm";
@@ -31,7 +33,7 @@ export function SearchAssistant({
   connected,
   kind = "SEARCH",
 }: {
-  wizard: RefObject<SearchWizardHandle | DisplayWizardHandle | null>;
+  wizard: RefObject<SearchWizardHandle | DisplayWizardHandle | PmaxWizardHandle | null>;
   connected: boolean;
   kind?: AssistantCampaignKind;
 }) {
@@ -89,7 +91,7 @@ export function SearchAssistant({
     setPatched(json.patchedFields ?? []);
     setSource(json.source ?? null);
     if (json.draft) {
-      handle?.applyDraft(json.draft as SearchDraftClientView & DisplayDraftClientView);
+      handle?.applyDraft(json.draft as SearchDraftClientView & DisplayDraftClientView & PmaxDraftClientView);
     }
     setInput("");
     setBusy(false);
@@ -98,13 +100,16 @@ export function SearchAssistant({
   return (
     <aside
       className="flex min-h-[32rem] flex-col rounded-2xl border border-ink-700 bg-ink-900 p-5"
-      data-testid={kind === "DISPLAY" ? "display-assistant" : "search-assistant"}
+      data-testid={kind === "DISPLAY" ? "display-assistant" : kind === "PMAX" ? "pmax-assistant" : "search-assistant"}
     >
-      <h2 className="text-lg text-white">{kind === "DISPLAY" ? "Display" : "Search"} assistant</h2>
+      <h2 className="text-lg text-white">
+        {kind === "DISPLAY" ? "Display" : kind === "PMAX" ? "Performance Max" : "Search"} assistant
+      </h2>
       <p className="mt-1 text-sm text-moss-400">
         Paste a URL or brief. I fill the draft first, then ask only for gaps. Chat cannot Validate,
         Create PAUSED, or enable.
         {kind === "DISPLAY" ? " Remarketing is a Display audience, not a campaign type." : ""}
+        {kind === "PMAX" ? " Asset groups and search-theme signals — listings are optional storage only." : ""}
       </p>
       {source ? (
         <p className="mt-2 font-mono text-xs text-moss-500">
