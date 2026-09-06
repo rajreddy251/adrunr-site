@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { SearchWizard } from "@/components/search-wizard";
+import { SearchAssistant } from "@/components/search-assistant";
+import { SearchWizard, type SearchWizardHandle } from "@/components/search-wizard";
 import { SAFETY_COPY } from "@/lib/safety";
 import { formatCustomerId, PLATFORM_MCC_DISPLAY } from "@/lib/ids";
 import type { AdsAccountView, AuditEventView, ConnectionStatusView, ProviderView } from "@/lib/types";
@@ -126,14 +127,14 @@ export function OpsConsole() {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-6 px-5 py-8">
+    <div className="mx-auto flex min-h-screen max-w-7xl flex-col gap-6 px-5 py-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="font-mono text-xs uppercase tracking-[0.2em] text-lime-400">Adrunr · ads ops</p>
           <h1 className="mt-1 text-3xl font-medium text-white">Campaign tools, not autopilot.</h1>
           <p className="mt-2 max-w-2xl text-sm text-moss-400">
-            Provider-agnostic foundation (Schema v1.3). Google Ads Search wizard is live; other
-            providers are seeded stubs. MCC{" "}
+            Provider-agnostic foundation (Schema v1.4). Google Ads Search wizard + fill-first
+            assistant; other providers are seeded stubs. MCC{" "}
             <span className="font-mono text-moss-300">{PLATFORM_MCC_DISPLAY}</span> · GCP{" "}
             <span className="font-mono text-moss-300">adrunr-ads-ops</span> · Neon + Prisma
           </p>
@@ -345,7 +346,7 @@ export function OpsConsole() {
         </div>
       </section>
 
-      <SearchWizard accounts={accounts} connected={status.connected} onFinished={loadAudit} />
+      <SearchWorkspace accounts={accounts} connected={status.connected} onFinished={loadAudit} />
 
       <section className="rounded-2xl border border-ink-700 bg-ink-900 p-5">
         <h2 className="text-lg text-white">Audit trail</h2>
@@ -372,10 +373,28 @@ export function OpsConsole() {
       </section>
 
       <footer className="pb-8 text-xs text-moss-500">
-        Adrunr · Schema v1.3 · Neon Postgres + Prisma · encrypted OAuth columns · no file tokens · no
+        Adrunr · Schema v1.4 · Neon Postgres + Prisma · encrypted OAuth columns · no file tokens · no
         JSONB · no spend/enable path
       </footer>
     </div>
+  );
+}
+
+function SearchWorkspace({
+  accounts,
+  connected,
+  onFinished,
+}: {
+  accounts: AdsAccountView[];
+  connected: boolean;
+  onFinished: () => Promise<void> | void;
+}) {
+  const wizardRef = useRef<SearchWizardHandle>(null);
+  return (
+    <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)]">
+      <SearchWizard ref={wizardRef} accounts={accounts} connected={connected} onFinished={onFinished} />
+      <SearchAssistant wizard={wizardRef} connected={connected} />
+    </section>
   );
 }
 

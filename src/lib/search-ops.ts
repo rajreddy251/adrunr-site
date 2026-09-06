@@ -20,6 +20,7 @@ import { isKnownNotEnabledCustomer } from "./ids";
 import { prisma } from "./prisma";
 import { GOOGLE_ADS_SLUG } from "./providers";
 import { resolveDryRun } from "./safety";
+import { mergeDraftPatch } from "./assistant";
 import {
   assertApplyConfirm,
   buildSearchDraftMutate,
@@ -30,6 +31,7 @@ import {
   type SearchDraftTree,
 } from "./search-draft";
 import { ensurePlatformContext, requireProvider } from "./tenant";
+import type { SearchDraftClientView } from "./types";
 
 export type SearchDraftRecord = SearchCampaignDraft & {
   externalAccount: { externalId: string };
@@ -43,60 +45,7 @@ export type SearchDraftRecord = SearchCampaignDraft & {
   campaignOps?: CampaignOp[];
 };
 
-export type SearchDraftView = {
-  id: string;
-  customerId: string;
-  externalAccountId: string;
-  name: string;
-  dailyBudgetMicros: string;
-  biddingStrategy: string;
-  enhancedCpcEnabled: boolean;
-  targetCpaMicros: string | null;
-  targetRoasText: string | null;
-  targetGoogleSearch: boolean;
-  targetSearchNetwork: boolean;
-  targetContentNetwork: boolean;
-  targetPartnerSearchNetwork: boolean;
-  startDate: string | null;
-  endDate: string | null;
-  statusDraft: string;
-  googleCampaignResourceName: string | null;
-  campaignOpId: string | null;
-  notesText: string | null;
-  createdAt: string;
-  updatedAt: string;
-  adGroups: Array<{
-    id: string;
-    name: string;
-    defaultBidMicros: string;
-    sortOrder: number;
-    googleAdGroupResourceName: string | null;
-    keywords: Array<{
-      id: string;
-      text: string;
-      matchType: string;
-      bidMicros: string | null;
-      isNegative: boolean;
-      googleCriterionResourceName: string | null;
-    }>;
-    ads: Array<{
-      id: string;
-      headlines: string[];
-      descriptions: string[];
-      finalUrl: string;
-      path1: string | null;
-      path2: string | null;
-      googleAdResourceName: string | null;
-    }>;
-  }>;
-  targets: Array<{
-    id: string;
-    type: string;
-    valueText: string;
-    criterionText: string;
-    included: boolean;
-  }>;
-};
+export type SearchDraftView = SearchDraftClientView;
 
 export type CampaignOpDetailView = {
   id: string;
@@ -205,6 +154,10 @@ export function toSearchDraftView(row: SearchDraftRecord): SearchDraftView {
       included: target.included,
     })),
   };
+}
+
+export function searchDraftViewToTree(view: SearchDraftView): SearchDraftTree {
+  return toTree(view);
 }
 
 function toTree(view: SearchDraftView): SearchDraftTree {
@@ -442,6 +395,12 @@ export async function updateSearchDraft(id: string, body: unknown): Promise<Sear
     metadata: { name: tree.name, customerId: external.externalId },
   });
   return getSearchDraft(id);
+}
+
+export async function patchSearchDraft(id: string, patch: unknown): Promise<SearchDraftView> {
+  const existing = await getSearchDraft(id);
+  const merged = mergeDraftPatch(toTree(existing), patch);
+  return updateSearchDraft(id, merged);
 }
 
 export async function deleteSearchDraft(id: string): Promise<{ deleted: true }> {

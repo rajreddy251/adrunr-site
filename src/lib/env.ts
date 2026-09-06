@@ -13,6 +13,9 @@ export type AppEnv = {
   ga4PropertyId: string;
   appBaseUrl: string;
   mockMode: boolean;
+  llmBaseUrl: string;
+  llmApiKey: string;
+  llmModel: string;
 };
 
 function read(name: string): string {
@@ -36,7 +39,14 @@ export function getEnv(): AppEnv {
     ga4PropertyId: read("GA4_PROPERTY_ID"),
     appBaseUrl: read("APP_BASE_URL") || "http://localhost:3000",
     mockMode: read("ADRUNR_MOCK") === "1" || read("ADRUNR_MOCK") === "true",
+    llmBaseUrl: read("ADRUNR_LLM_BASE_URL") || "https://ai-gateway.vercel.sh/v1",
+    llmApiKey: read("ADRUNR_LLM_API_KEY"),
+    llmModel: read("ADRUNR_LLM_MODEL") || "openai/gpt-5.4",
   };
+}
+
+export function llmConfigured(env = getEnv()): boolean {
+  return Boolean(env.llmApiKey) && !env.mockMode;
 }
 
 export function oauthConfigured(env = getEnv()): boolean {
