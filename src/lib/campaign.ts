@@ -9,11 +9,17 @@ export const CAMPAIGN_OP_KINDS = [
   "TIKTOK_CAMPAIGN_CREATE",
   "LINKEDIN_CAMPAIGN_CREATE",
   "GENERIC_MUTATE",
+  "DEMAND_GEN_CREATE",
 ] as const;
 
 export type CampaignOpKindValue = (typeof CAMPAIGN_OP_KINDS)[number];
 
-export const IMPLEMENTED_CAMPAIGN_OP_KINDS = ["SEARCH_CREATE", "DISPLAY_CREATE", "PMAX_CREATE"] as const;
+export const IMPLEMENTED_CAMPAIGN_OP_KINDS = [
+  "SEARCH_CREATE",
+  "DISPLAY_CREATE",
+  "PMAX_CREATE",
+  "DEMAND_GEN_CREATE",
+] as const;
 
 export type CampaignCreateInput = {
   customerId: string;
@@ -56,16 +62,28 @@ export function resolveCampaignOpKind(kind: unknown): CampaignOpKindValue {
       },
     );
   }
+  if (value === "DEMAND_GEN_CREATE") {
+    throw Object.assign(
+      new Error("DEMAND_GEN_CREATE uses the Demand Gen draft APIs, not the Phase 1 Search shell."),
+      {
+        status: 400,
+        info: {
+          kind: "validation",
+          hint: "POST /api/ads/demand-gen/drafts then validate / apply. POST /api/ads/campaigns stays SEARCH_CREATE.",
+        },
+      },
+    );
+  }
   if (value !== "SEARCH_CREATE") {
     throw Object.assign(
       new Error(
-        `${value} is schema-ready but not implemented. Google Search, Display, and Performance Max create are the live paths.`,
+        `${value} is schema-ready but not implemented. Google Search, Display, Performance Max, and Demand Gen create are the live paths.`,
       ),
       {
         status: 400,
         info: {
           kind: "validation",
-          hint: "Use SEARCH_CREATE on /api/ads/campaigns, or the Display / Performance Max wizard drafts. Other CampaignOpKind values are stubs.",
+          hint: "Use SEARCH_CREATE on /api/ads/campaigns, or the Display / Performance Max / Demand Gen wizard drafts. Other CampaignOpKind values are stubs.",
         },
       },
     );

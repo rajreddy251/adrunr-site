@@ -8,6 +8,15 @@ import {
   type DisplayDraftTree,
 } from "./display-draft";
 import {
+  AUDIENCE_PRESETS as DEMAND_GEN_AUDIENCE_PRESETS,
+  DEFAULT_LOGO_IMAGE as DEMAND_GEN_DEFAULT_LOGO_IMAGE,
+  DEFAULT_MARKETING_IMAGE as DEMAND_GEN_DEFAULT_MARKETING_IMAGE,
+  DEFAULT_SQUARE_IMAGE as DEMAND_GEN_DEFAULT_SQUARE_IMAGE,
+  audienceCriterionForCustomer as demandGenAudienceCriterionForCustomer,
+  parseDemandGenDraftWrite,
+  type DemandGenDraftTree,
+} from "./demand-gen-draft";
+import {
   DEFAULT_LOGO_IMAGE as PMAX_DEFAULT_LOGO_IMAGE,
   DEFAULT_MARKETING_IMAGE as PMAX_DEFAULT_MARKETING_IMAGE,
   DEFAULT_SQUARE_IMAGE as PMAX_DEFAULT_SQUARE_IMAGE,
@@ -74,7 +83,7 @@ export type AssistantContextCampaign = {
   status: string | null;
   budgetHint: string | null;
   settings: string | null;
-  source: "external_entity" | "search_draft" | "display_draft" | "pmax_draft";
+  source: "external_entity" | "search_draft" | "display_draft" | "pmax_draft" | "demand_gen_draft";
 };
 
 export type AssistantContextPack = {
@@ -89,7 +98,7 @@ export type AssistantContextPack = {
     isManager: boolean;
   }>;
   campaigns: AssistantContextCampaign[];
-  draft: SearchDraftTree | DisplayDraftTree | PmaxDraftTree | null;
+  draft: SearchDraftTree | DisplayDraftTree | PmaxDraftTree | DemandGenDraftTree | null;
   draftId: string | null;
   messages: Array<{ role: string; content: string }>;
   memory: AssistantMemoryWrite[];
@@ -205,6 +214,19 @@ export function mergePmaxDraftPatch(current: PmaxDraftTree, patch: unknown): Pma
   });
 }
 
+export function mergeDemandGenDraftPatch(current: DemandGenDraftTree, patch: unknown): DemandGenDraftTree {
+  const raw = patch && typeof patch === "object" && !Array.isArray(patch) ? (patch as Record<string, unknown>) : {};
+  return parseDemandGenDraftWrite({
+    ...current,
+    ...raw,
+    customerId: raw.customerId ?? current.customerId,
+    externalAccountId: raw.externalAccountId ?? current.externalAccountId,
+    adGroups: Array.isArray(raw.adGroups) && raw.adGroups.length > 0 ? raw.adGroups : current.adGroups,
+    targets: Array.isArray(raw.targets) && raw.targets.length > 0 ? raw.targets : current.targets,
+    audiences: Array.isArray(raw.audiences) && raw.audiences.length > 0 ? raw.audiences : current.audiences,
+  });
+}
+
 export function diffDraftFields(before: SearchDraftTree, after: SearchDraftTree): string[] {
   const fields: string[] = [];
   const keys: Array<keyof SearchDraftTree> = [
@@ -268,6 +290,33 @@ export function diffPmaxDraftFields(before: PmaxDraftTree, after: PmaxDraftTree)
   if (JSON.stringify(before.assetGroups) !== JSON.stringify(after.assetGroups)) fields.push("assetGroups");
   if (JSON.stringify(before.targets) !== JSON.stringify(after.targets)) fields.push("targets");
   if (JSON.stringify(before.signals) !== JSON.stringify(after.signals)) fields.push("signals");
+  return fields;
+}
+
+export function diffDemandGenDraftFields(before: DemandGenDraftTree, after: DemandGenDraftTree): string[] {
+  const fields: string[] = [];
+  const keys: Array<keyof DemandGenDraftTree> = [
+    "name",
+    "dailyBudgetMicros",
+    "biddingStrategy",
+    "youtubeInStream",
+    "youtubeInFeed",
+    "youtubeShorts",
+    "discover",
+    "gmail",
+    "display",
+    "startDate",
+    "endDate",
+    "notesText",
+  ];
+  for (const key of keys) {
+    if (JSON.stringify(before[key] ?? null) !== JSON.stringify(after[key] ?? null)) {
+      fields.push(String(key));
+    }
+  }
+  if (JSON.stringify(before.adGroups) !== JSON.stringify(after.adGroups)) fields.push("adGroups");
+  if (JSON.stringify(before.targets) !== JSON.stringify(after.targets)) fields.push("targets");
+  if (JSON.stringify(before.audiences) !== JSON.stringify(after.audiences)) fields.push("audiences");
   return fields;
 }
 
@@ -412,19 +461,30 @@ function draftLooksEmpty(draft: SearchDraftTree | null): boolean {
 }
 
 function isSearchDraft(
-  draft: SearchDraftTree | DisplayDraftTree | PmaxDraftTree | null,
+  draft: SearchDraftTree | DisplayDraftTree | PmaxDraftTree | DemandGenDraftTree | null,
 ): draft is SearchDraftTree {
   return Boolean(draft && Array.isArray((draft as SearchDraftTree).adGroups?.[0]?.keywords));
 }
 
+function isDemandGenDraft(
+  draft: SearchDraftTree | DisplayDraftTree | PmaxDraftTree | DemandGenDraftTree | null,
+): draft is DemandGenDraftTree {
+  return Boolean(draft && typeof (draft as DemandGenDraftTree).youtubeInStream === "boolean");
+}
+
 function isDisplayDraft(
-  draft: SearchDraftTree | DisplayDraftTree | PmaxDraftTree | null,
+  draft: SearchDraftTree | DisplayDraftTree | PmaxDraftTree | DemandGenDraftTree | null,
 ): draft is DisplayDraftTree {
-  return Boolean(draft && Array.isArray((draft as DisplayDraftTree).audiences));
+  return Boolean(
+    draft &&
+      Array.isArray((draft as DisplayDraftTree).audiences) &&
+      !isDemandGenDraft(draft) &&
+      !Array.isArray((draft as PmaxDraftTree).assetGroups),
+  );
 }
 
 function isPmaxDraft(
-  draft: SearchDraftTree | DisplayDraftTree | PmaxDraftTree | null,
+  draft: SearchDraftTree | DisplayDraftTree | PmaxDraftTree | DemandGenDraftTree | null,
 ): draft is PmaxDraftTree {
   return Boolean(draft && Array.isArray((draft as PmaxDraftTree).assetGroups));
 }
@@ -495,6 +555,9 @@ export function mockAssistantTurn(input: {
   }
   if (input.pack.kind === "PMAX") {
     return mockPmaxAssistantTurn(input);
+  }
+  if (input.pack.kind === "DEMAND_GEN") {
+    return mockDemandGenAssistantTurn(input);
   }
 
   const searchDraft = isSearchDraft(input.pack.draft) ? input.pack.draft : null;
@@ -955,7 +1018,217 @@ function mockPmaxAssistantTurn(input: {
   };
 }
 
+function demandGenDraftLooksEmpty(draft: DemandGenDraftTree | null): boolean {
+  if (!draft) return true;
+  const defaultish = /untitled|adrunr paused demand gen/i.test(draft.name);
+  const defaultAd = draft.adGroups.every((group) =>
+    group.ads.every((ad) => /adrunr\.app/i.test(ad.finalUrl) || !ad.finalUrl),
+  );
+  return defaultish || defaultAd;
+}
+
+function buildDemandGenCreative(brand: string, theme: string | null, url: string, brief: string) {
+  const topic = theme ?? brand;
+  const headlines = [
+    clip(`${brand} Demand Gen`, 40),
+    clip(`${topic} — Paused Draft`, 40),
+    clip("Ops, Not Autopilot", 40),
+    clip(`${brand} YouTube + Discover`, 40),
+    clip("Validate Before Apply", 40),
+  ].filter((item, index, all) => all.indexOf(item) === index);
+  const descriptions = [
+    clip(
+      brief.replace(/https?:\/\/\S+/g, "").trim() ||
+        `Demand Gen ads for ${brand}. Draft stays PAUSED until you validate or apply from the form.`,
+      90,
+    ),
+    clip("Filled from your brief. Review the wizard, then Validate (dry-run) — chat cannot apply.", 90),
+  ];
+  return {
+    headlines: headlines.slice(0, 5),
+    descriptions,
+    businessName: clip(brand, 25),
+    finalUrl: url,
+    callToActionText: "LEARN_MORE",
+    assets: [
+      { kind: "MARKETING_IMAGE" as const, urlText: DEMAND_GEN_DEFAULT_MARKETING_IMAGE, sortOrder: 0 },
+      { kind: "SQUARE_MARKETING_IMAGE" as const, urlText: DEMAND_GEN_DEFAULT_SQUARE_IMAGE, sortOrder: 1 },
+      { kind: "LOGO" as const, urlText: DEMAND_GEN_DEFAULT_LOGO_IMAGE, sortOrder: 2 },
+    ],
+  };
+}
+
+function mockDemandGenAssistantTurn(input: {
+  message: string;
+  pack: AssistantContextPack;
+}): AssistantTurnPlan {
+  const forbidden = detectForbiddenAssistantIntent(input.message);
+  if (forbidden) {
+    return {
+      update_draft_fields: null,
+      ask_questions: [],
+      memory: [],
+      refusedAction: forbidden,
+      assistant_message:
+        forbidden === "validate"
+          ? "I cannot Validate from chat. Use Validate (dry-run) on the wizard review step — that is validateOnly only."
+          : forbidden === "apply"
+            ? "I cannot Apply from chat. Create PAUSED lives on the form and requires typing CREATE PAUSED. There is no enable path."
+            : "I cannot enable, publish, or go live. Adrunr only drafts PAUSED campaigns; spend requires an action outside this app.",
+    };
+  }
+
+  const demandGenDraft = isDemandGenDraft(input.pack.draft) ? input.pack.draft : null;
+  const url =
+    extractUrlFromText(input.message) ??
+    input.pack.memory.find((item) => item.key === "landing_url")?.value ??
+    demandGenDraft?.adGroups[0]?.ads[0]?.finalUrl ??
+    null;
+  const budgetMicros =
+    extractBudgetMicros(input.message) ??
+    (input.pack.memory.find((item) => item.key === "daily_budget_micros")
+      ? Number(input.pack.memory.find((item) => item.key === "daily_budget_micros")?.value)
+      : null);
+  const brand = inferBrand(input.message, url, input.pack.memory);
+  const theme = pathTheme(url);
+  const geo = resolveGeo(input.message, input.pack.memory);
+  const questions: AssistantQuestion[] = [];
+  const memory: AssistantMemoryWrite[] = [];
+  const patch: Record<string, unknown> = {};
+
+  if (brand) {
+    patch.name = `${brand}${theme ? ` ${theme}` : ""} Demand Gen`;
+    memory.push({ key: "brand", value: brand, source: url ? "url" : "brief" });
+  }
+  if (budgetMicros) {
+    patch.dailyBudgetMicros = budgetMicros;
+    memory.push({ key: "daily_budget_micros", value: String(budgetMicros), source: "brief" });
+  }
+  if (url && url.startsWith("http")) {
+    memory.push({ key: "landing_url", value: url, source: "url" });
+  }
+  if (geo) {
+    memory.push({ key: "geo", value: geo.valueText, source: "brief" });
+  }
+
+  const canFillTree = Boolean(
+    brand || url || (input.message.trim().length > 12 && demandGenDraftLooksEmpty(demandGenDraft)),
+  );
+  if (canFillTree) {
+    const demandBrand = brand ?? "Demand Gen";
+    const finalUrl = url && url.startsWith("http") ? url : "https://adrunr.app";
+    const creative = buildDemandGenCreative(demandBrand, theme, finalUrl, input.message);
+    patch.adGroups = [
+      {
+        name: theme ? `${demandBrand} · ${theme}` : `${demandBrand} demand gen group`,
+        defaultBidMicros: demandGenDraft?.adGroups[0]?.defaultBidMicros ?? 1_000_000,
+        sortOrder: 0,
+        ads: [creative],
+      },
+    ];
+    patch.targets = [
+      {
+        type: "GEO",
+        ...(geo ?? GEO_PRESETS[0]),
+        included: true,
+      },
+    ];
+    const customerId = demandGenDraft?.customerId || input.pack.accounts[0]?.externalId || "0000000000";
+    const audience = DEMAND_GEN_AUDIENCE_PRESETS[0];
+    patch.audiences = [
+      {
+        kind: audience.kind,
+        valueText: audience.valueText,
+        criterionText: demandGenAudienceCriterionForCustomer(customerId, audience.listSuffix),
+        included: true,
+      },
+    ];
+    patch.notesText = input.message.trim().slice(0, 500);
+    patch.biddingStrategy = "MAXIMIZE_CONVERSIONS";
+  }
+
+  if (!url && !demandGenDraft?.adGroups[0]?.ads[0]?.finalUrl) {
+    questions.push({
+      id: "landing_url",
+      question: "What landing page URL should the Demand Gen ad use?",
+      field: "finalUrl",
+    });
+  }
+  if (!budgetMicros && !input.pack.memory.find((item) => item.key === "daily_budget_micros")) {
+    questions.push({
+      id: "daily_budget",
+      question: "Optional: what daily budget (USD) should I set? I left the current draft budget as a starting point.",
+      field: "dailyBudgetMicros",
+      optional: true,
+    });
+  }
+  if (!brand && !canFillTree) {
+    questions.push({
+      id: "brief",
+      question: "Paste a landing URL or a short brief (product + geo) and I will fill the Demand Gen draft first.",
+      field: "notesText",
+    });
+  }
+
+  const filled = Object.keys(patch);
+  const messageParts: string[] = [];
+  if (filled.length) {
+    messageParts.push(
+      `Filled the Demand Gen draft from your ${url ? "URL" : "brief"}: ${[
+        patch.name ? `name “${patch.name}”` : null,
+        budgetMicros ? `budget $${(budgetMicros / 1_000_000).toFixed(2)}/day` : null,
+        Array.isArray(patch.adGroups) ? "ad group / Demand Gen multi-asset ad / assets" : null,
+        geo ? `geo ${geo.valueText}` : "geo United States (default)",
+        "USER_LIST audience (Demand Gen, not a separate campaign type)",
+      ]
+        .filter(Boolean)
+        .join(", ")}.`,
+    );
+    messageParts.push("The form is the source of truth — edit anything before you Validate or Create PAUSED there.");
+  } else if (!questions.length) {
+    messageParts.push("I have what I need on the draft. Tweak the form if you want polish; I will not block on it.");
+  }
+  if (questions.length) {
+    const required = questions.filter((item) => !item.optional);
+    const optional = questions.filter((item) => item.optional);
+    if (required.length) {
+      messageParts.push(required.map((item) => item.question).join(" "));
+    }
+    if (optional.length) {
+      messageParts.push(optional.map((item) => item.question).join(" "));
+    }
+  }
+
+  return {
+    update_draft_fields: filled.length ? patch : null,
+    ask_questions: questions,
+    memory,
+    assistant_message: messageParts.join(" "),
+  };
+}
+
 export function assistantSystemPrompt(kind: AssistantCampaignKind = "SEARCH"): string {
+  if (kind === "DEMAND_GEN") {
+    return [
+      "You are the Adrunr Demand Gen wizard assistant.",
+      "Fill or suggest Demand Gen campaign draft fields FIRST from the URL, brief, client history, existing campaigns, and current draft.",
+      "Ask clarifying questions ONLY for gaps you cannot resolve. Never run a full questionnaire before filling.",
+      "Soft optional suggestions are OK. Do not block on polish.",
+      "You CANNOT validate, apply, enable, publish, or go live. Those stay on the form.",
+      "Validate is validateOnly. Apply is PAUSED + CREATE PAUSED confirm. There is no enable path.",
+      "Never instruct the system to call validate or apply endpoints.",
+      "Demand Gen audiences are USER_LIST on this campaign, not a separate campaign type.",
+      "Return JSON only: { update_draft_fields, ask_questions, memory, assistant_message }.",
+      "update_draft_fields may include name, dailyBudgetMicros, biddingStrategy (MAXIMIZE_CONVERSIONS), youtubeInStream, youtubeInFeed, youtubeShorts, discover, gmail, display, startDate, endDate, notesText, adGroups[], targets[], audiences[].",
+      "adGroups: { name, defaultBidMicros, sortOrder, ads:[{headlines,descriptions,businessName,finalUrl,callToActionText,assets:[{kind,urlText}]}] }.",
+      "targets: { type: GEO, valueText, criterionText, included }.",
+      "audiences: { kind: USER_LIST, valueText, criterionText, included }.",
+      "Use geoTargetConstants/2840 for United States when unspecified.",
+      "Headlines <= 40 chars (3-5). Descriptions <= 90 chars (1-5). Business name <= 25.",
+      "Assets: at least one MARKETING_IMAGE and one SQUARE_MARKETING_IMAGE URL.",
+      "Scope is this organization + this client only. Never mention other clients.",
+    ].join(" ");
+  }
   if (kind === "PMAX") {
     return [
       "You are the Adrunr Performance Max wizard assistant.",

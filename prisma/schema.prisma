@@ -76,6 +76,7 @@ enum CampaignOpKind {
   TIKTOK_CAMPAIGN_CREATE
   LINKEDIN_CAMPAIGN_CREATE
   GENERIC_MUTATE
+  DEMAND_GEN_CREATE
 }
 
 enum CampaignOpStatus {
@@ -107,6 +108,7 @@ enum PermissionResource {
   SEARCH_CAMPAIGN_DRAFT
   DISPLAY_CAMPAIGN_DRAFT
   PERFORMANCE_MAX_CAMPAIGN_DRAFT
+  DEMAND_GEN_CAMPAIGN_DRAFT
   SYNC_JOB
   AUDIT_EVENT
   BILLING
@@ -214,6 +216,40 @@ enum PerformanceMaxListingKind {
   UNIT
 }
 
+enum DemandGenDraftStatus {
+  DRAFT
+  VALIDATED
+  APPLIED
+  FAILED
+}
+
+enum DemandGenBiddingStrategy {
+  MAXIMIZE_CONVERSIONS
+  MAXIMIZE_CONVERSION_VALUE
+  TARGET_CPA
+  TARGET_ROAS
+}
+
+enum DemandGenTargetType {
+  GEO
+  LANGUAGE
+}
+
+enum DemandGenAudienceKind {
+  USER_LIST
+  AFFINITY
+  IN_MARKET
+  CUSTOM
+}
+
+enum DemandGenAssetKind {
+  MARKETING_IMAGE
+  SQUARE_MARKETING_IMAGE
+  PORTRAIT_MARKETING_IMAGE
+  LOGO
+  YOUTUBE_VIDEO
+}
+
 enum AssistantMessageRole {
   USER
   ASSISTANT
@@ -253,6 +289,7 @@ model Organization {
   searchDrafts     SearchCampaignDraft[]
   displayDrafts    DisplayCampaignDraft[]
   pmaxDrafts       PerformanceMaxCampaignDraft[]
+  demandGenDrafts  DemandGenCampaignDraft[]
   syncJobs         SyncJob[]
   auditEvents      AuditEvent[]
   agentAssignments AgentClientAssignment[]
@@ -276,6 +313,7 @@ model User {
   searchDrafts      SearchCampaignDraft[]
   displayDrafts     DisplayCampaignDraft[]
   pmaxDrafts        PerformanceMaxCampaignDraft[]
+  demandGenDrafts   DemandGenCampaignDraft[]
   changeRequests    ChangeRequest[]
   auditEvents       AuditEvent[]
   agentAssignments  AgentClientAssignment[]
@@ -332,6 +370,7 @@ model Client {
   searchDrafts     SearchCampaignDraft[]
   displayDrafts    DisplayCampaignDraft[]
   pmaxDrafts       PerformanceMaxCampaignDraft[]
+  demandGenDrafts  DemandGenCampaignDraft[]
   agentAssignments AgentClientAssignment[]
   assistantThreads AssistantThread[]
   clientMemories   ClientMemory[]
@@ -457,6 +496,7 @@ model ExternalAccount {
   searchDrafts    SearchCampaignDraft[]
   displayDrafts   DisplayCampaignDraft[]
   pmaxDrafts      PerformanceMaxCampaignDraft[]
+  demandGenDrafts DemandGenCampaignDraft[]
   dryRunJobs      DryRunJob[]
   syncJobs        SyncJob[]
 
@@ -507,6 +547,7 @@ model CampaignOp {
   searchCampaignDraftId      String?
   displayCampaignDraftId     String?
   pmaxCampaignDraftId        String?
+  demandGenCampaignDraftId   String?
   errorMessage               String?
   createdAt                  DateTime         @default(now())
   updatedAt                  DateTime         @updatedAt
@@ -518,11 +559,12 @@ model CampaignOp {
   provider            IntegrationProvider  @relation(fields: [providerId], references: [id])
   externalAccount     ExternalAccount      @relation(fields: [externalAccountId], references: [id], onDelete: Restrict)
   requestedBy         User                 @relation(fields: [requestedById], references: [id])
-  searchCampaignDraft  SearchCampaignDraft?          @relation(fields: [searchCampaignDraftId], references: [id], onDelete: SetNull)
-  displayCampaignDraft DisplayCampaignDraft?         @relation(fields: [displayCampaignDraftId], references: [id], onDelete: SetNull)
-  pmaxCampaignDraft    PerformanceMaxCampaignDraft?  @relation(fields: [pmaxCampaignDraftId], references: [id], onDelete: SetNull)
-  dryRunJobs           DryRunJob[]
-  changeRequests       ChangeRequest[]
+  searchCampaignDraft      SearchCampaignDraft?          @relation(fields: [searchCampaignDraftId], references: [id], onDelete: SetNull)
+  displayCampaignDraft     DisplayCampaignDraft?         @relation(fields: [displayCampaignDraftId], references: [id], onDelete: SetNull)
+  pmaxCampaignDraft        PerformanceMaxCampaignDraft?  @relation(fields: [pmaxCampaignDraftId], references: [id], onDelete: SetNull)
+  demandGenCampaignDraft   DemandGenCampaignDraft?       @relation(fields: [demandGenCampaignDraftId], references: [id], onDelete: SetNull)
+  dryRunJobs               DryRunJob[]
+  changeRequests           ChangeRequest[]
 
   @@index([organizationId, status])
   @@index([providerId, externalAccountId])
@@ -530,6 +572,7 @@ model CampaignOp {
   @@index([searchCampaignDraftId])
   @@index([displayCampaignDraftId])
   @@index([pmaxCampaignDraftId])
+  @@index([demandGenCampaignDraftId])
 }
 
 model SearchCampaignDraft {
@@ -873,6 +916,127 @@ model PerformanceMaxTargetDraft {
   @@index([draftId, type])
 }
 
+model DemandGenCampaignDraft {
+  id                         String                   @id @default(cuid())
+  organizationId             String
+  clientId                   String
+  externalAccountId          String
+  createdById                String
+  name                       String
+  dailyBudgetMicros          BigInt
+  biddingStrategy            DemandGenBiddingStrategy @default(MAXIMIZE_CONVERSIONS)
+  targetCpaMicros            BigInt?
+  targetRoasText             String?
+  youtubeInStream            Boolean                  @default(true)
+  youtubeInFeed              Boolean                  @default(true)
+  youtubeShorts              Boolean                  @default(true)
+  discover                   Boolean                  @default(true)
+  gmail                      Boolean                  @default(true)
+  display                    Boolean                  @default(true)
+  startDate                  String?
+  endDate                    String?
+  statusDraft                DemandGenDraftStatus     @default(DRAFT)
+  googleCampaignResourceName String?
+  campaignOpId               String?
+  notesText                  String?
+  createdAt                  DateTime                 @default(now())
+  updatedAt                  DateTime                 @updatedAt
+
+  organization     Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client           Client                  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  externalAccount  ExternalAccount         @relation(fields: [externalAccountId], references: [id], onDelete: Restrict)
+  createdBy        User                    @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  campaignOps      CampaignOp[]
+  adGroups         DemandGenAdGroupDraft[]
+  targets          DemandGenTargetDraft[]
+  audiences        DemandGenAudienceDraft[]
+  assistantThreads AssistantThread[]
+
+  @@index([organizationId, statusDraft])
+  @@index([clientId])
+  @@index([externalAccountId])
+  @@index([createdById])
+}
+
+model DemandGenAdGroupDraft {
+  id                        String   @id @default(cuid())
+  draftId                   String
+  name                      String
+  defaultBidMicros          BigInt
+  sortOrder                 Int      @default(0)
+  googleAdGroupResourceName String?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  draft DemandGenCampaignDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  ads   DemandGenAdDraft[]
+
+  @@index([draftId, sortOrder])
+}
+
+model DemandGenAdDraft {
+  id                   String   @id @default(cuid())
+  adGroupDraftId       String
+  headlinesText        String
+  descriptionsText     String
+  businessName         String
+  finalUrl             String
+  callToActionText     String?
+  googleAdResourceName String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  adGroup DemandGenAdGroupDraft @relation(fields: [adGroupDraftId], references: [id], onDelete: Cascade)
+  assets  DemandGenAssetDraft[]
+
+  @@index([adGroupDraftId])
+}
+
+model DemandGenAssetDraft {
+  id                String             @id @default(cuid())
+  adDraftId         String
+  kind              DemandGenAssetKind
+  urlText           String
+  assetResourceName String?
+  sortOrder         Int                @default(0)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  ad DemandGenAdDraft @relation(fields: [adDraftId], references: [id], onDelete: Cascade)
+
+  @@index([adDraftId, kind])
+}
+
+model DemandGenAudienceDraft {
+  id            String                @id @default(cuid())
+  draftId       String
+  kind          DemandGenAudienceKind
+  valueText     String
+  criterionText String
+  included      Boolean               @default(true)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  draft DemandGenCampaignDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@index([draftId, kind])
+}
+
+model DemandGenTargetDraft {
+  id            String              @id @default(cuid())
+  draftId       String
+  type          DemandGenTargetType
+  valueText     String
+  criterionText String
+  included      Boolean             @default(true)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  draft DemandGenCampaignDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@index([draftId, type])
+}
+
 model DryRunJob {
   id                String   @id @default(cuid())
   organizationId    String
@@ -978,26 +1142,29 @@ model AssistantThread {
   id             String   @id @default(cuid())
   organizationId String
   clientId       String
-  draftId        String?
-  displayDraftId String?
-  pmaxDraftId    String?
-  createdById    String
+  draftId          String?
+  displayDraftId   String?
+  pmaxDraftId      String?
+  demandGenDraftId String?
+  createdById      String
   title          String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   client       Client                @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  draft        SearchCampaignDraft?          @relation(fields: [draftId], references: [id], onDelete: SetNull)
-  displayDraft DisplayCampaignDraft?         @relation(fields: [displayDraftId], references: [id], onDelete: SetNull)
-  pmaxDraft    PerformanceMaxCampaignDraft?  @relation(fields: [pmaxDraftId], references: [id], onDelete: SetNull)
-  createdBy    User                          @relation(fields: [createdById], references: [id], onDelete: Restrict)
-  messages     AssistantMessage[]
+  draft          SearchCampaignDraft?          @relation(fields: [draftId], references: [id], onDelete: SetNull)
+  displayDraft   DisplayCampaignDraft?         @relation(fields: [displayDraftId], references: [id], onDelete: SetNull)
+  pmaxDraft      PerformanceMaxCampaignDraft?  @relation(fields: [pmaxDraftId], references: [id], onDelete: SetNull)
+  demandGenDraft DemandGenCampaignDraft?       @relation(fields: [demandGenDraftId], references: [id], onDelete: SetNull)
+  createdBy      User                          @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  messages       AssistantMessage[]
 
   @@index([organizationId, clientId])
   @@index([clientId, draftId])
   @@index([clientId, displayDraftId])
   @@index([clientId, pmaxDraftId])
+  @@index([clientId, demandGenDraftId])
   @@index([createdById])
 }
 

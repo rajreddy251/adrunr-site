@@ -9,9 +9,14 @@ const schema = readFileSync(resolve(process.cwd(), "prisma/schema.prisma"), "utf
 const envExample = readFileSync(resolve(process.cwd(), ".env.example"), "utf8");
 const gitignore = readFileSync(resolve(process.cwd(), ".gitignore"), "utf8");
 
-describe("P2 Performance Max safety checklist", () => {
-  it("keeps Search, Display, and Performance Max create implemented and never enables spend", () => {
-    expect(IMPLEMENTED_CAMPAIGN_OP_KINDS).toEqual(["SEARCH_CREATE", "DISPLAY_CREATE", "PMAX_CREATE"]);
+describe("P3 Demand Gen safety checklist", () => {
+  it("keeps Search, Display, Performance Max, and Demand Gen create implemented and never enables spend", () => {
+    expect(IMPLEMENTED_CAMPAIGN_OP_KINDS).toEqual([
+      "SEARCH_CREATE",
+      "DISPLAY_CREATE",
+      "PMAX_CREATE",
+      "DEMAND_GEN_CREATE",
+    ]);
     expect(CONFIRM_PAUSED_PHRASE).toBe("CREATE PAUSED");
     expect(() => assertPausedOnly("ENABLED")).toThrow(/enable path/);
   });
@@ -31,6 +36,16 @@ describe("P2 Performance Max safety checklist", () => {
     expect(schema).toContain("model PerformanceMaxListingDraft");
     expect(schema).toContain("SEARCH_THEME");
     expect(schema).toContain("ALL_PRODUCTS");
+    expect(schema).not.toMatch(/\bJson\b/);
+  });
+
+  it("stores Demand Gen drafts as TEXT children with ad groups, ads, assets, and audiences", () => {
+    expect(schema).toContain("model DemandGenCampaignDraft");
+    expect(schema).toContain("model DemandGenAdGroupDraft");
+    expect(schema).toContain("model DemandGenAdDraft");
+    expect(schema).toContain("model DemandGenAudienceDraft");
+    expect(schema).toContain("youtubeInStream");
+    expect(schema).toContain("callToActionText");
     expect(schema).not.toMatch(/\bJson\b/);
   });
 

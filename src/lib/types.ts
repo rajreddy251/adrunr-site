@@ -218,7 +218,69 @@ export type PmaxDraftClientView = {
   }>;
 };
 
-export type AssistantCampaignKind = "SEARCH" | "DISPLAY" | "PMAX";
+export type DemandGenDraftClientView = {
+  id: string;
+  customerId: string;
+  externalAccountId: string;
+  name: string;
+  dailyBudgetMicros: string;
+  biddingStrategy: string;
+  targetCpaMicros: string | null;
+  targetRoasText: string | null;
+  youtubeInStream: boolean;
+  youtubeInFeed: boolean;
+  youtubeShorts: boolean;
+  discover: boolean;
+  gmail: boolean;
+  display: boolean;
+  startDate: string | null;
+  endDate: string | null;
+  statusDraft: string;
+  googleCampaignResourceName: string | null;
+  campaignOpId: string | null;
+  notesText: string | null;
+  createdAt: string;
+  updatedAt: string;
+  adGroups: Array<{
+    id: string;
+    name: string;
+    defaultBidMicros: string;
+    sortOrder: number;
+    googleAdGroupResourceName: string | null;
+    ads: Array<{
+      id: string;
+      headlines: string[];
+      descriptions: string[];
+      businessName: string;
+      finalUrl: string;
+      callToActionText: string | null;
+      googleAdResourceName: string | null;
+      assets: Array<{
+        id: string;
+        kind: string;
+        urlText: string;
+        assetResourceName: string | null;
+        sortOrder: number;
+      }>;
+    }>;
+  }>;
+  targets: Array<{
+    id: string;
+    type: string;
+    valueText: string;
+    criterionText: string;
+    included: boolean;
+  }>;
+  audiences: Array<{
+    id: string;
+    kind: string;
+    valueText: string;
+    criterionText: string;
+    included: boolean;
+  }>;
+};
+
+export type AssistantCampaignKind = "SEARCH" | "DISPLAY" | "PMAX" | "DEMAND_GEN";
 
 export type AssistantMessageView = {
   id: string;
@@ -236,6 +298,7 @@ export type AssistantThreadView = {
   draftId: string | null;
   displayDraftId: string | null;
   pmaxDraftId: string | null;
+  demandGenDraftId: string | null;
   kind: AssistantCampaignKind;
   createdById: string;
   title: string | null;
