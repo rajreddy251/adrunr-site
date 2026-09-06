@@ -752,6 +752,50 @@ export type CampaignEditDraftView = {
   updatedAt: string;
 };
 
+export type CampaignImportPreviewView = {
+  draftKind: AssistantCampaignKind;
+  name: string;
+  dailyBudgetMicros: string;
+  biddingStrategy: string;
+  sourceCampaignExternalId: string;
+  sourceName: string;
+  sourceAdvertisingChannelType: string | null;
+  sourceStatus: string | null;
+  sourceServingStatus: string | null;
+  sourceBiddingStrategyType: string | null;
+  adGroupCount: number;
+  adCount: number;
+  keywordCount: number;
+  usedSafeDefaults: string[];
+  warnings: string[];
+  neverEnable: true;
+  applyPath: "PAUSED";
+};
+
+export type CampaignImportJobView = {
+  id: string;
+  customerId: string;
+  externalAccountId: string;
+  syncedCampaignId: string | null;
+  sourceCampaignExternalId: string;
+  sourceCampaignName: string;
+  sourceAdvertisingChannelType: string | null;
+  sourceStatus: string | null;
+  draftKind: AssistantCampaignKind;
+  dryRun: boolean;
+  neverEnable: true;
+  status: string;
+  persisted: boolean;
+  draftId: string | null;
+  preview: CampaignImportPreviewView | null;
+  previewText: string | null;
+  notesText: string | null;
+  errorMessage: string | null;
+  wizardHint: string;
+  createdAt: string;
+  finishedAt: string | null;
+};
+
 export type CampaignMetricSnapshotView = {
   id?: string;
   externalCampaignId: string;

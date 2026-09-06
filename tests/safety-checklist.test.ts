@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { IMPLEMENTED_CAMPAIGN_OP_KINDS } from "@/lib/campaign";
 import {
   CAMPAIGN_EDIT_NOTE,
+  CAMPAIGN_IMPORT_NOTE,
   CONFIRM_EDIT_PHRASE,
   CONFIRM_PAUSED_PHRASE,
   LISTINGS_SYNC_READ_ONLY_NOTE,
@@ -12,6 +13,11 @@ import {
   assertEditDoesNotEnable,
   assertPausedOnly,
 } from "@/lib/safety";
+import {
+  CAMPAIGN_IMPORT_JOB_TYPE,
+  parseCampaignImportInput,
+  refuseEnableOnImport,
+} from "@/lib/campaign-import";
 import {
   AD_SEARCH_QUERY,
   CAMPAIGN_SEARCH_QUERY,
@@ -23,6 +29,66 @@ import { METRICS_SYNC_JOB_TYPE, buildMetricsSearchQuery } from "@/lib/metrics";
 const schema = readFileSync(resolve(process.cwd(), "prisma/schema.prisma"), "utf8");
 const envExample = readFileSync(resolve(process.cwd(), ".env.example"), "utf8");
 const gitignore = readFileSync(resolve(process.cwd(), ".gitignore"), "utf8");
+
+describe("P11 Ops Import safety checklist", () => {
+  it("keeps create wizards, listings, metrics, and safe edit working, with import refusing ENABLE", () => {
+    expect(IMPLEMENTED_CAMPAIGN_OP_KINDS).toEqual([
+      "SEARCH_CREATE",
+      "DISPLAY_CREATE",
+      "PMAX_CREATE",
+      "DEMAND_GEN_CREATE",
+      "VIDEO_CREATE",
+      "SHOPPING_CREATE",
+      "APP_CREATE",
+      "HOTEL_CREATE",
+      "LOCAL_CREATE",
+      "LOCAL_SERVICES_CREATE",
+      "CAMPAIGN_EDIT",
+    ]);
+    expect(CONFIRM_PAUSED_PHRASE).toBe("CREATE PAUSED");
+    expect(CONFIRM_EDIT_PHRASE).toBe("EDIT SAFE");
+    expect(CAMPAIGN_IMPORT_JOB_TYPE).toBe("import_campaign");
+    expect(CAMPAIGN_IMPORT_NOTE).toMatch(/never enable/i);
+    expect(CAMPAIGN_EDIT_NOTE).toMatch(/never enables/i);
+    expect(LISTINGS_SYNC_READ_ONLY_NOTE).toMatch(/read-only/i);
+    expect(METRICS_SYNC_READ_ONLY_NOTE).toMatch(/read-only/i);
+    expect(() => assertPausedOnly("ENABLED")).toThrow(/enable path/);
+    expect(() => refuseEnableOnImport({ customerId: "1234567890", enable: true })).toThrow(
+      CAMPAIGN_IMPORT_NOTE,
+    );
+  });
+
+  it("stores CampaignImportJob and draft provenance as TEXT, not JSONB", () => {
+    expect(schema).toContain("model CampaignImportJob");
+    expect(schema).toContain("importProvenanceText");
+    expect(schema).toContain("sourceCampaignExternalId");
+    expect(schema).toContain("neverEnable");
+    expect(schema).toContain("previewText");
+    expect(schema).toContain("CAMPAIGN_IMPORT_JOB");
+    expect(schema).not.toMatch(/\bJson\b/);
+  });
+
+  it("import APIs default dry-run and never ship an enable path", () => {
+    expect(parseCampaignImportInput({ customerId: "123-456-7890", campaignExternalId: "111" })).toEqual({
+      customerId: "1234567890",
+      syncedCampaignId: null,
+      campaignExternalId: "111",
+      dryRun: true,
+    });
+    const importLib = readFileSync(resolve(process.cwd(), "src/lib/campaign-import.ts"), "utf8");
+    const importOps = readFileSync(resolve(process.cwd(), "src/lib/campaign-import-ops.ts"), "utf8");
+    const importRoute = readFileSync(resolve(process.cwd(), "src/app/api/ads/imports/route.ts"), "utf8");
+    expect(importLib).toContain("refuseEnableOnImport");
+    expect(importLib).toContain("applyPath: \"PAUSED\"");
+    expect(importOps).toContain("neverEnable: true");
+    expect(importOps).not.toContain("mutateGoogleAds");
+    expect(importOps).not.toContain("googleAds:mutate");
+    expect(importRoute).toContain("enablePath: false");
+    expect(importRoute).toContain("neverEnable: true");
+    expect(importLib).not.toMatch(/status:\s*"ENABLED"/);
+    expect(importOps).not.toMatch(/status:\s*"ENABLED"/);
+  });
+});
 
 describe("P10 Ops Edit safety checklist", () => {
   it("keeps create wizards, listings, and metrics working, with edit refusing ENABLE", () => {

@@ -7,6 +7,7 @@ export const SAFETY_COPY = {
     "Listings sync is read-only. It pulls campaign / ad group / ad / keyword snapshots into Neon and never enables, unpauses, or mutates live Ads status.",
     "Metrics sync is read-only. It pulls campaign budget and spend snapshots into Neon and never enables, unpauses, mutates status, or spends.",
     "Safe campaign edit is validateOnly first. Apply requires typing EDIT SAFE. Name, budget, bids, and targeting-safe fields only. Status ENABLED / enable / unpause / go-live are refused.",
+    "Import copies a cached Google campaign into an Adrunr create-type draft. Dry-run preview is the default. Import never enables, unpauses, or applies live Ads — imported drafts stay on the PAUSED create path.",
   ],
 } as const;
 
@@ -18,6 +19,9 @@ export const METRICS_SYNC_READ_ONLY_NOTE =
 
 export const CAMPAIGN_EDIT_NOTE =
   "Safe campaign edit never enables, unpauses, or goes live. Name, budget, bids, and targeting-safe fields only.";
+
+export const CAMPAIGN_IMPORT_NOTE =
+  "Import writes create-type drafts only. Adrunr never enables, unpauses, or goes live from import.";
 
 export const CONFIRM_PAUSED_PHRASE = "CREATE PAUSED";
 

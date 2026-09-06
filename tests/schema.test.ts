@@ -65,6 +65,10 @@ const v114Migration = readFileSync(
   resolve(process.cwd(), "prisma/migrations/20260906300000_schema_v1_14/migration.sql"),
   "utf8",
 );
+const v115Migration = readFileSync(
+  resolve(process.cwd(), "prisma/migrations/20260906310000_schema_v1_15/migration.sql"),
+  "utf8",
+);
 
 describe("schema v1.2 locks", () => {
   it("does not use JSONB / Prisma Json types", () => {
@@ -147,6 +151,7 @@ describe("schema v1.2 locks", () => {
       "CampaignEditFieldDraft",
       "CampaignEditBidDraft",
       "CampaignEditTargetDraft",
+      "CampaignImportJob",
       "DryRunJob",
       "ChangeRequest",
       "AuditEvent",
@@ -518,6 +523,28 @@ describe("schema v1.14 locks", () => {
   });
 });
 
+describe("schema v1.15 locks", () => {
+  it("adds CampaignImportJob and draft provenance without JSONB", () => {
+    expect(schema).toContain("model CampaignImportJob");
+    expect(schema).toContain("CAMPAIGN_IMPORT_JOB");
+    expect(schema).toContain("importProvenanceText");
+    expect(schema).toContain("sourceCampaignExternalId");
+    expect(schema).toContain("neverEnable");
+    expect(schema).toContain("previewText");
+    expect(schema).toContain("searchCampaignDraftId");
+    expect(schema).not.toMatch(/\bJson\b/);
+    expect(v115Migration).toContain('ALTER TYPE "PermissionResource" ADD VALUE \'CAMPAIGN_IMPORT_JOB\'');
+    expect(v115Migration).toContain('CREATE TABLE "CampaignImportJob"');
+    expect(v115Migration).toContain('"neverEnable" BOOLEAN');
+    expect(v115Migration).toContain('"previewText" TEXT');
+    expect(v115Migration).toContain('"importProvenanceText" TEXT');
+    expect(v115Migration).toContain("CampaignImportJob_syncedCampaignId_fkey");
+    expect(v115Migration).toContain("CampaignImportJob_searchCampaignDraftId_fkey");
+    expect(v115Migration).not.toMatch(/DROP TABLE/i);
+    expect(v115Migration).not.toMatch(/jsonb/i);
+  });
+});
+
 describe("schema v1.11 locks", () => {
   it("adds Hotel, Local, and Local Services draft models without JSONB", () => {
     expect(schema).toContain("enum HotelDraftStatus");
@@ -605,7 +632,7 @@ describe("role permissions", () => {
 describe("client role permissions", () => {
   it("seeds READ/LIST defaults without mutating agency RolePermission", () => {
     const rows = buildClientRolePermissionRows();
-    expect(rows).toHaveLength(92);
+    expect(rows).toHaveLength(98);
     expect(rows.every((row) => row.action === "READ" || row.action === "LIST")).toBe(true);
 
     expect(clientRoleHasPermission("CLIENT_ADMIN", "AUDIT_EVENT", "READ")).toBe(true);
@@ -658,6 +685,9 @@ describe("client role permissions", () => {
       expect(clientRoleHasPermission(role, "CAMPAIGN_EDIT_DRAFT", "READ")).toBe(true);
       expect(clientRoleHasPermission(role, "CAMPAIGN_EDIT_DRAFT", "LIST")).toBe(true);
       expect(clientRoleHasPermission(role, "CAMPAIGN_EDIT_DRAFT", "APPLY_PAUSED")).toBe(false);
+      expect(clientRoleHasPermission(role, "CAMPAIGN_IMPORT_JOB", "READ")).toBe(true);
+      expect(clientRoleHasPermission(role, "CAMPAIGN_IMPORT_JOB", "LIST")).toBe(true);
+      expect(clientRoleHasPermission(role, "CAMPAIGN_IMPORT_JOB", "APPLY_PAUSED")).toBe(false);
     }
   });
 });
