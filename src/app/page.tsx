@@ -242,7 +242,7 @@ export default function HomePage() {
         <section className="border-t border-ink-950/8">
           <div className="mx-auto max-w-6xl px-5 py-20 md:py-24">
             <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-moss-500">Safety</p>
-            <div className="marketing-card mt-5 border-lime-400/70 bg-lime-400/[0.09] p-6 sm:p-8">
+            <div className="marketing-callout mt-5 p-6 sm:p-8">
               <h2 className="text-2xl font-semibold tracking-tight text-ink-950">{SAFETY_COPY.headline}</h2>
               <ul className="mt-5 list-disc space-y-2.5 pl-5 text-sm leading-6 text-moss-600">
                 {SAFETY_COPY.bullets.map((bullet) => (

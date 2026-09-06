@@ -45,6 +45,7 @@
   color: #0b0e0c;
 }
 
+@layer components {
 .marketing-card {
   border-radius: 1.25rem;
   border: 1px solid rgba(11, 14, 12, 0.08);
@@ -52,6 +53,13 @@
   box-shadow:
     0 1px 0 rgba(11, 14, 12, 0.03),
     0 18px 40px -28px rgba(11, 14, 12, 0.28);
+}
+
+.marketing-callout {
+  border-radius: 1.25rem;
+  border: 1px solid rgba(168, 212, 42, 0.55);
+  background: rgba(200, 245, 66, 0.16);
+  box-shadow: 0 1px 0 rgba(11, 14, 12, 0.03);
 }
 
 .marketing-cta {
@@ -105,6 +113,7 @@
 .marketing-cta-secondary:hover {
   border-color: rgba(11, 14, 12, 0.28);
   background: #f6f7f3;
+}
 }
 
 html,
