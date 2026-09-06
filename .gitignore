@@ -1,2 +1,33 @@
-node_modules/
+# dependencies
+node_modules
+.pnp
+.pnp.js
+
+# next
+.next
+out
+
+# env / secrets — never commit real credentials
+.env
+.env.*
+!.env.example
+
+# never a file-token store (no production or local fallback)
+.data
+.data/
+
+# logs / os / ide
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 .DS_Store
+.idea
+.vscode
+*.tsbuildinfo
+
+# test / coverage
+coverage
+
+# prisma
+prisma/*.db
+prisma/*.db-journal

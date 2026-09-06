@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.ops-shell {
+  color-scheme: dark;
+  min-height: 100%;
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(200, 245, 66, 0.08), transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, rgba(245, 185, 66, 0.06), transparent 50%),
+    #0b0e0c;
+}
+
+.ops-shell ::selection {
+  background: #c8f542;
+  color: #0b0e0c;
+}
+
+.marketing-shell {
+  color-scheme: light;
+  min-height: 100%;
+  background: #fff;
+  color: #202124;
+}
+
+html,
+body {
+  min-height: 100%;
+}
