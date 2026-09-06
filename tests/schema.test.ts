@@ -57,6 +57,10 @@ const v112Migration = readFileSync(
   resolve(process.cwd(), "prisma/migrations/20260906280000_schema_v1_12/migration.sql"),
   "utf8",
 );
+const v113Migration = readFileSync(
+  resolve(process.cwd(), "prisma/migrations/20260906290000_schema_v1_13/migration.sql"),
+  "utf8",
+);
 
 describe("schema v1.2 locks", () => {
   it("does not use JSONB / Prisma Json types", () => {
@@ -134,6 +138,7 @@ describe("schema v1.2 locks", () => {
       "SyncedAdGroup",
       "SyncedAd",
       "SyncedKeyword",
+      "CampaignMetricSnapshot",
       "DryRunJob",
       "ChangeRequest",
       "AuditEvent",
@@ -455,6 +460,28 @@ describe("schema v1.12 locks", () => {
   });
 });
 
+describe("schema v1.13 locks", () => {
+  it("adds CampaignMetricSnapshot without JSONB", () => {
+    expect(schema).toContain("model CampaignMetricSnapshot");
+    expect(schema).toContain("CAMPAIGN_METRIC_SNAPSHOT");
+    expect(schema).toContain("budgetAmountMicros");
+    expect(schema).toContain("costMicros");
+    expect(schema).toContain("averageCpcMicros");
+    expect(schema).toContain("conversionsText");
+    expect(schema).toContain("dateFrom");
+    expect(schema).toContain("CampaignMetricSnapshot_account_campaign_window_key");
+    expect(schema).not.toMatch(/\bJson\b/);
+    expect(v113Migration).toContain('ALTER TYPE "PermissionResource" ADD VALUE \'CAMPAIGN_METRIC_SNAPSHOT\'');
+    expect(v113Migration).toContain('CREATE TABLE "CampaignMetricSnapshot"');
+    expect(v113Migration).toContain('"budgetAmountMicros" BIGINT');
+    expect(v113Migration).toContain('"costMicros" BIGINT');
+    expect(v113Migration).toContain("CampaignMetricSnapshot_lastSyncJobId_fkey");
+    expect(v113Migration).toContain("CampaignMetricSnapshot_account_campaign_window_key");
+    expect(v113Migration).not.toMatch(/DROP TABLE/i);
+    expect(v113Migration).not.toMatch(/jsonb/i);
+  });
+});
+
 describe("schema v1.11 locks", () => {
   it("adds Hotel, Local, and Local Services draft models without JSONB", () => {
     expect(schema).toContain("enum HotelDraftStatus");
@@ -542,7 +569,7 @@ describe("role permissions", () => {
 describe("client role permissions", () => {
   it("seeds READ/LIST defaults without mutating agency RolePermission", () => {
     const rows = buildClientRolePermissionRows();
-    expect(rows).toHaveLength(80);
+    expect(rows).toHaveLength(86);
     expect(rows.every((row) => row.action === "READ" || row.action === "LIST")).toBe(true);
 
     expect(clientRoleHasPermission("CLIENT_ADMIN", "AUDIT_EVENT", "READ")).toBe(true);
@@ -589,6 +616,9 @@ describe("client role permissions", () => {
       expect(clientRoleHasPermission(role, "SYNCED_CAMPAIGN", "READ")).toBe(true);
       expect(clientRoleHasPermission(role, "SYNCED_CAMPAIGN", "LIST")).toBe(true);
       expect(clientRoleHasPermission(role, "SYNCED_CAMPAIGN", "APPLY_PAUSED")).toBe(false);
+      expect(clientRoleHasPermission(role, "CAMPAIGN_METRIC_SNAPSHOT", "READ")).toBe(true);
+      expect(clientRoleHasPermission(role, "CAMPAIGN_METRIC_SNAPSHOT", "LIST")).toBe(true);
+      expect(clientRoleHasPermission(role, "CAMPAIGN_METRIC_SNAPSHOT", "APPLY_PAUSED")).toBe(false);
     }
   });
 });

@@ -14,7 +14,7 @@ const CAPABILITIES = [
   {
     kicker: "02",
     title: "Operate without autopilot",
-    body: "Create Search, Display, Performance Max, Demand Gen, Video, Shopping, App, Hotel, Local, and Local Services campaigns as PAUSED. Dry-run (validateOnly) is the default. Sync live listings into Neon as a read-only cache — never enable or unpause. A budgeted campaign still cannot spend until you enable it outside Adrunr.",
+    body: "Create Search, Display, Performance Max, Demand Gen, Video, Shopping, App, Hotel, Local, and Local Services campaigns as PAUSED. Dry-run (validateOnly) is the default. Sync live listings and budget/spend snapshots into Neon as a read-only cache — never enable, unpause, or spend. A budgeted campaign still cannot spend until you enable it outside Adrunr.",
   },
   {
     kicker: "03",

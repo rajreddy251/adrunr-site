@@ -691,7 +691,13 @@ export type SyncJobView = {
   startedAt: string | null;
   finishedAt: string | null;
   createdAt: string;
-  counts?: ListingSyncCounts;
+  counts?: {
+    campaigns: number;
+    adGroups?: number;
+    ads?: number;
+    keywords?: number;
+    withSpend?: number;
+  };
 };
 
 export type ListingSyncCounts = {
@@ -699,4 +705,32 @@ export type ListingSyncCounts = {
   adGroups: number;
   ads: number;
   keywords: number;
+};
+
+export type MetricSyncCounts = {
+  campaigns: number;
+  withSpend: number;
+};
+
+export type CampaignMetricSnapshotView = {
+  id?: string;
+  externalCampaignId: string;
+  resourceName: string | null;
+  campaignName: string;
+  advertisingChannelType: string | null;
+  campaignStatus: string | null;
+  currencyCode: string | null;
+  budgetResourceName: string | null;
+  budgetAmountMicros: string | null;
+  budgetPeriod: string | null;
+  dateFrom: string;
+  dateTo: string;
+  costMicros: string | null;
+  impressions: string | null;
+  clicks: string | null;
+  conversionsText: string | null;
+  conversionsValueText: string | null;
+  averageCpcMicros: string | null;
+  averageCpmMicros: string | null;
+  lastSyncedAt: string | null;
 };
