@@ -17,7 +17,7 @@ export const OPS_HUB_SHORTCUTS = [
   {
     href: "/ops/campaigns",
     label: "Campaigns",
-    detail: "Cached list plus Search Campaign Overview and Safe edit on /ops/campaigns/:id.",
+    detail: "Cached list plus Overview, Safe edit, and Pause/Delete confirms on /ops/campaigns/:id.",
   },
   {
     href: "/ops/listings",

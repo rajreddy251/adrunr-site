@@ -15,6 +15,7 @@ export const SAFETY_COPY = {
     "Safe campaign edit is validateOnly first. Apply requires typing EDIT SAFE. Name, budget, bids, and targeting-safe fields only. Status ENABLED / enable / unpause / go-live are refused.",
     "Import copies a cached Google campaign into an Adrunr create-type draft. Dry-run preview is the default. Import never enables, unpauses, or applies live Ads — imported drafts stay on the PAUSED create path.",
     "Performance reports are read-only. They roll up cached CampaignMetricSnapshot rows or a googleAds:search and never enable, unpause, mutate live Ads, or spend. Cached ENABLED is a snapshot only.",
+    "Pause and Delete confirms require typing PAUSE CAMPAIGN or DELETE CAMPAIGN. Live mutate is gated (Coming soon — use Google Ads). Adrunr will not enable later. Re-enable only in Google Ads.",
   ],
 } as const;
 
@@ -33,6 +34,14 @@ export const CAMPAIGN_IMPORT_NOTE =
 export const CAMPAIGN_REPORTS_NOTE =
   "Performance reports are read-only. Adrunr will not enable, unpause, mutate live Ads status, or spend.";
 
+export const CAMPAIGN_PAUSE_NOTE =
+  "Adrunr will not enable later. Re-enable only in Google Ads.";
+
+export const CAMPAIGN_DELETE_NOTE =
+  "Deleting stops this campaign from serving. Adrunr cannot undo it, restore it, or enable spend.";
+
+export const CAMPAIGN_STATUS_COMING_SOON = "Coming soon — use Google Ads";
+
 export const REPORT_ENABLE_REFUSAL_KEYS = [
   "enable",
   "unpause",
@@ -49,6 +58,10 @@ export const REPORT_ENABLE_REFUSAL_KEYS = [
 export const CONFIRM_PAUSED_PHRASE = "CREATE PAUSED";
 
 export const CONFIRM_EDIT_PHRASE = "EDIT SAFE";
+
+export const CONFIRM_PAUSE_PHRASE = "PAUSE CAMPAIGN";
+
+export const CONFIRM_DELETE_PHRASE = "DELETE CAMPAIGN";
 
 export type CampaignStatus = "PAUSED" | "ENABLED" | "REMOVED";
 

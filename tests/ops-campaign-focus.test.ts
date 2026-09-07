@@ -61,10 +61,12 @@ describe("Slice B Search Campaign Overview + Safe edit", () => {
     expect(channelTypeLabel("SEARCH")).toBe("Search");
     expect(channelTypeLabel(null)).toBe("Search");
     expect(read("src/components/campaign-overview.tsx")).toContain("ops-campaign-overview");
-    expect(read("src/components/campaign-focus.tsx")).toContain("Campaign {mode === \"overview\" ? \"Overview\" : \"Safe edit\"}");
+    expect(read("src/components/campaign-focus.tsx")).toContain("campaignFocusModeLabel");
     expect(read("src/components/campaign-focus.tsx")).toContain("Status snapshot");
     expect(read("src/components/campaign-focus.tsx")).toContain("ops-campaign-pause");
     expect(read("src/components/campaign-focus.tsx")).toContain("ops-campaign-delete");
+    expect(read("src/components/campaign-focus.tsx")).toContain("campaignPausePath");
+    expect(read("src/components/campaign-focus.tsx")).toContain("campaignDeletePath");
     expect(read("src/components/campaign-focus.tsx")).toContain("Open chat");
     expect(read("src/components/campaign-focus.tsx")).toContain("Coming soon");
   });
@@ -74,9 +76,14 @@ describe("Slice B Search Campaign Overview + Safe edit", () => {
       "src/components/campaign-overview.tsx",
       "src/components/campaign-edit.tsx",
       "src/components/campaign-focus.tsx",
+      "src/components/campaign-confirm.tsx",
+      "src/components/campaign-pause.tsx",
+      "src/components/campaign-delete.tsx",
       "src/components/edit-panel.tsx",
       "src/app/ops/campaigns/[id]/page.tsx",
       "src/app/ops/campaigns/[id]/edit/page.tsx",
+      "src/app/ops/campaigns/[id]/pause/page.tsx",
+      "src/app/ops/campaigns/[id]/delete/page.tsx",
     ]) {
       expect(read(rel)).not.toMatch(/>\s*Enable\s*</);
       expect(read(rel)).not.toMatch(/go-live|unpause-to-spend/i);

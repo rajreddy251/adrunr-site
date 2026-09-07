@@ -5,13 +5,15 @@ import { useState } from "react";
 
 import {
   CAMPAIGN_CHAT_STUB_NOTE,
-  CAMPAIGN_DELETE_STUB_NOTE,
   CAMPAIGN_OVERVIEW_NOTE,
-  CAMPAIGN_PAUSE_STUB_NOTE,
+  campaignDeletePath,
   campaignEditPath,
   campaignFocusId,
+  campaignFocusModeLabel,
   campaignOverviewPath,
+  campaignPausePath,
   channelTypeLabel,
+  type CampaignFocusMode,
 } from "@/lib/ops-campaign";
 import { formatMoneyMicros } from "@/lib/metrics";
 import type { CampaignMetricSnapshotView, SyncedCampaignView } from "@/lib/types";
@@ -25,7 +27,7 @@ export function CampaignFocusChrome({
   campaignId: string;
   campaign: SyncedCampaignView | null;
   snapshot: CampaignMetricSnapshotView | null;
-  mode: "overview" | "edit";
+  mode: CampaignFocusMode;
 }) {
   const [stub, setStub] = useState<string | null>(null);
   const name = campaign?.name ?? `Campaign ${campaignId}`;
@@ -33,6 +35,7 @@ export function CampaignFocusChrome({
   const status = campaign?.status ?? "Not in listings cache";
   const focusId = campaign ? campaignFocusId(campaign) : campaignId;
   const cachedEnabled = campaign?.status === "ENABLED";
+  const modeLabel = campaignFocusModeLabel(mode);
 
   return (
     <section data-testid="ops-campaign-focus" className="ops-focus-chrome rounded-2xl border bg-ink-900 p-5">
@@ -44,10 +47,10 @@ export function CampaignFocusChrome({
         <Link href={campaignOverviewPath(focusId)} className="text-moss-300 hover:text-paper-50">
           {name}
         </Link>
-        {mode === "edit" ? (
+        {mode !== "overview" ? (
           <>
             <span className="mx-2">/</span>
-            <span className="text-paper-50">Safe edit</span>
+            <span className="text-paper-50">{modeLabel}</span>
           </>
         ) : null}
       </nav>
@@ -55,7 +58,7 @@ export function CampaignFocusChrome({
       <header data-testid="ops-campaign-header" className="mt-4 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-lime-400">
-            {typeLabel} Campaign {mode === "overview" ? "Overview" : "Safe edit"}
+            {typeLabel} Campaign {modeLabel}
           </p>
           <h1 className="mt-1 text-2xl font-medium text-paper-50">{name}</h1>
           <p className="mt-1 font-mono text-xs text-moss-500">{focusId}</p>
@@ -84,22 +87,12 @@ export function CampaignFocusChrome({
             Overview
           </Link>
         )}
-        <button
-          type="button"
-          data-testid="ops-campaign-pause"
-          className="ops-btn-amber"
-          onClick={() => setStub(CAMPAIGN_PAUSE_STUB_NOTE)}
-        >
+        <Link href={campaignPausePath(focusId)} data-testid="ops-campaign-pause" className="ops-btn-amber">
           Pause
-        </button>
-        <button
-          type="button"
-          data-testid="ops-campaign-delete"
-          className="ops-btn-danger"
-          onClick={() => setStub(CAMPAIGN_DELETE_STUB_NOTE)}
-        >
+        </Link>
+        <Link href={campaignDeletePath(focusId)} data-testid="ops-campaign-delete" className="ops-btn-danger">
           Delete
-        </button>
+        </Link>
         <button
           type="button"
           data-testid="ops-campaign-chat"
