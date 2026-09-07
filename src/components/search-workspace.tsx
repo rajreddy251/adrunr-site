@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState } from "react";
 
 import { AppWizard, type AppWizardHandle } from "@/components/app-wizard";
@@ -10,9 +11,9 @@ import { LocalServicesWizard, type LocalServicesWizardHandle } from "@/component
 import { LocalWizard, type LocalWizardHandle } from "@/components/local-wizard";
 import { PmaxWizard, type PmaxWizardHandle } from "@/components/pmax-wizard";
 import { SearchAssistant } from "@/components/search-assistant";
-import { SearchWizard, type SearchWizardHandle } from "@/components/search-wizard";
 import { ShoppingWizard, type ShoppingWizardHandle } from "@/components/shopping-wizard";
 import { VideoWizard, type VideoWizardHandle } from "@/components/video-wizard";
+import { searchCreatePath } from "@/lib/search-create";
 import type { AdsAccountView, AssistantCampaignKind } from "@/lib/types";
 
 export function SearchWorkspace({
@@ -24,8 +25,7 @@ export function SearchWorkspace({
   connected: boolean;
   onFinished: () => Promise<void> | void;
 }) {
-  const [kind, setKind] = useState<AssistantCampaignKind>("SEARCH");
-  const searchRef = useRef<SearchWizardHandle>(null);
+  const [kind, setKind] = useState<AssistantCampaignKind>("DISPLAY");
   const displayRef = useRef<DisplayWizardHandle>(null);
   const pmaxRef = useRef<PmaxWizardHandle>(null);
   const demandGenRef = useRef<DemandGenWizardHandle>(null);
@@ -38,7 +38,13 @@ export function SearchWorkspace({
   return (
     <section className="space-y-4" data-testid="ops-create-workspace">
       <div className="flex flex-wrap gap-2" role="tablist" aria-label="Campaign type">
-        <KindTab kind="SEARCH" current={kind} onSelect={setKind} testId="ops-kind-search" label="Search" />
+        <Link
+          href={searchCreatePath()}
+          data-testid="ops-kind-search"
+          className="rounded-full border border-ink-700 px-4 py-1.5 font-mono text-xs text-moss-400 hover:border-lime-400/40 hover:text-paper-50"
+        >
+          Search
+        </Link>
         <KindTab kind="DISPLAY" current={kind} onSelect={setKind} testId="ops-kind-display" label="Display" />
         <KindTab kind="PMAX" current={kind} onSelect={setKind} testId="ops-kind-pmax" label="Performance Max" />
         <KindTab
@@ -62,12 +68,7 @@ export function SearchWorkspace({
         />
       </div>
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)]">
-        {kind === "SEARCH" ? (
-          <>
-            <SearchWizard ref={searchRef} accounts={accounts} connected={connected} onFinished={onFinished} />
-            <SearchAssistant wizard={searchRef} connected={connected} kind="SEARCH" />
-          </>
-        ) : kind === "DISPLAY" ? (
+        {kind === "DISPLAY" ? (
           <>
             <DisplayWizard ref={displayRef} accounts={accounts} connected={connected} onFinished={onFinished} />
             <SearchAssistant wizard={displayRef} connected={connected} kind="DISPLAY" />

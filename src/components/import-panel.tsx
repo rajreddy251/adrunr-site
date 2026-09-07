@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { formatMoneyMicros } from "@/lib/metrics";
 import { CAMPAIGN_IMPORT_NOTE } from "@/lib/safety";
+import { searchCreatePath } from "@/lib/search-create";
 import type {
   CampaignImportJobView,
   CampaignImportPreviewView,
@@ -288,6 +289,18 @@ export function ImportPanel({
           {job?.draftId ? (
             <p className="mt-3 font-mono text-xs text-lime-400">
               Draft {job.draftId} · {job.wizardHint}
+              {job.draftKind === "SEARCH" ? (
+                <>
+                  {" "}
+                  <Link
+                    href={searchCreatePath(job.draftId)}
+                    data-testid="ops-import-open-search-draft"
+                    className="text-lime-400 hover:underline"
+                  >
+                    Open Search draft
+                  </Link>
+                </>
+              ) : null}
             </p>
           ) : null}
         </div>
@@ -301,6 +314,18 @@ export function ImportPanel({
               <span className="text-lime-400">{row.dryRun ? "preview" : "imported"}</span> · {row.draftKind} ·{" "}
               {row.sourceCampaignName}
               {row.draftId ? ` · draft ${row.draftId}` : ""}
+              {row.draftKind === "SEARCH" && row.draftId ? (
+                <>
+                  {" · "}
+                  <Link
+                    href={searchCreatePath(row.draftId)}
+                    className="text-lime-400 hover:underline"
+                    data-testid={`ops-import-open-search-draft-${row.draftId}`}
+                  >
+                    Open Search draft
+                  </Link>
+                </>
+              ) : null}
             </li>
           ))}
         </ol>

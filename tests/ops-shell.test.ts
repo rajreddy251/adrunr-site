@@ -77,6 +77,9 @@ describe("Slice A ops IA shell", () => {
   it("preserves create, edit, listings, metrics, import, reports, and connect on their routes", () => {
     const campaigns = read("src/components/ops-campaigns.tsx");
     expect(campaigns).toContain("SearchWorkspace");
+    expect(campaigns).toContain("searchCreatePath");
+    expect(campaigns).toContain("Create campaign → Search");
+    expect(campaigns).not.toContain("SearchWizard");
     expect(campaigns).not.toContain("EditPanel");
     expect(campaigns).toContain("campaignOverviewPath");
     expect(campaigns).toContain("campaignEditPath");

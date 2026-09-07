@@ -7,6 +7,7 @@ import { useOpsSession } from "@/components/ops-session";
 import { SearchWorkspace } from "@/components/search-workspace";
 import { campaignEditPath, campaignFocusId, campaignOverviewPath, channelTypeLabel } from "@/lib/ops-campaign";
 import { CAMPAIGN_TYPE_FILTERS } from "@/lib/ops-shell";
+import { searchCreatePath } from "@/lib/search-create";
 import type { SyncedCampaignView } from "@/lib/types";
 
 type ListingsResponse = {
@@ -59,28 +60,41 @@ export function OpsCampaigns() {
           <Link href="/ops/listings" className="text-lime-400 hover:underline">
             Listings
           </Link>{" "}
-          first. Create wizards stay reachable below until Slice E.
+          first. Create Search lives on{" "}
+          <Link href={searchCreatePath()} className="text-lime-400 hover:underline">
+            /ops/campaigns/new/search
+          </Link>
+          . Other create types stay below.
         </p>
       </header>
 
       <section className="rounded-2xl border border-ink-700 bg-ink-900 p-5" data-testid="ops-campaigns-list">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg text-paper-50">Campaign list</h2>
-          <label className="flex items-center gap-2 font-mono text-xs text-moss-400">
-            Type
-            <select
-              data-testid="ops-campaigns-filter"
-              className="input h-8 w-48 py-1 text-xs"
-              value={typeFilter}
-              onChange={(event) => setTypeFilter(event.target.value)}
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href={searchCreatePath()}
+              data-testid="ops-campaigns-create-search"
+              className="ops-btn-primary"
             >
-              {CAMPAIGN_TYPE_FILTERS.map((option) => (
-                <option key={option.value || "all"} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+              Create campaign → Search
+            </Link>
+            <label className="flex items-center gap-2 font-mono text-xs text-moss-400">
+              Type
+              <select
+                data-testid="ops-campaigns-filter"
+                className="input h-8 w-48 py-1 text-xs"
+                value={typeFilter}
+                onChange={(event) => setTypeFilter(event.target.value)}
+              >
+                {CAMPAIGN_TYPE_FILTERS.map((option) => (
+                  <option key={option.value || "all"} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
         {error ? <p className="mt-3 text-sm text-coral-400">{error}</p> : null}
         <div className="mt-4 overflow-x-auto">
@@ -163,9 +177,9 @@ export function OpsCampaigns() {
 
       <details className="rounded-2xl border border-ink-700 bg-ink-900 p-5" data-testid="ops-campaigns-create">
         <summary className="cursor-pointer text-lg text-paper-50">
-          Create wizards (temporary)
+          Other create types
           <span className="ml-2 font-mono text-xs text-moss-500">
-            Slice E moves Search to /ops/campaigns/new/search
+            Search create lives on /ops/campaigns/new/search
           </span>
         </summary>
         <div className="mt-4">
