@@ -146,7 +146,10 @@ describe("Slice E Search create route", () => {
     expect(read("src/components/campaign-chat.tsx")).toContain("draftId");
     expect(read("src/components/campaign-chat.tsx")).toContain("wizard");
     expect(read("src/components/search-create.tsx")).toContain("ops-focus-chrome");
-    expect(read("src/components/search-create.tsx")).toContain("ops-search-create-steps");
+    expect(read("src/components/search-create.tsx")).not.toContain("ops-search-create-steps");
+    expect(read("src/components/search-create.tsx")).not.toContain("aria-label=\"Create steps\"");
+    expect(read("src/components/search-wizard.tsx")).toContain("aria-label=\"Wizard steps\"");
+    expect(read("src/components/search-wizard.tsx")).toContain("SEARCH_CREATE_STEPS");
     expect(read("src/components/search-assistant.tsx")).toContain("CAMPAIGN_CHAT_SUBTITLE");
   });
 
