@@ -26,8 +26,8 @@ export function OpsHub() {
         <p className="font-mono text-xs uppercase tracking-[0.2em] text-lime-400">Adrunr · ads ops</p>
         <h1 className="mt-1 text-3xl font-medium text-paper-50">Campaign tools, not autopilot.</h1>
         <p className="mt-2 max-w-2xl text-sm text-moss-400">
-          Hub for account connect, customer pick, and shortcuts. Create wizards, safe edit, and campaign
-          chat live on Campaigns — not here. MCC{" "}
+          Hub for account connect, customer pick, and shortcuts. Create wizards stay on Campaigns until
+          Slice E. Overview and Safe edit live on a campaign workspace. Campaign chat is Slice D. MCC{" "}
           <span className="font-mono text-moss-300">{PLATFORM_MCC_DISPLAY}</span> · GCP{" "}
           <span className="font-mono text-moss-300">adrunr-ads-ops</span> · Neon + Prisma
         </p>

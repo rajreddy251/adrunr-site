@@ -76,7 +76,9 @@ describe("Slice A ops IA shell", () => {
   it("preserves create, edit, listings, metrics, import, reports, and connect on their routes", () => {
     const campaigns = read("src/components/ops-campaigns.tsx");
     expect(campaigns).toContain("SearchWorkspace");
-    expect(campaigns).toContain("EditPanel");
+    expect(campaigns).not.toContain("EditPanel");
+    expect(campaigns).toContain("campaignOverviewPath");
+    expect(campaigns).toContain("campaignEditPath");
     expect(campaigns).toContain("ops-campaigns-filter");
     expect(CAMPAIGN_TYPE_FILTERS.some((row) => row.value === "SEARCH")).toBe(true);
     expect(read("src/components/ops-listings.tsx")).toContain("ListingsPanel");
@@ -108,9 +110,11 @@ describe("Slice A ops IA shell", () => {
     expect(css).toContain("background: #121714");
     expect(css).toContain("border: 1px solid #2a332e");
     expect(css).toContain("#c8f542");
-    expect(read("src/components/edit-panel.tsx")).toContain("ops-btn-primary");
+    expect(read("src/components/edit-panel.tsx")).toContain('dryRun ? "ops-btn-primary"');
     expect(read("src/components/edit-panel.tsx")).toContain("Validate (dry-run)");
     expect(read("src/components/edit-panel.tsx")).toContain("ops-btn-amber");
+    expect(read("src/components/campaign-focus.tsx")).toContain("ops-btn-amber");
+    expect(read("src/components/campaign-focus.tsx")).toContain("Pause");
     expect(read("src/components/listings-panel.tsx")).toContain('dryRun ? "ops-btn-primary"');
     expect(read("src/components/metrics-panel.tsx")).toContain('dryRun ? "ops-btn-primary"');
     expect(read("src/components/import-panel.tsx")).toContain('dryRun ? "ops-btn-primary"');
@@ -118,5 +122,9 @@ describe("Slice A ops IA shell", () => {
     expect(read("src/components/reports-panel.tsx")).not.toMatch(/>\s*Enable\s*</);
     expect(read("src/components/ops-hub.tsx")).not.toMatch(/>\s*Enable\s*</);
     expect(read("src/components/ops-campaigns.tsx")).not.toMatch(/>\s*Enable\s*</);
+    expect(read("src/components/campaign-overview.tsx")).not.toMatch(/>\s*Enable\s*</);
+    expect(read("src/components/campaign-focus.tsx")).not.toMatch(/>\s*Enable\s*</);
+    expect(read("src/components/edit-panel.tsx")).not.toMatch(/>\s*Enable\s*</);
+    expect(read("src/components/campaign-edit.tsx")).not.toMatch(/>\s*Enable\s*</);
   });
 });

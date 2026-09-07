@@ -17,7 +17,7 @@ export const OPS_HUB_SHORTCUTS = [
   {
     href: "/ops/campaigns",
     label: "Campaigns",
-    detail: "Cached campaign list. Create wizards stay on a temporary entry until Slice E.",
+    detail: "Cached list plus Search Campaign Overview and Safe edit on /ops/campaigns/:id.",
   },
   {
     href: "/ops/listings",

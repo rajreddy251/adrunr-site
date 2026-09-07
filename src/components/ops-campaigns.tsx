@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { EditPanel } from "@/components/edit-panel";
 import { useOpsSession } from "@/components/ops-session";
 import { SearchWorkspace } from "@/components/search-workspace";
+import { campaignEditPath, campaignFocusId, campaignOverviewPath, channelTypeLabel } from "@/lib/ops-campaign";
 import { CAMPAIGN_TYPE_FILTERS } from "@/lib/ops-shell";
 import type { SyncedCampaignView } from "@/lib/types";
 
@@ -54,8 +54,8 @@ export function OpsCampaigns() {
       <header>
         <h1 className="text-2xl font-medium text-paper-50">Campaigns</h1>
         <p className="mt-1 text-sm text-moss-400">
-          All cached campaign types for the selected customer. Filter is a stub over the listings cache —
-          sync from{" "}
+          All cached campaign types for the selected customer. Open a row for Search Campaign Overview
+          and Safe edit. Filter is a stub over the listings cache — sync from{" "}
           <Link href="/ops/listings" className="text-lime-400 hover:underline">
             Listings
           </Link>{" "}
@@ -91,12 +91,13 @@ export function OpsCampaigns() {
                 <th>Type</th>
                 <th>Status</th>
                 <th>Children</th>
+                <th>Workspace</th>
               </tr>
             </thead>
             <tbody>
               {!selectedId ? (
                 <tr>
-                  <td colSpan={4} className="py-6 text-moss-500">
+                  <td colSpan={5} className="py-6 text-moss-500">
                     Select a customer in the top bar or on the{" "}
                     <Link href="/ops" className="text-lime-400 hover:underline">
                       hub
@@ -106,26 +107,54 @@ export function OpsCampaigns() {
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="py-6 text-moss-500">
+                  <td colSpan={5} className="py-6 text-moss-500">
                     {status.connected
                       ? "No cached campaigns for this filter. Preview or cache listings, then return."
                       : "Connect Google Ads to list campaigns."}
                   </td>
                 </tr>
               ) : (
-                filtered.map((campaign) => (
-                  <tr key={campaign.externalId}>
-                    <td className="py-3">
-                      <span className="block text-paper-50">{campaign.name}</span>
-                      <span className="mt-1 block font-mono text-xs text-moss-500">{campaign.externalId}</span>
-                    </td>
-                    <td className="py-3 font-mono text-xs text-moss-300">
-                      {campaign.advertisingChannelType ?? "—"}
-                    </td>
-                    <td className="py-3 font-mono text-xs">{campaign.status ?? "—"}</td>
-                    <td className="py-3 text-xs text-moss-400">{campaign.adGroups.length} groups</td>
-                  </tr>
-                ))
+                filtered.map((campaign) => {
+                  const focusId = campaignFocusId(campaign);
+                  return (
+                    <tr key={campaign.externalId}>
+                      <td className="py-3">
+                        <Link
+                          href={campaignOverviewPath(focusId)}
+                          className="block text-paper-50 hover:text-lime-400"
+                        >
+                          {campaign.name}
+                        </Link>
+                        <span className="mt-1 block font-mono text-xs text-moss-500">{campaign.externalId}</span>
+                      </td>
+                      <td className="py-3 font-mono text-xs text-moss-300">
+                        {campaign.advertisingChannelType
+                          ? channelTypeLabel(campaign.advertisingChannelType)
+                          : "—"}
+                      </td>
+                      <td className="py-3 font-mono text-xs">{campaign.status ?? "—"}</td>
+                      <td className="py-3 text-xs text-moss-400">{campaign.adGroups.length} groups</td>
+                      <td className="py-3">
+                        <div className="flex flex-wrap gap-3 text-xs">
+                          <Link
+                            href={campaignOverviewPath(focusId)}
+                            className="text-lime-400 hover:underline"
+                            data-testid={`ops-campaigns-open-${campaign.externalId}`}
+                          >
+                            Overview
+                          </Link>
+                          <Link
+                            href={campaignEditPath(focusId)}
+                            className="text-moss-300 hover:text-paper-50 hover:underline"
+                            data-testid={`ops-campaigns-edit-${campaign.externalId}`}
+                          >
+                            Edit
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -141,16 +170,6 @@ export function OpsCampaigns() {
         </summary>
         <div className="mt-4">
           <SearchWorkspace accounts={accounts} connected={status.connected} onFinished={refreshAudit} />
-        </div>
-      </details>
-
-      <details className="rounded-2xl border border-ink-700 bg-ink-900 p-5" data-testid="ops-campaigns-edit">
-        <summary className="cursor-pointer text-lg text-paper-50">
-          Safe campaign edit (temporary)
-          <span className="ml-2 font-mono text-xs text-moss-500">Slice B relocates Overview + Edit</span>
-        </summary>
-        <div className="mt-4">
-          <EditPanel customerId={selectedId} connected={status.connected} onFinished={refreshAudit} />
         </div>
       </details>
     </div>
