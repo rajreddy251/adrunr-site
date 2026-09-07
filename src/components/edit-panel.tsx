@@ -1,7 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  dollarsFromMicros,
+  isEditApplyReady,
+  microsFromDollars,
+  validateCampaignEditForm,
+  type CampaignEditFieldErrors,
+} from "@/lib/ops-campaign";
 import { CONFIRM_EDIT_PHRASE, CAMPAIGN_EDIT_NOTE } from "@/lib/safety";
 import { GEO_PRESETS, LANGUAGE_PRESETS } from "@/lib/search-draft";
 import { formatMoneyMicros } from "@/lib/metrics";
@@ -10,18 +17,6 @@ import type {
   CampaignMetricSnapshotView,
   SyncedCampaignView,
 } from "@/lib/types";
-
-type ListingsResponse = {
-  ok: boolean;
-  campaigns?: SyncedCampaignView[];
-  error?: string;
-  hint?: string;
-};
-
-type MetricsResponse = {
-  ok: boolean;
-  snapshots?: CampaignMetricSnapshotView[];
-};
 
 type EditResponse = {
   ok: boolean;
@@ -34,30 +29,23 @@ type EditResponse = {
   safety?: { note?: string };
 };
 
-function dollarsFromMicros(micros: string | null | undefined): string {
-  if (!micros) return "";
-  const n = Number(micros) / 1_000_000;
-  return Number.isFinite(n) ? String(n) : "";
-}
-
-function microsFromDollars(value: string): number | null {
-  const n = Number(value);
-  if (!value.trim() || !Number.isFinite(n)) return null;
-  return Math.round(n * 1_000_000);
-}
-
 export function EditPanel({
   customerId,
   connected,
   onFinished,
+  campaignId,
+  campaign,
+  snapshot,
+  sourceError,
 }: {
   customerId: string;
   connected: boolean;
   onFinished: () => Promise<void> | void;
+  campaignId: string;
+  campaign: SyncedCampaignView | null;
+  snapshot: CampaignMetricSnapshotView | null;
+  sourceError?: string | null;
 }) {
-  const [campaigns, setCampaigns] = useState<SyncedCampaignView[]>([]);
-  const [snapshots, setSnapshots] = useState<CampaignMetricSnapshotView[]>([]);
-  const [selectedId, setSelectedId] = useState("");
   const [proposedName, setProposedName] = useState("");
   const [proposedBudget, setProposedBudget] = useState("");
   const [proposedBid, setProposedBid] = useState("");
@@ -69,53 +57,69 @@ export function EditPanel({
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [draft, setDraft] = useState<CampaignEditDraftView | null>(null);
+  const [showErrors, setShowErrors] = useState(false);
   const confirmRef = useRef<HTMLInputElement>(null);
+  const hydratedCampaignId = useRef<string>("");
+  const budgetTouched = useRef(false);
 
-  const selected = campaigns.find((row) => row.externalId === selectedId) ?? null;
-  const snapshot = snapshots.find((row) => row.externalCampaignId === selectedId) ?? null;
-  const firstGroup = selected?.adGroups[0] ?? null;
-
-  const loadSources = useCallback(async () => {
-    if (!connected || !customerId) {
-      setCampaigns([]);
-      setSnapshots([]);
-      setSelectedId("");
-      return;
-    }
-    const [listingsRes, metricsRes] = await Promise.all([
-      fetch(`/api/ads/listings?customerId=${encodeURIComponent(customerId)}`, { cache: "no-store" }),
-      fetch(`/api/ads/metrics?customerId=${encodeURIComponent(customerId)}`, { cache: "no-store" }),
-    ]);
-    const listings = (await listingsRes.json()) as ListingsResponse;
-    const metrics = (await metricsRes.json()) as MetricsResponse;
-    if (!listings.ok) {
-      setError([listings.error, listings.hint].filter(Boolean).join(" — ") || "Unable to load cached campaigns.");
-      return;
-    }
-    setError(null);
-    const next = listings.campaigns ?? [];
-    setCampaigns(next);
-    setSnapshots(metrics.snapshots ?? []);
-    setSelectedId((current) => current || next[0]?.externalId || "");
-  }, [connected, customerId]);
+  const firstGroup = campaign?.adGroups[0] ?? null;
+  const currentBudget = dollarsFromMicros(snapshot?.budgetAmountMicros ?? null);
 
   useEffect(() => {
-    void loadSources();
-  }, [loadSources]);
-
-  useEffect(() => {
-    if (!selected) return;
-    setProposedName(selected.name);
+    if (!campaign) return;
+    if (hydratedCampaignId.current === campaign.externalId) {
+      if (!budgetTouched.current && snapshot?.budgetAmountMicros) {
+        setProposedBudget(dollarsFromMicros(snapshot.budgetAmountMicros));
+      }
+      return;
+    }
+    hydratedCampaignId.current = campaign.externalId;
+    budgetTouched.current = false;
+    setProposedName(campaign.name);
     setProposedBudget(dollarsFromMicros(snapshot?.budgetAmountMicros ?? null));
     setProposedBid("");
     setGeo("");
     setLanguage("");
     setDraft(null);
     setNote(null);
-  }, [selected, snapshot?.budgetAmountMicros]);
+    setError(null);
+    setShowErrors(false);
+    setConfirmPhrase("");
+  }, [campaign, snapshot?.budgetAmountMicros]);
+
+  const fieldErrors = useMemo(
+    () =>
+      validateCampaignEditForm({
+        proposedName,
+        proposedBudget,
+        proposedBid,
+        geo,
+        language,
+        currentName: campaign?.name ?? "",
+        currentBudget,
+        confirmPhrase,
+        dryRun,
+      }),
+    [campaign?.name, confirmPhrase, currentBudget, dryRun, geo, language, proposedBid, proposedBudget, proposedName],
+  );
+
+  const applyReady = isEditApplyReady({
+    connected: connected && Boolean(campaign),
+    dryRun,
+    confirmPhrase,
+    errors: fieldErrors,
+  });
+
+  function visibleError(key: keyof CampaignEditFieldErrors): string | undefined {
+    if (!showErrors) {
+      if (key === "confirmPhrase" && fieldErrors.confirmPhrase) return fieldErrors.confirmPhrase;
+      return undefined;
+    }
+    return fieldErrors[key];
+  }
 
   function buildPayload() {
-    if (!selected) return null;
+    if (!campaign) return null;
     const budgetMicros = microsFromDollars(proposedBudget);
     const bidMicros = microsFromDollars(proposedBid);
     const targets = [
@@ -134,13 +138,13 @@ export function EditPanel({
     ];
     return {
       customerId,
-      syncedCampaignId: selected.id || undefined,
-      campaignExternalId: selected.externalId,
-      googleCampaignResourceName: selected.resourceName,
+      syncedCampaignId: campaign.id || undefined,
+      campaignExternalId: campaign.externalId,
+      googleCampaignResourceName: campaign.resourceName,
       budgetResourceName: snapshot?.budgetResourceName ?? null,
-      advertisingChannelType: selected.advertisingChannelType,
-      currentName: selected.name,
-      proposedName: proposedName.trim() || selected.name,
+      advertisingChannelType: campaign.advertisingChannelType,
+      currentName: campaign.name,
+      proposedName: proposedName.trim() || campaign.name,
       currentDailyBudgetMicros: snapshot?.budgetAmountMicros ?? null,
       proposedDailyBudgetMicros: budgetMicros,
       bids:
@@ -160,7 +164,7 @@ export function EditPanel({
 
   async function upsertDraft() {
     const payload = buildPayload();
-    if (!payload) throw new Error("Select a synced campaign first.");
+    if (!payload) throw new Error("Open a cached campaign first.");
     if (draft?.id) {
       const res = await fetch(`/api/ads/edits/drafts/${draft.id}`, {
         method: "PATCH",
@@ -188,7 +192,12 @@ export function EditPanel({
   }
 
   async function runAction(kind: "validate" | "apply") {
-    if (!selected) return;
+    if (!campaign) return;
+    setShowErrors(true);
+    if (kind === "apply" && !applyReady) return;
+    if (kind === "validate" && (fieldErrors.proposedName || fieldErrors.proposedBudget || fieldErrors.proposedBid || fieldErrors.change)) {
+      return;
+    }
     setBusy(kind);
     setError(null);
     try {
@@ -226,9 +235,9 @@ export function EditPanel({
     <section className="rounded-2xl border border-ink-700 bg-ink-900 p-5" data-testid="ops-edit">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg text-white">Safe campaign edit</h2>
+          <h2 className="text-lg text-paper-50">Safe campaign edit</h2>
           <p className="mt-1 text-sm text-moss-400">
-            Edit synced / cached campaigns. Validate first (dry-run default). Apply requires{" "}
+            EDIT SAFE workspace for this campaign. Validate first (dry-run default). Apply requires{" "}
             <code className="font-mono text-moss-300">{CONFIRM_EDIT_PHRASE}</code>. Name, budget, bids,
             and GEO/LANGUAGE only — never enable or unpause.
           </p>
@@ -246,8 +255,14 @@ export function EditPanel({
       </div>
 
       <p className="mt-3 text-xs text-amber-400/90">{CAMPAIGN_EDIT_NOTE}</p>
+      {sourceError ? <p className="mt-3 text-sm text-coral-400">{sourceError}</p> : null}
       {error ? <p className="mt-3 text-sm text-coral-400">{error}</p> : null}
       {note ? <p className="mt-3 text-sm text-amber-400">{note}</p> : null}
+      {visibleError("change") ? (
+        <p data-testid="ops-edit-change-error" className="mt-3 text-sm text-coral-400">
+          {visibleError("change")}
+        </p>
+      ) : null}
 
       <div className="mt-4 overflow-x-auto">
         <table className="w-full min-w-[720px] text-left text-sm" data-testid="ops-edit-table">
@@ -266,47 +281,28 @@ export function EditPanel({
                   Select a customer in the top bar, then sync listings (and optionally metrics).
                 </td>
               </tr>
-            ) : campaigns.length === 0 ? (
+            ) : !campaign ? (
               <tr>
                 <td colSpan={4} className="py-6 text-moss-500">
                   {connected
-                    ? "No cached campaigns. Preview or cache listings above first."
+                    ? `Known id ${campaignId} is not in the listings cache. Preview or cache listings first.`
                     : "Connect Google Ads to edit cached campaigns."}
                 </td>
               </tr>
             ) : (
-              campaigns.map((campaign) => {
-                const metric = snapshots.find((row) => row.externalCampaignId === campaign.externalId);
-                return (
-                  <tr key={campaign.externalId} className="border-t border-ink-700">
-                    <td className="py-3">
-                      <label className="flex cursor-pointer items-start gap-3">
-                        <input
-                          type="radio"
-                          name="edit-campaign"
-                          className="mt-1 accent-lime-400"
-                          checked={selectedId === campaign.externalId}
-                          onChange={() => setSelectedId(campaign.externalId)}
-                          data-testid={`ops-edit-select-${campaign.externalId}`}
-                        />
-                        <span>
-                          <span className="block text-white">{campaign.name}</span>
-                          <span className="mt-1 block font-mono text-xs text-moss-500">
-                            {campaign.externalId}
-                          </span>
-                        </span>
-                      </label>
-                    </td>
-                    <td className="py-3 font-mono text-xs text-moss-300">
-                      {campaign.advertisingChannelType ?? "—"}
-                    </td>
-                    <td className="py-3 font-mono text-xs">{campaign.status ?? "—"}</td>
-                    <td className="py-3 font-mono text-xs text-moss-300">
-                      {formatMoneyMicros(metric?.budgetAmountMicros)}
-                    </td>
-                  </tr>
-                );
-              })
+              <tr className="border-t border-ink-700">
+                <td className="py-3">
+                  <span className="block text-paper-50">{campaign.name}</span>
+                  <span className="mt-1 block font-mono text-xs text-moss-500">{campaign.externalId}</span>
+                </td>
+                <td className="py-3 font-mono text-xs text-moss-300">
+                  {campaign.advertisingChannelType ?? "—"}
+                </td>
+                <td className="py-3 font-mono text-xs">{campaign.status ?? "—"}</td>
+                <td className="py-3 font-mono text-xs text-moss-300">
+                  {formatMoneyMicros(snapshot?.budgetAmountMicros)}
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
@@ -320,17 +316,32 @@ export function EditPanel({
             value={proposedName}
             onChange={(event) => setProposedName(event.target.value)}
             className="input mt-1"
+            aria-invalid={Boolean(visibleError("proposedName"))}
           />
+          {visibleError("proposedName") ? (
+            <span data-testid="ops-edit-name-error" className="mt-1 block text-xs text-coral-400">
+              {visibleError("proposedName")}
+            </span>
+          ) : null}
         </label>
         <label className="block text-sm text-moss-400">
           Proposed daily budget (USD)
           <input
             data-testid="ops-edit-budget"
             value={proposedBudget}
-            onChange={(event) => setProposedBudget(event.target.value)}
+            onChange={(event) => {
+              budgetTouched.current = true;
+              setProposedBudget(event.target.value);
+            }}
             className="input mt-1 font-mono"
             inputMode="decimal"
+            aria-invalid={Boolean(visibleError("proposedBudget"))}
           />
+          {visibleError("proposedBudget") ? (
+            <span data-testid="ops-edit-budget-error" className="mt-1 block text-xs text-coral-400">
+              {visibleError("proposedBudget")}
+            </span>
+          ) : null}
         </label>
         <label className="block text-sm text-moss-400">
           Proposed ad group bid (USD){firstGroup ? ` · ${firstGroup.name}` : ""}
@@ -341,7 +352,13 @@ export function EditPanel({
             className="input mt-1 font-mono"
             inputMode="decimal"
             placeholder="optional"
+            aria-invalid={Boolean(visibleError("proposedBid"))}
           />
+          {visibleError("proposedBid") ? (
+            <span data-testid="ops-edit-bid-error" className="mt-1 block text-xs text-coral-400">
+              {visibleError("proposedBid")}
+            </span>
+          ) : null}
         </label>
         <label className="block text-sm text-moss-400">
           Targeting-safe geo
@@ -384,7 +401,13 @@ export function EditPanel({
             onChange={(event) => setConfirmPhrase(event.target.value)}
             className="input mt-1 font-mono"
             placeholder={CONFIRM_EDIT_PHRASE}
+            aria-invalid={Boolean(visibleError("confirmPhrase"))}
           />
+          {visibleError("confirmPhrase") ? (
+            <span data-testid="ops-edit-confirm-error" className="mt-1 block text-xs text-coral-400">
+              {visibleError("confirmPhrase")}
+            </span>
+          ) : null}
         </label>
       </div>
 
@@ -393,8 +416,8 @@ export function EditPanel({
           type="button"
           data-testid="ops-edit-validate"
           onClick={() => void runAction("validate")}
-          disabled={!connected || !selected || busy !== null}
-          className="ops-btn-primary"
+          disabled={!connected || !campaign || busy !== null}
+          className={dryRun ? "ops-btn-primary" : "ops-btn-secondary"}
         >
           {busy === "validate" ? "Validating…" : "Validate (dry-run)"}
         </button>
@@ -402,9 +425,9 @@ export function EditPanel({
           type="button"
           data-testid="ops-edit-apply"
           onClick={() => void runAction("apply")}
-          disabled={!connected || !selected || busy !== null || dryRun}
+          disabled={!applyReady || busy !== null}
           className="ops-btn-amber"
-          data-armed={!dryRun ? "true" : "false"}
+          data-armed={applyReady ? "true" : "false"}
         >
           {busy === "apply" ? "Applying edit…" : `Apply ${CONFIRM_EDIT_PHRASE}`}
         </button>

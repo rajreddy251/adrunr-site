@@ -99,6 +99,11 @@
   background: rgba(242, 107, 77, 0.1);
 }
 
+.ops-shell .ops-focus-chrome {
+  border-color: #c8f542;
+  box-shadow: 0 0 0 1px rgba(200, 245, 66, 0.18);
+}
+
 .ops-shell .ops-table {
   width: 100%;
   border-collapse: collapse;
