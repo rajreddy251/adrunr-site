@@ -94,8 +94,9 @@ describe("Slice D Campaign Chat", () => {
     expect(read("src/components/campaign-overview.tsx")).toContain("CampaignFocusFrame");
     expect(read("src/components/campaign-edit.tsx")).toContain("CampaignFocusFrame");
     expect(read("src/components/campaign-edit.tsx")).toContain("chatProposal");
-    expect(read("src/components/search-workspace.tsx")).toContain("SearchAssistant");
-    expect(read("src/components/search-workspace.tsx")).toContain('kind="SEARCH"');
+    expect(read("src/components/search-create.tsx")).toContain("CampaignChat");
+    expect(read("src/components/search-create.tsx")).toContain("draftId");
+    expect(read("src/components/search-workspace.tsx")).toContain("searchCreatePath");
     expect(read("src/components/campaign-chat.tsx")).toContain('kind="SEARCH"');
     expect(read("src/components/campaign-chat.tsx")).toContain('variant="campaign"');
     expect(read("src/components/search-assistant.tsx")).toContain("/api/assistant/turn");

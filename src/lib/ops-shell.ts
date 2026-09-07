@@ -20,6 +20,11 @@ export const OPS_HUB_SHORTCUTS = [
     detail: "Cached list plus Overview, Safe edit, and Pause/Delete confirms on /ops/campaigns/:id.",
   },
   {
+    href: "/ops/campaigns/new/search",
+    label: "Create Search",
+    detail: "S0–S8 Search create wizard. Dry-run first. Creates stay PAUSED.",
+  },
+  {
     href: "/ops/listings",
     label: "Listings",
     detail: "Read-only synced campaigns, ad groups, ads, and keywords.",

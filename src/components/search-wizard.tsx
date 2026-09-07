@@ -15,6 +15,14 @@ import {
 import { CAMPAIGN_CHAT_DID_NOT_APPLY, CAMPAIGN_CHAT_PROPOSED_MARK } from "@/lib/campaign-chat";
 import { CONFIRM_PAUSED_PHRASE } from "@/lib/safety";
 import {
+  isSearchCreateApplyReady,
+  isSearchCreateFormValid,
+  SEARCH_CREATE_NOTE,
+  SEARCH_CREATE_STEPS,
+  validateSearchCreateForm,
+  type SearchCreateFieldErrors,
+} from "@/lib/search-create";
+import {
   DESCRIPTION_MAX,
   GEO_PRESETS,
   HEADLINE_MAX,
@@ -66,17 +74,7 @@ type WizardResult = {
   response?: unknown;
 };
 
-const STEPS = [
-  { id: "S0", title: "Account" },
-  { id: "S1", title: "Basics" },
-  { id: "S2", title: "Ad groups" },
-  { id: "S3", title: "Keywords" },
-  { id: "S4", title: "RSA" },
-  { id: "S5", title: "Targeting" },
-  { id: "S6", title: "Bidding" },
-  { id: "S7", title: "Review" },
-  { id: "S8", title: "Result" },
-] as const;
+const STEPS = SEARCH_CREATE_STEPS;
 
 function dollarsToMicros(value: string): number {
   const n = Number(value);
@@ -109,6 +107,8 @@ function emptyGroup(index: number): WizardAdGroup {
 export type SearchWizardHandle = {
   getCustomerId: () => string;
   getDraftId: () => string | null;
+  getStep: () => number;
+  setStep: (step: number) => void;
   persist: () => Promise<string | null>;
   applyDraft: (
     draft: SearchDraftClientView,
@@ -122,15 +122,25 @@ export const SearchWizard = forwardRef<
     accounts: AdsAccountView[];
     connected: boolean;
     onFinished: () => Promise<void> | void;
+    initialDraftId?: string | null;
+    onStepChange?: (step: number) => void;
+    onDraftIdChange?: (draftId: string | null) => void;
+    onCustomerIdChange?: (customerId: string) => void;
   }
->(function SearchWizard({ accounts, connected, onFinished }, ref) {
+>(function SearchWizard(
+  { accounts, connected, onFinished, initialDraftId, onStepChange, onDraftIdChange, onCustomerIdChange },
+  ref,
+) {
   const [step, setStep] = useState(0);
-  const [draftId, setDraftId] = useState<string | null>(null);
+  const [draftId, setDraftId] = useState<string | null>(initialDraftId ?? null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmPhrase, setConfirmPhrase] = useState("");
   const confirmRef = useRef<HTMLInputElement>(null);
   const [result, setResult] = useState<WizardResult | null>(null);
+  const [dryRun, setDryRun] = useState(true);
+  const [showErrors, setShowErrors] = useState(false);
+  const loadedDraftId = useRef<string | null>(null);
 
   const selectable = useMemo(
     () => accounts.filter((account) => !account.manager),
@@ -155,7 +165,48 @@ export const SearchWizard = forwardRef<
     if (next) setCustomerId(next);
   }, [customerId, selectable]);
 
+  useEffect(() => {
+    onStepChange?.(step);
+  }, [onStepChange, step]);
+
+  useEffect(() => {
+    onDraftIdChange?.(draftId);
+  }, [draftId, onDraftIdChange]);
+
+  useEffect(() => {
+    onCustomerIdChange?.(customerId);
+  }, [customerId, onCustomerIdChange]);
+
   const selected = accounts.find((account) => account.customerId === customerId) ?? null;
+
+  const fieldErrors = useMemo(
+    () =>
+      validateSearchCreateForm({
+        customerId,
+        name,
+        budgetDollars,
+        groups,
+        targets,
+        confirmPhrase,
+        dryRun,
+      }),
+    [budgetDollars, confirmPhrase, customerId, dryRun, groups, name, targets],
+  );
+
+  const applyReady = isSearchCreateApplyReady({
+    connected: connected && Boolean(customerId),
+    dryRun,
+    confirmPhrase,
+    errors: fieldErrors,
+  });
+
+  function visibleError(key: keyof SearchCreateFieldErrors): string | undefined {
+    if (!showErrors) {
+      if (key === "confirmPhrase" && fieldErrors.confirmPhrase) return fieldErrors.confirmPhrase;
+      return undefined;
+    }
+    return fieldErrors[key];
+  }
 
   function payload() {
     return {
@@ -197,17 +248,47 @@ export const SearchWizard = forwardRef<
     setError(null);
   }
 
+  useEffect(() => {
+    if (!initialDraftId || loadedDraftId.current === initialDraftId) return;
+    loadedDraftId.current = initialDraftId;
+    let cancelled = false;
+    void (async () => {
+      const res = await fetch(`/api/ads/search/drafts/${initialDraftId}`, { cache: "no-store" });
+      const json = (await res.json()) as {
+        ok: boolean;
+        draft?: SearchDraftClientView;
+        error?: string;
+        hint?: string;
+      };
+      if (cancelled) return;
+      if (!json.ok || !json.draft) {
+        setError([json.error, json.hint].filter(Boolean).join(" — ") || "Unable to open Search draft.");
+        return;
+      }
+      applyDraft(json.draft);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // applyDraft is local and uses current targeting as fallback
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialDraftId]);
+
   useImperativeHandle(
     ref,
     () => ({
       getCustomerId: () => customerId,
       getDraftId: () => draftId,
+      getStep: () => step,
+      setStep: (next) => {
+        if (next <= step || (next === 8 && result)) setStep(next);
+      },
       persist: persistDraft,
       applyDraft,
     }),
     // persistDraft closes over current wizard fields
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [customerId, draftId, name, budgetDollars, startDate, endDate, groups, targets, enhancedCpc],
+    [customerId, draftId, name, budgetDollars, startDate, endDate, groups, targets, enhancedCpc, step, result],
   );
 
   async function persistDraft(): Promise<string | null> {
@@ -229,6 +310,7 @@ export const SearchWizard = forwardRef<
 
   async function goNext() {
     if (step === 0 && (!customerId || selected?.warning)) {
+      setShowErrors(true);
       setError("Select an enabled client account. Mutations on 485-651-7690 are blocked.");
       return;
     }
@@ -240,9 +322,18 @@ export const SearchWizard = forwardRef<
   }
 
   async function runAction(kind: "validate" | "apply") {
+    setShowErrors(true);
     const typedPhrase = (confirmRef.current?.value ?? confirmPhrase).trim();
-    if (kind === "apply" && typedPhrase !== CONFIRM_PAUSED_PHRASE) {
-      setError(`Type ${CONFIRM_PAUSED_PHRASE} to apply a PAUSED campaign. Validate is preferred.`);
+    if (kind === "apply" && !applyReady) {
+      setError(
+        dryRun
+          ? "Turn dry-run off and type CREATE PAUSED to apply a PAUSED campaign."
+          : `Type ${CONFIRM_PAUSED_PHRASE} to apply a PAUSED campaign. Validate is preferred.`,
+      );
+      return;
+    }
+    if (kind === "validate" && !isSearchCreateFormValid(fieldErrors)) {
+      setError("Fix the coral field errors, then validate.");
       return;
     }
     setBusy(true);
@@ -261,12 +352,12 @@ export const SearchWizard = forwardRef<
       }),
     });
     const json = (await res.json()) as WizardResult;
-    setResult(json);
     if (!json.ok) {
       setError([json.error, json.hint].filter(Boolean).join(" — ") || "Request failed.");
       setBusy(false);
       return;
     }
+    setResult(json);
     setError(null);
     setStep(8);
     setBusy(false);
@@ -280,16 +371,34 @@ export const SearchWizard = forwardRef<
     setResult(null);
     setConfirmPhrase("");
     setError(null);
+    setDryRun(true);
+    setShowErrors(false);
+    loadedDraftId.current = null;
   }
 
   return (
-    <section className="rounded-2xl border border-ink-700 bg-ink-900 p-5">
-      <h2 className="text-lg text-white">Search campaign wizard (PAUSED)</h2>
-      <p className="mt-1 text-sm text-moss-400">
-        Schema v1.7 drafts in Neon. The assistant can fill fields; Validate is a full-tree{" "}
-        <code className="font-mono text-moss-300">validateOnly</code> dry-run. Apply still creates
-        PAUSED only — there is no enable path.
-      </p>
+    <section className="rounded-2xl border border-ink-700 bg-ink-900 p-5" data-testid="ops-search-create-wizard">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg text-paper-50">Search campaign wizard (PAUSED)</h2>
+          <p className="mt-1 text-sm text-moss-400">
+            S0–S8 on this route. Validate is a full-tree{" "}
+            <code className="font-mono text-moss-300">validateOnly</code> dry-run. Create PAUSED
+            stays locked until dry-run is off and the phrase matches. There is no enable path.
+          </p>
+        </div>
+        <label className="flex items-center gap-2 font-mono text-xs text-amber-400">
+          <input
+            type="checkbox"
+            className="accent-lime-400"
+            checked={dryRun}
+            onChange={(event) => setDryRun(event.target.checked)}
+            data-testid="ops-search-create-dry-run"
+          />
+          Dry-run (default)
+        </label>
+      </div>
+      <p className="mt-3 text-xs text-amber-400/90">{SEARCH_CREATE_NOTE}</p>
 
       <ol className="mt-4 flex flex-wrap gap-2" aria-label="Wizard steps">
         {STEPS.map((item, index) => (
@@ -331,6 +440,7 @@ export const SearchWizard = forwardRef<
             customerId={customerId}
             onSelect={setCustomerId}
             connected={connected}
+            accountError={visibleError("customerId")}
           />
         ) : null}
         {step === 1 ? (
@@ -343,12 +453,21 @@ export const SearchWizard = forwardRef<
             onBudget={setBudgetDollars}
             onStart={setStartDate}
             onEnd={setEndDate}
+            nameError={visibleError("name")}
+            budgetError={visibleError("budgetDollars")}
+            chatMarks={chatMarks}
           />
         ) : null}
-        {step === 2 ? <AdGroupsStep groups={groups} onChange={setGroups} /> : null}
-        {step === 3 ? <KeywordsStep groups={groups} onChange={setGroups} /> : null}
-        {step === 4 ? <AdsStep groups={groups} onChange={setGroups} /> : null}
-        {step === 5 ? <TargetingStep targets={targets} onChange={setTargets} /> : null}
+        {step === 2 ? (
+          <AdGroupsStep groups={groups} onChange={setGroups} groupError={visibleError("groups")} />
+        ) : null}
+        {step === 3 ? (
+          <KeywordsStep groups={groups} onChange={setGroups} keywordError={visibleError("keywords")} />
+        ) : null}
+        {step === 4 ? <AdsStep groups={groups} onChange={setGroups} adError={visibleError("ads")} /> : null}
+        {step === 5 ? (
+          <TargetingStep targets={targets} onChange={setTargets} targetError={visibleError("targets")} />
+        ) : null}
         {step === 6 ? (
           <BiddingStep
             groups={groups}
@@ -371,6 +490,8 @@ export const SearchWizard = forwardRef<
             confirmPhrase={confirmPhrase}
             confirmRef={confirmRef}
             onConfirm={setConfirmPhrase}
+            confirmError={visibleError("confirmPhrase")}
+            dryRun={dryRun}
           />
         ) : null}
         {step === 8 ? <ResultStep result={result} draftId={draftId} /> : null}
@@ -403,7 +524,7 @@ export const SearchWizard = forwardRef<
               data-testid="wizard-validate"
               onClick={() => void runAction("validate")}
               disabled={!connected || busy}
-              className="rounded-lg bg-lime-400 px-4 py-2 text-sm font-medium text-ink-950 hover:bg-lime-500 disabled:opacity-40"
+              className={dryRun ? "ops-btn-primary" : "ops-btn-secondary"}
             >
               {busy ? "Working…" : "Validate (dry-run)"}
             </button>
@@ -411,8 +532,9 @@ export const SearchWizard = forwardRef<
               type="button"
               data-testid="wizard-apply"
               onClick={() => void runAction("apply")}
-              disabled={!connected || busy}
-              className="rounded-lg border border-amber-400/40 px-4 py-2 text-sm text-amber-400 hover:bg-amber-400/10 disabled:opacity-40"
+              disabled={!applyReady || busy}
+              className="ops-btn-amber"
+              data-armed={applyReady ? "true" : "false"}
             >
               {busy ? "Applying PAUSED…" : "Create PAUSED"}
             </button>
@@ -428,6 +550,11 @@ export const SearchWizard = forwardRef<
           </button>
         ) : null}
       </div>
+      {step === 7 && dryRun ? (
+        <p className="mt-2 font-mono text-xs text-lime-400">
+          Dry-run is on — Create PAUSED is locked. Uncheck to type {CONFIRM_PAUSED_PHRASE} and create PAUSED.
+        </p>
+      ) : null}
     </section>
   );
 });
@@ -437,11 +564,13 @@ function AccountStep({
   customerId,
   onSelect,
   connected,
+  accountError,
 }: {
   accounts: AdsAccountView[];
   customerId: string;
   onSelect: (id: string) => void;
   connected: boolean;
+  accountError?: string;
 }) {
   if (!connected) {
     return <p className="text-sm text-moss-500">Connect Google Ads (or ADRUNR_MOCK=1) to pick a customer.</p>;
@@ -471,6 +600,11 @@ function AccountStep({
           </label>
         ))}
       </div>
+      {accountError ? (
+        <p data-testid="ops-search-create-account-error" className="mt-3 text-sm text-coral-400">
+          {accountError}
+        </p>
+      ) : null}
     </fieldset>
   );
 }
@@ -484,6 +618,9 @@ function BasicsStep({
   onBudget,
   onStart,
   onEnd,
+  nameError,
+  budgetError,
+  chatMarks,
 }: {
   name: string;
   budgetDollars: string;
@@ -493,22 +630,39 @@ function BasicsStep({
   onBudget: (value: string) => void;
   onStart: (value: string) => void;
   onEnd: (value: string) => void;
+  nameError?: string;
+  budgetError?: string;
+  chatMarks: string[];
 }) {
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      <Field label="Campaign name">
+      <Field
+        label="Campaign name"
+        mark={chatMarks.includes("name") ? CAMPAIGN_CHAT_PROPOSED_MARK : undefined}
+        error={nameError}
+        errorTestId="ops-search-create-name-error"
+      >
         <input
+          data-testid="ops-search-create-name"
           value={name}
           onChange={(event) => onName(event.target.value)}
           className="input"
+          aria-invalid={Boolean(nameError)}
         />
       </Field>
-      <Field label="Daily budget (USD — campaign stays PAUSED)">
+      <Field
+        label="Daily budget (USD — campaign stays PAUSED)"
+        mark={chatMarks.includes("dailyBudgetMicros") ? CAMPAIGN_CHAT_PROPOSED_MARK : undefined}
+        error={budgetError}
+        errorTestId="ops-search-create-budget-error"
+      >
         <input
+          data-testid="ops-search-create-budget"
           value={budgetDollars}
           onChange={(event) => onBudget(event.target.value)}
           inputMode="decimal"
           className="input font-mono"
+          aria-invalid={Boolean(budgetError)}
         />
       </Field>
       <Field label="Start date (optional)">
@@ -524,13 +678,20 @@ function BasicsStep({
 function AdGroupsStep({
   groups,
   onChange,
+  groupError,
 }: {
   groups: WizardAdGroup[];
   onChange: (groups: WizardAdGroup[]) => void;
+  groupError?: string;
 }) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-moss-400">S2 · At least one ad group. Default CPC bid is used for Manual CPC.</p>
+      {groupError ? (
+        <p data-testid="ops-search-create-groups-error" className="text-sm text-coral-400">
+          {groupError}
+        </p>
+      ) : null}
       {groups.map((group, index) => (
         <div key={`g-${index}`} className="grid gap-3 rounded-xl border border-ink-700 bg-ink-950 p-4 md:grid-cols-2">
           <Field label="Ad group name">
@@ -581,13 +742,20 @@ function AdGroupsStep({
 function KeywordsStep({
   groups,
   onChange,
+  keywordError,
 }: {
   groups: WizardAdGroup[];
   onChange: (groups: WizardAdGroup[]) => void;
+  keywordError?: string;
 }) {
   return (
     <div className="space-y-5">
       <p className="text-sm text-moss-400">S3 · Keywords per ad group. Negative keywords skip bids.</p>
+      {keywordError ? (
+        <p data-testid="ops-search-create-keywords-error" className="text-sm text-coral-400">
+          {keywordError}
+        </p>
+      ) : null}
       {groups.map((group, groupIndex) => (
         <div key={`kw-${groupIndex}`} className="rounded-xl border border-ink-700 bg-ink-950 p-4">
           <p className="text-sm text-white">{group.name}</p>
@@ -681,15 +849,22 @@ function KeywordsStep({
 function AdsStep({
   groups,
   onChange,
+  adError,
 }: {
   groups: WizardAdGroup[];
   onChange: (groups: WizardAdGroup[]) => void;
+  adError?: string;
 }) {
   return (
     <div className="space-y-5">
       <p className="text-sm text-moss-400">
         S4 · Responsive search ads. {HEADLINE_MAX} headlines max, {DESCRIPTION_MAX} descriptions max.
       </p>
+      {adError ? (
+        <p data-testid="ops-search-create-ads-error" className="text-sm text-coral-400">
+          {adError}
+        </p>
+      ) : null}
       {groups.map((group, groupIndex) =>
         group.ads.map((ad, adIndex) => (
           <div key={`ad-${groupIndex}-${adIndex}`} className="space-y-3 rounded-xl border border-ink-700 bg-ink-950 p-4">
@@ -755,14 +930,21 @@ function updateAd(
 function TargetingStep({
   targets,
   onChange,
+  targetError,
 }: {
   targets: WizardTarget[];
   onChange: (targets: WizardTarget[]) => void;
+  targetError?: string;
 }) {
   const geos = targets.filter((target) => target.type === "GEO");
   const languages = targets.filter((target) => target.type === "LANGUAGE");
   return (
     <div className="grid gap-6 md:grid-cols-2">
+      {targetError ? (
+        <p data-testid="ops-search-create-targets-error" className="text-sm text-coral-400 md:col-span-2">
+          {targetError}
+        </p>
+      ) : null}
       <fieldset>
         <legend className="text-sm text-white">S5 · Geo (MVP)</legend>
         <p className="mt-1 text-xs text-moss-500">Audiences / schedule / device stay schema-ready.</p>
@@ -883,6 +1065,8 @@ function ReviewStep({
   confirmPhrase,
   confirmRef,
   onConfirm,
+  confirmError,
+  dryRun,
 }: {
   customerId: string;
   selected: AdsAccountView | null;
@@ -896,6 +1080,8 @@ function ReviewStep({
   confirmPhrase: string;
   confirmRef: RefObject<HTMLInputElement | null>;
   onConfirm: (value: string) => void;
+  confirmError?: string;
+  dryRun: boolean;
 }) {
   return (
     <div className="space-y-4 text-sm">
@@ -940,6 +1126,7 @@ function ReviewStep({
       <label className="block">
         <span className="text-amber-400">
           Type {CONFIRM_PAUSED_PHRASE} only if you are applying. Validate does not need this.
+          {dryRun ? " Dry-run is on — Create PAUSED stays locked." : ""}
         </span>
         <input
           ref={confirmRef}
@@ -947,7 +1134,14 @@ function ReviewStep({
           value={confirmPhrase}
           onChange={(event) => onConfirm(event.target.value)}
           className="input mt-1 font-mono"
+          placeholder={CONFIRM_PAUSED_PHRASE}
+          aria-invalid={Boolean(confirmError)}
         />
+        {confirmError ? (
+          <span data-testid="ops-search-create-confirm-error" className="mt-1 block text-xs text-coral-400">
+            {confirmError}
+          </span>
+        ) : null}
       </label>
     </div>
   );
@@ -977,11 +1171,33 @@ function ResultStep({ result, draftId }: { result: WizardResult | null; draftId:
   );
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({
+  label,
+  children,
+  mark,
+  error,
+  errorTestId,
+}: {
+  label: string;
+  children: ReactNode;
+  mark?: string;
+  error?: string;
+  errorTestId?: string;
+}) {
   return (
     <label className="block text-sm">
-      <span className="text-moss-500">{label}</span>
+      <span className="text-moss-500">
+        {label}
+        {mark ? (
+          <span className="ml-2 font-mono text-[10px] uppercase tracking-wide text-lime-400">{mark}</span>
+        ) : null}
+      </span>
       <div className="mt-1">{children}</div>
+      {error ? (
+        <span data-testid={errorTestId} className="mt-1 block text-xs text-coral-400">
+          {error}
+        </span>
+      ) : null}
     </label>
   );
 }

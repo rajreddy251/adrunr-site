@@ -1,6 +1,9 @@
 "use client";
 
+import type { RefObject } from "react";
+
 import { SearchAssistant } from "@/components/search-assistant";
+import type { SearchWizardHandle } from "@/components/search-wizard";
 import {
   CAMPAIGN_CHAT_CHIP_LABEL,
   CAMPAIGN_CHAT_PANEL_WIDTH_PX,
@@ -11,20 +14,24 @@ import type { SearchDraftClientView } from "@/lib/types";
 
 export function CampaignChat({
   campaignId,
+  draftId,
   customerId,
   connected,
   open,
   onOpenChange,
   onPropose,
   onToast,
+  wizard,
 }: {
-  campaignId: string;
+  campaignId?: string;
+  draftId?: string | null;
   customerId: string;
   connected: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPropose?: (proposal: CampaignChatProposal) => void;
   onToast?: (message: string) => void;
+  wizard?: RefObject<SearchWizardHandle | null>;
 }) {
   if (!open) {
     return (
@@ -63,6 +70,8 @@ export function CampaignChat({
         connected={connected}
         customerId={customerId}
         campaignId={campaignId}
+        draftId={draftId}
+        wizard={wizard}
         onPropose={(draft: SearchDraftClientView, patchedFields: string[]) => {
           onPropose?.(searchDraftToChatProposal(draft, patchedFields));
         }}

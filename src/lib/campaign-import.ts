@@ -25,6 +25,7 @@ import {
   SEARCH_KEYWORD_MATCH_TYPES,
   type SearchKeywordMatchTypeValue,
 } from "./search-draft";
+import { searchCreatePath } from "./search-create";
 import { defaultShoppingDraftTree } from "./shopping-draft";
 import type { AssistantCampaignKind, SyncedAdView, SyncedCampaignView, SyncedKeywordView } from "./types";
 import { defaultVideoDraftTree } from "./video-draft";
@@ -504,8 +505,10 @@ export function buildImportedDraftTree(input: {
 }
 
 export function importWizardHint(kind: ImportDraftKind): string {
-  const labels: Record<ImportDraftKind, string> = {
-    SEARCH: "Search",
+  if (kind === "SEARCH") {
+    return `Open Search draft at ${searchCreatePath()} to validate / CREATE PAUSED. Import never enables spend.`;
+  }
+  const labels: Record<Exclude<ImportDraftKind, "SEARCH">, string> = {
     DISPLAY: "Display",
     PMAX: "Performance Max",
     DEMAND_GEN: "Demand Gen",
