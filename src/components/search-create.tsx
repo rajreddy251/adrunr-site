@@ -9,7 +9,6 @@ import { useOpsSession } from "@/components/ops-session";
 import { SearchWizard, type SearchWizardHandle } from "@/components/search-wizard";
 import {
   SEARCH_CREATE_NOTE,
-  SEARCH_CREATE_STEPS,
   searchCreateChatVisible,
   searchCreatePath,
 } from "@/lib/search-create";
@@ -38,12 +37,10 @@ export function SearchCreate() {
       <div className="flex flex-col gap-6 xl:flex-row xl:items-start" data-testid="ops-search-create-frame">
         <div className="min-w-0 flex-1 space-y-6">
           <SearchCreateChrome
-            step={step}
             draftId={draftId}
             chatOpen={chatOpen && showChat}
             showChatToggle={showChat}
             onChatToggle={() => setChatOpen((open) => !open)}
-            onStepSelect={(next) => wizardRef.current?.setStep(next)}
           />
           {toast ? (
             <p
@@ -81,19 +78,15 @@ export function SearchCreate() {
 }
 
 function SearchCreateChrome({
-  step,
   draftId,
   chatOpen,
   showChatToggle,
   onChatToggle,
-  onStepSelect,
 }: {
-  step: number;
   draftId: string | null;
   chatOpen: boolean;
   showChatToggle: boolean;
   onChatToggle: () => void;
-  onStepSelect: (step: number) => void;
 }) {
   return (
     <section data-testid="ops-search-create-chrome" className="ops-focus-chrome rounded-2xl border bg-ink-900 p-5">
@@ -122,29 +115,6 @@ function SearchCreateChrome({
       </header>
 
       <p className="mt-3 text-xs text-amber-400/90">{SEARCH_CREATE_NOTE}</p>
-
-      <ol className="mt-4 flex flex-wrap gap-2" aria-label="Create steps" data-testid="ops-search-create-steps">
-        {SEARCH_CREATE_STEPS.map((item, index) => (
-          <li key={item.id}>
-            <button
-              type="button"
-              data-testid={`ops-search-create-step-${item.id}`}
-              onClick={() => {
-                if (index <= step || (index === 8 && step === 8)) onStepSelect(index);
-              }}
-              className={`rounded-full px-3 py-1 font-mono text-xs ${
-                index === step
-                  ? "bg-lime-400 text-ink-950"
-                  : index < step
-                    ? "border border-lime-400/40 text-lime-400"
-                    : "border border-ink-700 text-moss-500"
-              }`}
-            >
-              {item.id} {item.title}
-            </button>
-          </li>
-        ))}
-      </ol>
 
       {showChatToggle ? (
         <div className="mt-4">
