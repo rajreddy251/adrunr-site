@@ -95,7 +95,8 @@
   color: #f26b4d;
 }
 
-.ops-shell .ops-btn-danger:hover {
+.ops-shell .ops-btn-danger:hover,
+.ops-shell .ops-btn-danger[data-armed="true"] {
   background: rgba(242, 107, 77, 0.1);
 }
 

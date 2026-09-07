@@ -124,7 +124,12 @@ describe("Slice A ops IA shell", () => {
     expect(read("src/components/ops-campaigns.tsx")).not.toMatch(/>\s*Enable\s*</);
     expect(read("src/components/campaign-overview.tsx")).not.toMatch(/>\s*Enable\s*</);
     expect(read("src/components/campaign-focus.tsx")).not.toMatch(/>\s*Enable\s*</);
+    expect(read("src/components/campaign-confirm.tsx")).not.toMatch(/>\s*Enable\s*</);
+    expect(read("src/components/campaign-pause.tsx")).not.toMatch(/>\s*Enable\s*</);
+    expect(read("src/components/campaign-delete.tsx")).not.toMatch(/>\s*Enable\s*</);
     expect(read("src/components/edit-panel.tsx")).not.toMatch(/>\s*Enable\s*</);
     expect(read("src/components/campaign-edit.tsx")).not.toMatch(/>\s*Enable\s*</);
+    expect(read("src/app/ops/campaigns/[id]/pause/page.tsx")).not.toMatch(/>\s*Enable\s*</);
+    expect(read("src/app/ops/campaigns/[id]/delete/page.tsx")).not.toMatch(/>\s*Enable\s*</);
   });
 });
