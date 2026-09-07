@@ -115,6 +115,8 @@ describe("Slice A ops IA shell", () => {
     expect(read("src/components/metrics-panel.tsx")).toContain('dryRun ? "ops-btn-primary"');
     expect(read("src/components/import-panel.tsx")).toContain('dryRun ? "ops-btn-primary"');
     expect(read("src/components/reports-panel.tsx")).toContain("ops-btn-primary");
-    expect(read("src/components/reports-panel.tsx")).not.toContain("Enable");
+    expect(read("src/components/reports-panel.tsx")).not.toMatch(/>\s*Enable\s*</);
+    expect(read("src/components/ops-hub.tsx")).not.toMatch(/>\s*Enable\s*</);
+    expect(read("src/components/ops-campaigns.tsx")).not.toMatch(/>\s*Enable\s*</);
   });
 });
