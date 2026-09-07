@@ -105,6 +105,29 @@
   box-shadow: 0 0 0 1px rgba(200, 245, 66, 0.18);
 }
 
+.ops-shell .ops-chat-panel {
+  width: 380px;
+  max-width: 100%;
+}
+
+.ops-shell .ops-chat-bubble-assistant {
+  border: 1px solid rgba(200, 245, 66, 0.35);
+  background: rgba(200, 245, 66, 0.08);
+  color: #b7c4b8;
+}
+
+.ops-shell .ops-chat-bubble-user {
+  border: 1px solid #2a332e;
+  color: #f4f5f0;
+}
+
+.ops-shell .ops-chat-refused {
+  border-radius: 0.75rem;
+  border: 1px solid rgba(242, 107, 77, 0.45);
+  background: rgba(242, 107, 77, 0.12);
+  color: #f26b4d;
+}
+
 .ops-shell .ops-table {
   width: 100%;
   border-collapse: collapse;

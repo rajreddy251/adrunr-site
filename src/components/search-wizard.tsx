@@ -12,6 +12,7 @@ import {
   type RefObject,
 } from "react";
 
+import { CAMPAIGN_CHAT_DID_NOT_APPLY, CAMPAIGN_CHAT_PROPOSED_MARK } from "@/lib/campaign-chat";
 import { CONFIRM_PAUSED_PHRASE } from "@/lib/safety";
 import {
   DESCRIPTION_MAX,
@@ -109,7 +110,10 @@ export type SearchWizardHandle = {
   getCustomerId: () => string;
   getDraftId: () => string | null;
   persist: () => Promise<string | null>;
-  applyDraft: (draft: SearchDraftClientView) => void;
+  applyDraft: (
+    draft: SearchDraftClientView,
+    meta?: { patchedFields?: string[]; proposedByChat?: boolean },
+  ) => void;
 };
 
 export const SearchWizard = forwardRef<
@@ -143,6 +147,7 @@ export const SearchWizard = forwardRef<
     { type: "LANGUAGE", valueText: "English", criterionText: "languageConstants/1000", included: true },
   ]);
   const [enhancedCpc, setEnhancedCpc] = useState(false);
+  const [chatMarks, setChatMarks] = useState<string[]>([]);
 
   useEffect(() => {
     if (customerId) return;
@@ -173,7 +178,10 @@ export const SearchWizard = forwardRef<
     };
   }
 
-  function applyDraft(draft: SearchDraftClientView) {
+  function applyDraft(
+    draft: SearchDraftClientView,
+    meta?: { patchedFields?: string[]; proposedByChat?: boolean },
+  ) {
     const next = hydrateWizardFromDraft(draft);
     setDraftId(next.draftId);
     setCustomerId(next.customerId);
@@ -184,6 +192,7 @@ export const SearchWizard = forwardRef<
     setGroups(next.groups);
     setTargets(next.targets.length ? next.targets : targets);
     setEnhancedCpc(next.enhancedCpc);
+    setChatMarks(meta?.proposedByChat ? (meta.patchedFields?.length ? meta.patchedFields : ["name"]) : []);
     setStep((current) => (current === 0 ? 1 : current));
     setError(null);
   }
@@ -307,6 +316,11 @@ export const SearchWizard = forwardRef<
       {error ? (
         <p className="mt-4 text-sm text-coral-400" role="alert">
           {error}
+        </p>
+      ) : null}
+      {chatMarks.length ? (
+        <p data-testid="wizard-chat-proposed" className="mt-4 text-sm text-lime-400">
+          {CAMPAIGN_CHAT_PROPOSED_MARK} — {CAMPAIGN_CHAT_DID_NOT_APPLY}
         </p>
       ) : null}
 

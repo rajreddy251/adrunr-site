@@ -1,10 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 
 import {
-  CAMPAIGN_CHAT_STUB_NOTE,
   CAMPAIGN_OVERVIEW_NOTE,
   campaignDeletePath,
   campaignEditPath,
@@ -23,13 +21,16 @@ export function CampaignFocusChrome({
   campaign,
   snapshot,
   mode,
+  chatOpen,
+  onChatToggle,
 }: {
   campaignId: string;
   campaign: SyncedCampaignView | null;
   snapshot: CampaignMetricSnapshotView | null;
   mode: CampaignFocusMode;
+  chatOpen?: boolean;
+  onChatToggle?: () => void;
 }) {
-  const [stub, setStub] = useState<string | null>(null);
   const name = campaign?.name ?? `Campaign ${campaignId}`;
   const typeLabel = channelTypeLabel(campaign?.advertisingChannelType ?? "SEARCH");
   const status = campaign?.status ?? "Not in listings cache";
@@ -97,16 +98,11 @@ export function CampaignFocusChrome({
           type="button"
           data-testid="ops-campaign-chat"
           className="ops-btn-secondary"
-          onClick={() => setStub(CAMPAIGN_CHAT_STUB_NOTE)}
+          onClick={onChatToggle}
         >
-          Open chat
+          {chatOpen ? "Hide chat" : "Open chat"}
         </button>
       </div>
-      {stub ? (
-        <p data-testid="ops-campaign-stub" className="mt-3 text-sm text-amber-400">
-          Coming soon — {stub}
-        </p>
-      ) : null}
 
       {campaign ? (
         <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-3">

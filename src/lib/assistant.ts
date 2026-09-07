@@ -106,10 +106,12 @@ export const ASSISTANT_FORBIDDEN_ACTIONS = [
   "go_live",
   "publish",
   "unpause",
+  "pause",
+  "delete",
 ] as const;
 
 const FORBIDDEN_INTENT =
-  /\b(validate(?:\s*only)?|validateonly|apply(?:\s+paused)?|create paused|enable|go[\s-]?live|publish\s+live|unpause|launch)\b/i;
+  /\b(validate(?:\s*only)?|validateonly|apply(?:\s+paused)?|create paused|edit safe|enable|go[\s-]?live|publish\s+live|unpause|launch|pause|delete)\b/i;
 
 const FORBIDDEN_PLAN_KEYS = [
   "validate",
@@ -176,14 +178,37 @@ export function detectForbiddenAssistantIntent(text: string): string | null {
   if (!match) return null;
   const token = match[1].toLowerCase().replace(/\s+/g, "_");
   if (token.includes("validate") || token.includes("dry")) return "validate";
-  if (token.includes("apply") || token.includes("create_paused") || token === "create_paused") {
+  if (
+    token.includes("apply") ||
+    token.includes("create_paused") ||
+    token.includes("edit_safe") ||
+    token === "create_paused"
+  ) {
     return "apply";
   }
+  if (token.includes("unpause") || token.includes("publish")) return "enable";
   if (token.includes("enable") || token.includes("go") || token.includes("live") || token.includes("launch")) {
     return "enable";
   }
-  if (token.includes("publish") || token.includes("unpause")) return "enable";
+  if (token.includes("pause")) return "pause";
+  if (token.includes("delete")) return "delete";
   return token;
+}
+
+export function assistantRefusalMessage(action: string): string {
+  if (action === "validate") {
+    return "I cannot Validate from chat. Use Validate (dry-run) on the form — that is validateOnly only.";
+  }
+  if (action === "apply") {
+    return "I cannot Apply from chat. Create PAUSED and EDIT SAFE live on the form. There is no enable path.";
+  }
+  if (action === "pause") {
+    return "I cannot Pause from chat. Use Pause on the form.";
+  }
+  if (action === "delete") {
+    return "I cannot Delete from chat. Use Delete on the form.";
+  }
+  return "I cannot enable, publish, or go live. Adrunr only drafts PAUSED campaigns; spend requires an action outside this app.";
 }
 
 export function stripForbiddenPlanActions(plan: AssistantTurnPlan): AssistantTurnPlan {
@@ -875,12 +900,7 @@ export function mockAssistantTurn(input: {
       ask_questions: [],
       memory: [],
       refusedAction: forbidden,
-      assistant_message:
-        forbidden === "validate"
-          ? "I cannot Validate from chat. Use Validate (dry-run) on the wizard review step — that is validateOnly only."
-          : forbidden === "apply"
-            ? "I cannot Apply from chat. Create PAUSED lives on the form and requires typing CREATE PAUSED. There is no enable path."
-            : "I cannot enable, publish, or go live. Adrunr only drafts PAUSED campaigns; spend requires an action outside this app.",
+      assistant_message: assistantRefusalMessage(forbidden),
     };
   }
 
@@ -1048,12 +1068,7 @@ function mockDisplayAssistantTurn(input: {
       ask_questions: [],
       memory: [],
       refusedAction: forbidden,
-      assistant_message:
-        forbidden === "validate"
-          ? "I cannot Validate from chat. Use Validate (dry-run) on the wizard review step — that is validateOnly only."
-          : forbidden === "apply"
-            ? "I cannot Apply from chat. Create PAUSED lives on the form and requires typing CREATE PAUSED. There is no enable path."
-            : "I cannot enable, publish, or go live. Adrunr only drafts PAUSED campaigns; spend requires an action outside this app.",
+      assistant_message: assistantRefusalMessage(forbidden),
     };
   }
 
@@ -1241,12 +1256,7 @@ function mockPmaxAssistantTurn(input: {
       ask_questions: [],
       memory: [],
       refusedAction: forbidden,
-      assistant_message:
-        forbidden === "validate"
-          ? "I cannot Validate from chat. Use Validate (dry-run) on the wizard review step — that is validateOnly only."
-          : forbidden === "apply"
-            ? "I cannot Apply from chat. Create PAUSED lives on the form and requires typing CREATE PAUSED. There is no enable path."
-            : "I cannot enable, publish, or go live. Adrunr only drafts PAUSED campaigns; spend requires an action outside this app.",
+      assistant_message: assistantRefusalMessage(forbidden),
     };
   }
 
@@ -1421,12 +1431,7 @@ function mockDemandGenAssistantTurn(input: {
       ask_questions: [],
       memory: [],
       refusedAction: forbidden,
-      assistant_message:
-        forbidden === "validate"
-          ? "I cannot Validate from chat. Use Validate (dry-run) on the wizard review step — that is validateOnly only."
-          : forbidden === "apply"
-            ? "I cannot Apply from chat. Create PAUSED lives on the form and requires typing CREATE PAUSED. There is no enable path."
-            : "I cannot enable, publish, or go live. Adrunr only drafts PAUSED campaigns; spend requires an action outside this app.",
+      assistant_message: assistantRefusalMessage(forbidden),
     };
   }
 
@@ -1609,12 +1614,7 @@ function mockVideoAssistantTurn(input: {
       ask_questions: [],
       memory: [],
       refusedAction: forbidden,
-      assistant_message:
-        forbidden === "validate"
-          ? "I cannot Validate from chat. Use Validate (dry-run) on the wizard review step — that is validateOnly only."
-          : forbidden === "apply"
-            ? "I cannot Apply from chat. Create PAUSED lives on the form and requires typing CREATE PAUSED. There is no enable path."
-            : "I cannot enable, publish, or go live. Adrunr only drafts PAUSED campaigns; spend requires an action outside this app.",
+      assistant_message: assistantRefusalMessage(forbidden),
     };
   }
 

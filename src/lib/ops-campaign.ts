@@ -9,8 +9,6 @@ import type { CampaignMetricSnapshotView, SyncedCampaignView } from "@/lib/types
 export const CAMPAIGN_OVERVIEW_NOTE =
   "Cached status is a snapshot. Overview never enables, unpauses, or goes live.";
 
-export const CAMPAIGN_CHAT_STUB_NOTE = "Campaign chat is coming soon. Slice D adds the panel.";
-
 /** Live Google Ads pause/delete mutate is not shipped. Confirm UX is gated. */
 export const CAMPAIGN_PAUSE_DELETE_MUTATE_AVAILABLE = false;
 
