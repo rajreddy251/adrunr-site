@@ -1,5 +1,11 @@
-export const SAFETY_COPY = {
+export const SHELL_SAFETY_STRIP = {
   headline: "Ops tools, not autopilot. No spend without an explicit confirm.",
+  detail:
+    "Dry-run / validateOnly first · Creates → CREATE PAUSED · Edits → EDIT SAFE · No in-app ENABLE.",
+} as const;
+
+export const SAFETY_COPY = {
+  headline: SHELL_SAFETY_STRIP.headline,
   bullets: [
     "Developer token is Test Account access until Basic Access is approved. Production MCC reads can fail or be limited.",
     "New Search, Display, Performance Max, Demand Gen, Video, Shopping, App, Hotel, Local, and Local Services campaigns are created PAUSED. Dry-run (validateOnly) is the default and preferred path.",

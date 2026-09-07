@@ -263,7 +263,7 @@ export function EditPanel({
             {!customerId ? (
               <tr>
                 <td colSpan={4} className="py-6 text-moss-500">
-                  Select an accessible customer, then sync listings (and optionally metrics).
+                  Select a customer in the top bar, then sync listings (and optionally metrics).
                 </td>
               </tr>
             ) : campaigns.length === 0 ? (
@@ -394,7 +394,7 @@ export function EditPanel({
           data-testid="ops-edit-validate"
           onClick={() => void runAction("validate")}
           disabled={!connected || !selected || busy !== null}
-          className="rounded-lg bg-lime-400 px-4 py-2 text-sm font-medium text-ink-950 hover:bg-lime-500 disabled:opacity-50"
+          className="ops-btn-primary"
         >
           {busy === "validate" ? "Validating…" : "Validate (dry-run)"}
         </button>
@@ -403,7 +403,8 @@ export function EditPanel({
           data-testid="ops-edit-apply"
           onClick={() => void runAction("apply")}
           disabled={!connected || !selected || busy !== null || dryRun}
-          className="rounded-lg border border-amber-400/40 px-4 py-2 text-sm text-amber-400 hover:bg-amber-400/10 disabled:opacity-50"
+          className="ops-btn-amber"
+          data-armed={!dryRun ? "true" : "false"}
         >
           {busy === "apply" ? "Applying edit…" : `Apply ${CONFIRM_EDIT_PHRASE}`}
         </button>

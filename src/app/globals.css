@@ -5,10 +5,7 @@
 .ops-shell {
   color-scheme: dark;
   min-height: 100%;
-  background:
-    radial-gradient(1200px 600px at 10% -10%, rgba(200, 245, 66, 0.08), transparent 55%),
-    radial-gradient(900px 500px at 100% 0%, rgba(245, 185, 66, 0.06), transparent 50%),
-    #0b0e0c;
+  background: #0b0e0c;
 }
 
 .ops-shell ::selection {
@@ -19,8 +16,8 @@
 .ops-shell .input {
   width: 100%;
   border-radius: 0.5rem;
-  border: 1px solid #2a332c;
-  background: #0b0e0c;
+  border: 1px solid #2a332e;
+  background: #121714;
   padding: 0.5rem 0.75rem;
   color: #f4f5f0;
   outline: none;
@@ -28,6 +25,100 @@
 
 .ops-shell .input:focus {
   border-color: #c8f542;
+  box-shadow: 0 0 0 2px rgba(200, 245, 66, 0.35);
+}
+
+.ops-shell .ops-btn-primary,
+.ops-shell .ops-btn-secondary,
+.ops-shell .ops-btn-amber,
+.ops-shell .ops-btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.25;
+  outline: none;
+}
+
+.ops-shell .ops-btn-primary:focus-visible,
+.ops-shell .ops-btn-secondary:focus-visible,
+.ops-shell .ops-btn-amber:focus-visible,
+.ops-shell .ops-btn-danger:focus-visible,
+.ops-shell .input:focus-visible {
+  box-shadow: 0 0 0 2px rgba(200, 245, 66, 0.35);
+}
+
+.ops-shell .ops-btn-primary {
+  background: #c8f542;
+  color: #0b0e0c;
+}
+
+.ops-shell .ops-btn-primary:hover {
+  background: #a8d42a;
+}
+
+.ops-shell .ops-btn-primary:disabled,
+.ops-shell .ops-btn-secondary:disabled,
+.ops-shell .ops-btn-amber:disabled,
+.ops-shell .ops-btn-danger:disabled {
+  opacity: 0.5;
+}
+
+.ops-shell .ops-btn-secondary {
+  border: 1px solid #2a332e;
+  background: #121714;
+  color: #b7c4b8;
+}
+
+.ops-shell .ops-btn-secondary:hover {
+  background: #1a211d;
+  color: #f4f5f0;
+}
+
+.ops-shell .ops-btn-amber {
+  border: 1px solid rgba(245, 185, 66, 0.4);
+  background: transparent;
+  color: #f5b942;
+}
+
+.ops-shell .ops-btn-amber:hover,
+.ops-shell .ops-btn-amber[data-armed="true"] {
+  background: rgba(245, 185, 66, 0.1);
+}
+
+.ops-shell .ops-btn-danger {
+  border: 1px solid rgba(242, 107, 77, 0.4);
+  background: transparent;
+  color: #f26b4d;
+}
+
+.ops-shell .ops-btn-danger:hover {
+  background: rgba(242, 107, 77, 0.1);
+}
+
+.ops-shell .ops-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ops-shell .ops-table thead {
+  color: #5f7266;
+}
+
+.ops-shell .ops-table th {
+  padding-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.ops-shell table tbody tr {
+  border-top: 1px solid #24302a;
+}
+
+.ops-shell table tbody tr:hover {
+  background: #1a211d;
 }
 
 .marketing-shell {

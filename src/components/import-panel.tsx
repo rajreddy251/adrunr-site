@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { formatMoneyMicros } from "@/lib/metrics";
@@ -166,7 +167,7 @@ export function ImportPanel({
             data-testid="ops-import-run"
             onClick={() => void runImport()}
             disabled={!connected || !customerId || !selected || busy}
-            className="rounded-lg bg-lime-400 px-4 py-2 text-sm font-medium text-ink-950 hover:bg-lime-500 disabled:opacity-50"
+            className={dryRun ? "ops-btn-primary" : "ops-btn-secondary"}
           >
             {busy ? "Working…" : dryRun ? "Preview import" : "Import to draft"}
           </button>
@@ -179,7 +180,11 @@ export function ImportPanel({
 
       {!campaigns.length ? (
         <p className="mt-4 text-sm text-moss-500">
-          No cached campaigns. Run Synced listings with dry-run off first, then return here.
+          No cached campaigns. Run{" "}
+          <Link href="/ops/listings" className="text-lime-400 hover:underline">
+            Synced listings
+          </Link>{" "}
+          with dry-run off first, then return here.
         </p>
       ) : (
         <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,20rem)]">
