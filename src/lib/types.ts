@@ -10,6 +10,8 @@ export type AdsAccountView = {
   externalAccountId?: string;
 };
 
+export type { Ga4PropertyView } from "./ga4-shared";
+
 export type ProviderView = {
   slug: string;
   name: string;
@@ -28,7 +30,10 @@ export type ConnectionStatusView = {
   oauthConfigured: boolean;
   adsConfigured: boolean;
   loginCustomerId: string;
+  ga4Connected: boolean;
   ga4PropertyId: string | null;
+  ga4BoundPropertyId: string | null;
+  ga4BoundDisplayName: string | null;
   scopes: string[];
   databaseConfigured: boolean;
   organizationSlug: string | null;

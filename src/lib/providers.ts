@@ -8,10 +8,18 @@ export const GOOGLE_OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token";
 
 export const ADS_SCOPE = "https://www.googleapis.com/auth/adwords";
 export const GA4_SCOPE = "https://www.googleapis.com/auth/analytics.readonly";
+export const GA4_EDIT_SCOPE = "https://www.googleapis.com/auth/analytics.edit";
 
-export const GOOGLE_OAUTH_SCOPES = [ADS_SCOPE, GA4_SCOPE, "openid", "email", "profile"] as const;
+export const GOOGLE_OAUTH_SCOPES = [
+  ADS_SCOPE,
+  GA4_SCOPE,
+  GA4_EDIT_SCOPE,
+  "openid",
+  "email",
+  "profile",
+] as const;
 
-export const CONNECTABLE_PROVIDER_SLUGS = [GOOGLE_ADS_SLUG] as const;
+export const CONNECTABLE_PROVIDER_SLUGS = [GOOGLE_ADS_SLUG, GOOGLE_ANALYTICS_SLUG] as const;
 
 export type SeedProvider = {
   slug: string;
@@ -40,7 +48,7 @@ export const SEED_PROVIDERS: SeedProvider[] = [
     isActive: true,
     oauthAuthUrl: GOOGLE_OAUTH_AUTH_URL,
     oauthTokenUrl: GOOGLE_OAUTH_TOKEN_URL,
-    defaultScopes: [GA4_SCOPE, "openid", "email", "profile"].join(" "),
+    defaultScopes: [GA4_SCOPE, GA4_EDIT_SCOPE, "openid", "email", "profile"].join(" "),
   },
   {
     slug: "microsoft_clarity",

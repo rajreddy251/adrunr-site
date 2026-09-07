@@ -15,6 +15,7 @@ export const SAFETY_COPY = {
     "Safe campaign edit is validateOnly first. Apply requires typing EDIT SAFE. Name, budget, bids, and targeting-safe fields only. Status ENABLED / enable / unpause / go-live are refused.",
     "Import copies a cached Google campaign into an Adrunr create-type draft. Dry-run preview is the default. Import never enables, unpauses, or applies live Ads — imported drafts stay on the PAUSED create path.",
     "Performance reports are read-only. They roll up cached CampaignMetricSnapshot rows or a googleAds:search and never enable, unpause, mutate live Ads, or spend. Cached ENABLED is a snapshot only.",
+    "GA4 Connect is advertiser OAuth. Adrunr lists properties the connected user can access, binds one google_analytics ExternalAccount, and runs a read-only 7-day sessions report. Key events stay Coming soon. No spend.",
     "Pause and Delete confirms require typing PAUSE CAMPAIGN or DELETE CAMPAIGN. Live mutate is gated (Coming soon — use Google Ads). Adrunr will not enable later. Re-enable only in Google Ads.",
   ],
 } as const;
@@ -33,6 +34,9 @@ export const CAMPAIGN_IMPORT_NOTE =
 
 export const CAMPAIGN_REPORTS_NOTE =
   "Performance reports are read-only. Adrunr will not enable, unpause, mutate live Ads status, or spend.";
+
+export const GA4_CONNECT_SAFETY_NOTE =
+  "GA4 Connect is read-only for reports. Adrunr will not spend, enable Ads, or write key events.";
 
 export const CAMPAIGN_PAUSE_NOTE =
   "Adrunr will not enable later. Re-enable only in Google Ads.";

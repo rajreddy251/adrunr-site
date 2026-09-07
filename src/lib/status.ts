@@ -3,9 +3,11 @@ import "server-only";
 import { listAuditEvents } from "./audit";
 import { loadActiveConnection } from "./connections";
 import { adsConfigured, getEnv, oauthConfigured } from "./env";
+import { getBoundGa4Property } from "./ga4";
+import { hasGa4Scopes } from "./ga4-shared";
 import { OAUTH_SCOPES } from "./oauth";
 import { prisma } from "./prisma";
-import { isConnectEnabled } from "./providers";
+import { GOOGLE_ANALYTICS_SLUG, isConnectEnabled } from "./providers";
 import { ensurePlatformContext, seedIntegrationProviders } from "./tenant";
 import type { ConnectionStatusView, ProviderView } from "./types";
 
@@ -14,6 +16,9 @@ export async function getConnectionStatus(): Promise<ConnectionStatusView> {
   const ctx = await ensurePlatformContext();
   const providers = await seedIntegrationProviders();
   const ads = await loadActiveConnection();
+  const ga4 = await loadActiveConnection(GOOGLE_ANALYTICS_SLUG);
+  const bound = await getBoundGa4Property();
+  const ga4Connected = Boolean(ga4) || (Boolean(ads) && hasGa4Scopes(ads?.connection.scopes));
 
   const views: ProviderView[] = [];
   for (const provider of providers) {
@@ -44,7 +49,10 @@ export async function getConnectionStatus(): Promise<ConnectionStatusView> {
     oauthConfigured: oauthConfigured(env),
     adsConfigured: adsConfigured(env),
     loginCustomerId: env.loginCustomerId,
-    ga4PropertyId: env.ga4PropertyId || null,
+    ga4Connected,
+    ga4PropertyId: bound?.propertyId ?? (env.ga4PropertyId || null),
+    ga4BoundPropertyId: bound?.propertyId ?? null,
+    ga4BoundDisplayName: bound?.displayName ?? null,
     scopes: [...OAUTH_SCOPES],
     databaseConfigured: Boolean(env.databaseUrl),
     organizationSlug: ctx.org.slug,

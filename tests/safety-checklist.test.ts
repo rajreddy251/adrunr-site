@@ -452,3 +452,26 @@ describe("P7 Hotel / Local / Local Services safety checklist", () => {
     expect(gitignore).toContain("!.env.example");
   });
 });
+
+describe("GA4 Connect safety checklist", () => {
+  it("lists only accessible properties, keeps key events stubbed, and refuses spend CTAs", () => {
+    const ga4 = readFileSync(resolve(process.cwd(), "src/lib/ga4.ts"), "utf8");
+    const panel = readFileSync(resolve(process.cwd(), "src/components/ga4-panel.tsx"), "utf8");
+    const providers = readFileSync(resolve(process.cwd(), "src/lib/providers.ts"), "utf8");
+    expect(ga4).toContain("findAccessibleGa4Property");
+    expect(ga4).toContain("accountSummaries");
+    expect(ga4).toContain("runReport");
+    expect(ga4).toContain("GA4_KEY_EVENTS_NOTE");
+    expect(ga4).not.toContain("googleAds:mutate");
+    expect(providers).toContain("analytics.readonly");
+    expect(providers).toContain("analytics.edit");
+    expect(panel).toContain("GA4_KEY_EVENTS_NOTE");
+    expect(readFileSync(resolve(process.cwd(), "src/lib/ga4-shared.ts"), "utf8")).toContain(
+      "Key events — Coming soon",
+    );
+    expect(panel).not.toMatch(/>\s*Enable\s*</);
+    expect(panel).not.toMatch(/go-live/i);
+    expect(schema).not.toMatch(/model Ga4Property/);
+    expect(envExample).toContain("Property picker + bind");
+  });
+});

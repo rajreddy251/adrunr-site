@@ -1,6 +1,6 @@
 # Adrunr
 
-Ads operations platform: marketing site (`/`, `/privacy`, `/terms`) plus an ops console. `/ops` is the hub; Campaigns / Listings / Metrics / Import / Reports / Connect live at `/ops/campaigns`, `/ops/listings`, `/ops/metrics`, `/ops/import`, `/ops/reports`, and `/ops/connect`. A cached campaign opens `/ops/campaigns/:id` (Search Campaign Overview) and `/ops/campaigns/:id/edit` (Safe edit).
+Ads operations platform: marketing site (`/`, `/privacy`, `/terms`) plus an ops console. `/ops` is the hub; Campaigns / Listings / Metrics / Import / Reports / Analytics / Connect live at `/ops/campaigns`, `/ops/listings`, `/ops/metrics`, `/ops/import`, `/ops/reports`, `/ops/analytics`, and `/ops/connect`. A cached campaign opens `/ops/campaigns/:id` (Search Campaign Overview) and `/ops/campaigns/:id/edit` (Safe edit).
 
 This repo is the **single production codebase**. Behavior is ported from the validated MVP (`rajreddy251/adrunr` @ `493d52c`) and evolved onto **Neon Postgres + Prisma Schema v1.16** (provider-agnostic). There is no `.data/tokens.json` path.
 
@@ -48,7 +48,7 @@ Seeded providers (rows, not code paths):
 | slug | name | category | Connect |
 | --- | --- | --- | --- |
 | `google_ads` | Google Ads | ADS | implemented |
-| `google_analytics` | Google Analytics (GA4) | ANALYTICS | same Google grant / readonly stub |
+| `google_analytics` | Google Analytics (GA4) | ANALYTICS | same Google grant — list, bind, sessions 7d |
 | `microsoft_clarity` | Microsoft Clarity | HEATMAP | stub |
 | `meta_ads` | Meta Ads | ADS | stub |
 | `tiktok_ads` | TikTok Ads | ADS | stub |
@@ -68,9 +68,9 @@ npx prisma db seed
 ADRUNR_MOCK=1 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) (marketing) and [http://localhost:3000/ops](http://localhost:3000/ops) (hub). Shell routes: `/ops/campaigns`, `/ops/campaigns/:id`, `/ops/campaigns/:id/edit`, `/ops/listings`, `/ops/metrics`, `/ops/import`, `/ops/reports`, `/ops/connect`.
+Open [http://localhost:3000](http://localhost:3000) (marketing) and [http://localhost:3000/ops](http://localhost:3000/ops) (hub). Shell routes: `/ops/campaigns`, `/ops/campaigns/:id`, `/ops/campaigns/:id/edit`, `/ops/listings`, `/ops/metrics`, `/ops/import`, `/ops/reports`, `/ops/analytics`, `/ops/connect`.
 
-`ADRUNR_MOCK=1` demos **Connect → list accounts → read-only listings sync (dry-run preview or cache) → read-only budget/spend snapshots (dry-run preview or cache) → safe campaign edit (validateOnly / EDIT SAFE) → import cached campaign to a create-type draft (dry-run preview or persist) → performance report (dry-run preview or persist) → Search (S0–S8), Display (D0–D6), Performance Max (P0–P6), Demand Gen (G0–G6), Video (V0–V6), Shopping (H0–H6), App (A0–A6), Hotel (T0–T6), Local (L0–L6), or Local Services (S0–S6) wizard + fill-first assistant → validateOnly / Create PAUSED → audit trail** without live Google Ads or an LLM key. Tokens, drafts, threads, synced listings, metric snapshots, edit drafts, import jobs, report jobs, and accounts still persist in Neon. Import and reports never enable spend.
+`ADRUNR_MOCK=1` demos **Connect → list accounts → Connect GA4 → list properties → bind → sessions last 7d → read-only listings sync (dry-run preview or cache) → read-only budget/spend snapshots (dry-run preview or cache) → safe campaign edit (validateOnly / EDIT SAFE) → import cached campaign to a create-type draft (dry-run preview or persist) → performance report (dry-run preview or persist) → Search (S0–S8), Display (D0–D6), Performance Max (P0–P6), Demand Gen (G0–G6), Video (V0–V6), Shopping (H0–H6), App (A0–A6), Hotel (T0–T6), Local (L0–L6), or Local Services (S0–S6) wizard + fill-first assistant → validateOnly / Create PAUSED → audit trail** without live Google Ads or an LLM key. Tokens, drafts, threads, synced listings, metric snapshots, edit drafts, import jobs, report jobs, and accounts still persist in Neon. Import and reports never enable spend.
 
 ### Environment
 
@@ -85,7 +85,7 @@ Open [http://localhost:3000](http://localhost:3000) (marketing) and [http://loca
 | `GOOGLE_ADS_LOGIN_CUSTOMER_ID` | recommended | MCC. Default `857-080-5596` |
 | `GOOGLE_ADS_REFRESH_TOKEN` | optional | Seeded into `OAuthConnection` on first use (not a file) |
 | `GOOGLE_ADS_API_VERSION` | optional | REST version, default `v19` |
-| `GA4_PROPERTY_ID` | optional | GA4 Data API property. Soft-fails if unset |
+| `GA4_PROPERTY_ID` | optional | Fallback only if that property is in the connected user's Admin API list |
 | `APP_BASE_URL` | optional | Default `http://localhost:3000` |
 | `ADRUNR_MOCK` | optional | `1` = local/CI demo, no live Google or LLM calls |
 | `ADRUNR_LLM_API_KEY` | live assistant | Server-side LLM key (never commit). Mock mode ignores this |
@@ -122,12 +122,12 @@ Seed RolePermission + ClientRolePermission + platform org + the eight Integratio
 1. In GCP project `adrunr-ads-ops`, create an OAuth **Web application** client.
 2. Authorized redirect URIs: local callback and the Vercel callback.
 3. Enable the **Google Ads API**. Add the developer token from the MCC (`857-080-5596`) API Center.
-4. Optional: enable **Google Analytics Data API** and set `GA4_PROPERTY_ID`.
-5. Connect from `/ops` or `/ops/connect`. Scopes requested: `adwords` + `analytics.readonly`.
+4. Enable **Google Analytics Admin API** and **Google Analytics Data API**. Property picker + bind on `/ops/analytics` is the primary path; `GA4_PROPERTY_ID` is an optional fallback only if that property is in the connected user's list.
+5. Connect from `/ops`, `/ops/connect`, or `/ops/analytics`. Scopes requested: `adwords` + `analytics.readonly` + `analytics.edit`.
 
 ## Flows
 
-1. **Connect** — `/api/auth/google` starts the OAuth web flow (or mock connect). Callback writes encrypted tokens to `OAuthConnection` for `google_ads` (and `google_analytics` when the Analytics scope is present).
+1. **Connect** — `/api/auth/google` starts the OAuth web flow (or mock connect). Callback stays `/api/auth/google/callback` and writes encrypted tokens to `OAuthConnection` for `google_ads` and `google_analytics` (Ads + `analytics.readonly` + `analytics.edit`).
 2. **List accounts** — `GET /api/ads/accounts` queries `customer_client` under the MCC, falls back to `listAccessibleCustomers`, upserts `ExternalAccount` rows, and writes a `SyncJob` + `AuditEvent`.
 3. **Listings sync (P0, read-only)** — `/ops/listings` Synced listings. `GET /api/ads/listings` returns the Neon cache. `POST /api/ads/listings/sync` with `{ customerId, dryRun }` (default `dryRun: true`) searches campaigns / ad groups / ads / keywords via Google Ads GAQL (or `ADRUNR_MOCK` fixtures), writes a `SyncJob` (`jobType: sync_listings`, `readOnly: true`), and only persists `Synced*` + `ExternalEntity` when `dryRun` is false. Never calls `googleAds:mutate`. Never enables or unpauses live Ads. Cached `ENABLED` is a snapshot only.
 4. **Metrics sync (P1, read-only)** — `/ops/metrics` Budget & spend snapshots for the selected customer. `GET /api/ads/metrics` returns Neon `CampaignMetricSnapshot` rows. `POST /api/ads/metrics/sync` with `{ customerId, dryRun, dateFrom?, dateTo? }` (default `dryRun: true`, last 7 days) searches campaign budget + spend / cost metrics via GAQL (or `ADRUNR_MOCK` fixtures), writes a `SyncJob` (`jobType: sync_metrics`, `readOnly: true`), and only persists snapshots when `dryRun` is false. Never calls `googleAds:mutate`. Never enables, unpauses, or spends. Cached spend is observational only.
@@ -148,7 +148,7 @@ Seed RolePermission + ClientRolePermission + platform org + the eight Integratio
 17. **Local Services wizard** — `/ops/campaigns` Local Services tab S0 account → S1 basics/bid → S2 PRIMARY category → S3 geo → S4 credentials → S5 review → Validate / Create PAUSED → S6 result. Drafts persist as `LocalServicesCampaignDraft` (+ PRIMARY categories, geo, max lead bid). Apply uses MANUAL_CPC + PRIMARY category. ADDITIONAL categories stay stored. Same PAUSED + `CREATE PAUSED` rules. No enable path.
 18. **Wizard assistant** — `/ops/campaigns` panel beside Search, Display, Performance Max, Demand Gen, Video, Shopping, App, Hotel, Local, or Local Services. Paste a URL or brief; the turn builds a client-scoped context pack (org, client, ExternalAccounts, ExternalEntity/Search/Display/PMax/Demand Gen/Video/Shopping/App/Hotel/Local/Local Services drafts, current draft, thread, ClientMemory) and either patches draft fields and/or asks gap questions. Fill first — not a questionnaire. Chat **cannot** Validate, Apply, or enable and never calls those endpoints. `kind: "HOTEL"`, `kind: "LOCAL"`, and `kind: "LOCAL_SERVICES"` are required on `/api/assistant/threads` and `/api/assistant/turn` so those drafts bind `hotelDraftId` / `localDraftId` / `localServicesDraftId` and do not fall through to Search. `ADRUNR_MOCK=1` uses a heuristic fill when no LLM key is set.
 19. **Paused / dry-run shell (Phase 1)** — `POST /api/ads/campaigns` with `{ customerId, name, dailyBudgetMicros, dryRun, confirmPhrase }` still works. Always `status: PAUSED`. `dryRun` (default `true`) sets `validateOnly`. `dryRun: false` still creates PAUSED only and **requires** `confirmPhrase` exactly `CREATE PAUSED`. Persists `CampaignOp` + `DryRunJob` (and `ChangeRequest` on apply). Search-only.
-20. **GA4 stub** — `/ops/connect` and `GET /api/ga4/report` runs a 7-day sessions + conversions sample and upserts a `google_analytics` ExternalAccount. Soft-fails if property id, scope, or API is missing.
+20. **GA4 Connect** — `/ops/analytics` and `/ops/connect`. Connect → consent → list properties (Analytics Admin `accountSummaries`) → bind one `google_analytics` ExternalAccount (+ optional `ExternalEntity` PROPERTY) → `GET /api/ga4/report` sessions last 7 days. Only properties the connected advertiser can access. Key events stay **Coming soon**. No spend.
 21. **Other providers** — seeded only. Connect buttons are disabled stubs.
 
 ## Scripts
@@ -228,7 +228,9 @@ CI runs those plus `npm run build` with `ADRUNR_MOCK=1` and a dummy `DATABASE_UR
 - `GET /api/assistant/threads/:id`
 - `GET|POST /api/assistant/threads/:id/messages`
 - `POST /api/assistant/turn` — context pack → fill draft and/or ask gaps (no validate/apply)
-- `GET /api/ga4/report`
+- `GET /api/ga4/properties` — Analytics Admin list; upserts `google_analytics` ExternalAccount rows
+- `POST /api/ga4/bind` — bind one accessible property (`{ propertyId }`)
+- `GET /api/ga4/report` — read-only sessions last 7 days for the bound / requested accessible property
 - `GET /api/audit`
 - `GET /api/providers`
 - `GET /api/health`

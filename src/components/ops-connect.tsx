@@ -1,18 +1,26 @@
 "use client";
 
+import Link from "next/link";
+
+import { Ga4Panel } from "@/components/ga4-panel";
 import { useOpsSession } from "@/components/ops-session";
 import { formatCustomerId, PLATFORM_MCC_DISPLAY } from "@/lib/ids";
 import type { ProviderView } from "@/lib/types";
 
 export function OpsConnect() {
-  const { status, ga4, busy, banner, disconnect } = useOpsSession();
+  const { status, busy, banner, disconnect } = useOpsSession();
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <header>
         <h1 className="text-2xl font-medium text-paper-50">Connect</h1>
         <p className="mt-1 text-sm text-moss-400">
-          Google Ads OAuth, the seeded provider registry, and the GA4 readonly stub. No new Ads APIs.
+          Google Ads + GA4 on one OAuth client. Tokens stay encrypted in Neon. The GA4 property
+          picker, bind, and sessions report also live on{" "}
+          <Link href="/ops/analytics" className="text-lime-400 hover:underline">
+            Analytics
+          </Link>
+          .
         </p>
       </header>
 
@@ -24,9 +32,9 @@ export function OpsConnect() {
         <article className="rounded-2xl border border-ink-700 bg-ink-900 p-5" data-testid="ops-connect-google">
           <h2 className="text-lg text-paper-50">Google Ads connection</h2>
           <p className="mt-1 text-sm text-moss-400">
-            OAuth 2.0 web flow for Ads + Analytics readonly. Refresh/access tokens are encrypted in Neon{" "}
-            <code className="font-mono text-moss-300">oauth_connections</code> columns. There is no{" "}
-            <code className="font-mono text-moss-300">.data/tokens.json</code> path.
+            OAuth 2.0 web flow for Ads + Analytics readonly/edit. Refresh/access tokens are encrypted
+            in Neon <code className="font-mono text-moss-300">oauth_connections</code> columns. There
+            is no <code className="font-mono text-moss-300">.data/tokens.json</code> path.
           </p>
           <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
             <div>
@@ -83,7 +91,7 @@ export function OpsConnect() {
           </div>
         </article>
 
-        <Ga4Card ga4={ga4} />
+        <Ga4Panel compact />
       </section>
 
       <ProvidersPanel
@@ -93,56 +101,6 @@ export function OpsConnect() {
         onDisconnect={() => void disconnect()}
       />
     </div>
-  );
-}
-
-function Ga4Card({ ga4 }: { ga4: ReturnType<typeof useOpsSession>["ga4"] }) {
-  return (
-    <article className="rounded-2xl border border-ink-700 bg-ink-900 p-5" data-testid="ops-connect-ga4">
-      <h2 className="text-lg text-paper-50">GA4 readonly stub</h2>
-      <p className="mt-1 text-sm text-moss-400">
-        Sample sessions / conversions. Persists a{" "}
-        <code className="font-mono text-moss-300">google_analytics</code> ExternalAccount. Soft-fails if
-        GA4_PROPERTY_ID or analytics.readonly is missing.
-      </p>
-      {ga4 ? (
-        <div className="mt-4 space-y-3">
-          <p className="font-mono text-xs text-moss-500">
-            {ga4.source}
-            {ga4.softFail ? " · soft-fail" : ""} · property {ga4.report?.propertyId || "unset"}
-          </p>
-          {ga4.reason ? <p className="text-sm text-amber-400">{ga4.reason}</p> : null}
-          {ga4.report?.totals ? (
-            <div className="grid grid-cols-2 gap-3">
-              <Stat label="Sessions (7d)" value={ga4.report.totals.sessions} />
-              <Stat label="Conversions (7d)" value={ga4.report.totals.conversions} />
-            </div>
-          ) : null}
-          {ga4.report?.rows?.length ? (
-            <table className="ops-table w-full text-left text-xs">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Sessions</th>
-                  <th>Conv.</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ga4.report.rows.slice(-5).map((row) => (
-                  <tr key={row.date} className="font-mono text-moss-300">
-                    <td className="py-1">{row.date}</td>
-                    <td className="py-1">{row.sessions}</td>
-                    <td className="py-1">{row.conversions}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : null}
-        </div>
-      ) : (
-        <p className="mt-4 text-sm text-moss-500">Loading stub…</p>
-      )}
-    </article>
   );
 }
 
@@ -161,8 +119,8 @@ function ProvidersPanel({
     <section className="rounded-2xl border border-ink-700 bg-ink-900 p-5" data-testid="ops-connect-providers">
       <h2 className="text-lg text-paper-50">Integration providers</h2>
       <p className="mt-1 text-sm text-moss-400">
-        Seeded registry rows. Google Ads Connect is implemented. Clarity, Meta, TikTok, LinkedIn,
-        Heartza, and Custom are schema-ready stubs.
+        Seeded registry rows. Google Ads and Google Analytics (GA4) Connect are implemented. Clarity,
+        Meta, TikTok, LinkedIn, Heartza, and Custom are schema-ready stubs.
       </p>
       <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
         {providers.map((provider) => (
@@ -185,7 +143,14 @@ function ProvidersPanel({
                   Disconnect
                 </button>
               ) : (
-                <a href="/api/auth/google" className="mt-3 inline-block text-xs text-lime-400 hover:underline">
+                <a
+                  href={
+                    provider.slug === "google_analytics"
+                      ? "/api/auth/google?next=/ops/analytics"
+                      : "/api/auth/google"
+                  }
+                  className="mt-3 inline-block text-xs text-lime-400 hover:underline"
+                >
                   Connect
                 </a>
               )
@@ -203,14 +168,5 @@ function ProvidersPanel({
         ))}
       </div>
     </section>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-xl border border-ink-700 bg-ink-800 px-3 py-2">
-      <p className="text-xs text-moss-500">{label}</p>
-      <p className="font-mono text-xl text-paper-50">{value}</p>
-    </div>
   );
 }

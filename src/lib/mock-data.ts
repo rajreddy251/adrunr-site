@@ -4,6 +4,7 @@ import {
   PLATFORM_MCC_ID,
   formatCustomerId,
 } from "./ids";
+import type { Ga4PropertyView } from "./ga4-shared";
 import type { AdsAccountView, CampaignMetricSnapshotView, SyncedCampaignView } from "./types";
 
 export const MOCK_EMAIL = "ops@adrunr.local";
@@ -44,20 +45,46 @@ export function mockAccounts(): AdsAccountView[] {
   ];
 }
 
+export function mockGa4Properties(): Ga4PropertyView[] {
+  return [
+    {
+      propertyId: "123456789",
+      resourceName: "properties/123456789",
+      displayName: "Adrunr demo site",
+      accountId: "111111111",
+      accountName: "Adrunr demo",
+      timeZone: "America/Los_Angeles",
+      currencyCode: "USD",
+      bound: false,
+    },
+    {
+      propertyId: "987654321",
+      resourceName: "properties/987654321",
+      displayName: "Advertiser marketing",
+      accountId: "222222222",
+      accountName: "Advertiser",
+      timeZone: "America/New_York",
+      currencyCode: "USD",
+      bound: false,
+    },
+  ];
+}
+
 export function mockGa4Report(propertyId: string) {
+  const id = propertyId || "unset";
   return {
-    propertyId: propertyId || "unset",
+    propertyId: id,
     stub: true,
     source: "mock",
     dateRange: { startDate: "7daysAgo", endDate: "today" },
-    metrics: ["sessions", "conversions"],
+    metrics: ["sessions"],
     rows: [
       { date: "2026-08-31", sessions: 128, conversions: 4 },
       { date: "2026-09-01", sessions: 141, conversions: 6 },
       { date: "2026-09-02", sessions: 119, conversions: 3 },
     ],
     totals: { sessions: 388, conversions: 13 },
-    note: "Placeholder GA4 report (ADRUNR_MOCK). Soft-fails live when GA4_PROPERTY_ID or Analytics scope is missing.",
+    note: "Placeholder GA4 sessions report (ADRUNR_MOCK). Live uses the bound property, not a first-class Ga4Property row.",
   };
 }
 

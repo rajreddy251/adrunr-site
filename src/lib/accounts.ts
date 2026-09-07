@@ -4,7 +4,8 @@ import type { ExternalAccount, ExternalAccountStatus } from "@prisma/client";
 
 import { formatCustomerId, isKnownNotEnabledCustomer } from "./ids";
 import { prisma } from "./prisma";
-import { GOOGLE_ADS_SLUG } from "./providers";
+import type { Ga4PropertyView } from "./ga4-shared";
+import { GOOGLE_ADS_SLUG, GOOGLE_ANALYTICS_SLUG } from "./providers";
 import { ensurePlatformContext, requireProvider } from "./tenant";
 import type { AdsAccountView } from "./types";
 
@@ -103,6 +104,49 @@ export async function upsertGoogleAdsAccounts(
       oauthConnectionId,
     });
     persisted.push(toAccountView(row, account.warning));
+  }
+  return persisted;
+}
+
+export function toGa4PropertyView(
+  row: ExternalAccount,
+  extras?: { bound?: boolean; accountName?: string | null },
+): Ga4PropertyView {
+  return {
+    propertyId: row.externalId,
+    resourceName: `properties/${row.externalId}`,
+    displayName: row.displayName ?? `GA4 ${row.externalId}`,
+    accountId: row.parentExternalId,
+    accountName: extras?.accountName ?? null,
+    timeZone: row.timeZone,
+    currencyCode: row.currencyCode,
+    bound: extras?.bound ?? false,
+    externalAccountId: row.id,
+  };
+}
+
+export async function upsertGa4Properties(
+  properties: Ga4PropertyView[],
+  oauthConnectionId?: string | null,
+): Promise<Ga4PropertyView[]> {
+  const persisted: Ga4PropertyView[] = [];
+  for (const property of properties) {
+    const row = await upsertExternalAccount({
+      providerSlug: GOOGLE_ANALYTICS_SLUG,
+      externalId: property.propertyId,
+      displayName: property.displayName,
+      timeZone: property.timeZone,
+      currencyCode: property.currencyCode,
+      parentExternalId: property.accountId,
+      oauthConnectionId,
+      status: "ENABLED",
+    });
+    persisted.push(
+      toGa4PropertyView(row, {
+        bound: property.bound,
+        accountName: property.accountName,
+      }),
+    );
   }
   return persisted;
 }
