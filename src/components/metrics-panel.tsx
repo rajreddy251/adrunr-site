@@ -154,7 +154,7 @@ export function MetricsPanel({
             data-testid="ops-metrics-sync"
             onClick={() => void runSync()}
             disabled={!connected || !customerId || busy}
-            className="rounded-lg bg-lime-400 px-4 py-2 text-sm font-medium text-ink-950 hover:bg-lime-500 disabled:opacity-50"
+            className={dryRun ? "ops-btn-primary" : "ops-btn-secondary"}
           >
             {busy ? "Syncing…" : dryRun ? "Preview metrics" : "Sync metrics to cache"}
           </button>
@@ -201,7 +201,7 @@ export function MetricsPanel({
             {!customerId ? (
               <tr>
                 <td colSpan={6} className="py-6 text-moss-500">
-                  Select an accessible customer above, then preview or cache budget and spend.
+                  Select a customer in the top bar, then preview or cache budget and spend.
                 </td>
               </tr>
             ) : snapshots.length === 0 ? (

@@ -129,7 +129,7 @@ export function ReportsPanel({
             <input
               type="date"
               data-testid="ops-reports-date-from"
-              className="rounded-lg border border-ink-700 bg-ink-950 px-2 py-1 text-moss-200"
+              className="input py-1"
               value={dateFrom}
               onChange={(event) => setDateFrom(event.target.value)}
             />
@@ -139,7 +139,7 @@ export function ReportsPanel({
             <input
               type="date"
               data-testid="ops-reports-date-to"
-              className="rounded-lg border border-ink-700 bg-ink-950 px-2 py-1 text-moss-200"
+              className="input py-1"
               value={dateTo}
               onChange={(event) => setDateTo(event.target.value)}
             />
@@ -149,7 +149,7 @@ export function ReportsPanel({
             data-testid="ops-reports-preview"
             onClick={() => void runReport(true)}
             disabled={!connected || !customerId || busy !== null}
-            className="rounded-lg border border-lime-400/40 px-4 py-2 text-sm text-lime-400 hover:bg-lime-400/10 disabled:opacity-50"
+            className="ops-btn-primary"
           >
             {busy === "preview" ? "Previewing…" : "Preview"}
           </button>
@@ -158,7 +158,7 @@ export function ReportsPanel({
             data-testid="ops-reports-generate"
             onClick={() => void runReport(false)}
             disabled={!connected || !customerId || busy !== null}
-            className="rounded-lg bg-lime-400 px-4 py-2 text-sm font-medium text-ink-950 hover:bg-lime-500 disabled:opacity-50"
+            className="ops-btn-secondary"
           >
             {busy === "generate" ? "Generating…" : "Generate report"}
           </button>
@@ -202,7 +202,7 @@ export function ReportsPanel({
             {!customerId ? (
               <tr>
                 <td colSpan={7} className="py-6 text-moss-500">
-                  Select an accessible customer above, then preview or generate a report.
+                  Select a customer in the top bar, then preview or generate a report.
                 </td>
               </tr>
             ) : !current || current.rows.length === 0 ? (
