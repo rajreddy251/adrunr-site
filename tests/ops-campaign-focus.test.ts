@@ -68,7 +68,9 @@ describe("Slice B Search Campaign Overview + Safe edit", () => {
     expect(read("src/components/campaign-focus.tsx")).toContain("campaignPausePath");
     expect(read("src/components/campaign-focus.tsx")).toContain("campaignDeletePath");
     expect(read("src/components/campaign-focus.tsx")).toContain("Open chat");
-    expect(read("src/components/campaign-focus.tsx")).toContain("Coming soon");
+    expect(read("src/components/campaign-focus.tsx")).not.toContain("Coming soon");
+    expect(read("src/components/campaign-overview.tsx")).toContain("CampaignFocusFrame");
+    expect(read("src/components/campaign-edit.tsx")).toContain("CampaignFocusFrame");
   });
 
   it("never shows an Enable CTA and keeps Pause amber", () => {

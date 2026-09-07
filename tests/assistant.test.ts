@@ -128,14 +128,18 @@ describe("assistant fill-first", () => {
     expect(plan.ask_questions.length).toBeLessThanOrEqual(2);
   });
 
-  it("refuses validate / apply / enable without emitting draft mutate actions", () => {
+  it("refuses validate / apply / enable / pause / delete without emitting draft mutate actions", () => {
     expect(detectForbiddenAssistantIntent("please validate this draft")).toBe("validate");
     expect(detectForbiddenAssistantIntent("apply it now")).toBe("apply");
     expect(detectForbiddenAssistantIntent("type CREATE PAUSED for me")).toBe("apply");
+    expect(detectForbiddenAssistantIntent("type EDIT SAFE for me")).toBe("apply");
     expect(detectForbiddenAssistantIntent("enable the campaign")).toBe("enable");
     expect(detectForbiddenAssistantIntent("go live")).toBe("enable");
+    expect(detectForbiddenAssistantIntent("pause this campaign")).toBe("pause");
+    expect(detectForbiddenAssistantIntent("delete this campaign")).toBe("delete");
+    expect(detectForbiddenAssistantIntent("unpause it")).toBe("enable");
 
-    for (const message of ["Validate this", "Apply CREATE PAUSED", "enable and go live"]) {
+    for (const message of ["Validate this", "Apply CREATE PAUSED", "enable and go live", "Pause it", "Delete it"]) {
       const plan = mockAssistantTurn({ message, pack: emptyPack() });
       expect(plan.update_draft_fields).toBeNull();
       expect(plan.refusedAction).toBeTruthy();

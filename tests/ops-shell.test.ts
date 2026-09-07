@@ -70,6 +70,7 @@ describe("Slice A ops IA shell", () => {
     expect(hub).not.toContain("EditPanel");
     expect(hub).not.toContain("SearchAssistant");
     expect(hub).not.toContain("SearchWorkspace");
+    expect(hub).not.toContain("CampaignChat");
     expect(hub).not.toMatch(/>Enable</);
   });
 

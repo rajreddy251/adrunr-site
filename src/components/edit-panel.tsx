@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { CAMPAIGN_CHAT_PROPOSED_MARK, chatProposalMarks, type CampaignChatProposal } from "@/lib/campaign-chat";
 import {
   dollarsFromMicros,
   isEditApplyReady,
@@ -37,6 +38,7 @@ export function EditPanel({
   campaign,
   snapshot,
   sourceError,
+  chatProposal,
 }: {
   customerId: string;
   connected: boolean;
@@ -45,6 +47,7 @@ export function EditPanel({
   campaign: SyncedCampaignView | null;
   snapshot: CampaignMetricSnapshotView | null;
   sourceError?: string | null;
+  chatProposal?: CampaignChatProposal | null;
 }) {
   const [proposedName, setProposedName] = useState("");
   const [proposedBudget, setProposedBudget] = useState("");
@@ -58,9 +61,11 @@ export function EditPanel({
   const [note, setNote] = useState<string | null>(null);
   const [draft, setDraft] = useState<CampaignEditDraftView | null>(null);
   const [showErrors, setShowErrors] = useState(false);
+  const [chatMarks, setChatMarks] = useState<string[]>([]);
   const confirmRef = useRef<HTMLInputElement>(null);
   const hydratedCampaignId = useRef<string>("");
   const budgetTouched = useRef(false);
+  const appliedProposalId = useRef<string>("");
 
   const firstGroup = campaign?.adGroups[0] ?? null;
   const currentBudget = dollarsFromMicros(snapshot?.budgetAmountMicros ?? null);
@@ -85,7 +90,23 @@ export function EditPanel({
     setError(null);
     setShowErrors(false);
     setConfirmPhrase("");
+    setChatMarks([]);
+    appliedProposalId.current = "";
   }, [campaign, snapshot?.budgetAmountMicros]);
+
+  useEffect(() => {
+    if (!chatProposal || appliedProposalId.current === chatProposal.id) return;
+    appliedProposalId.current = chatProposal.id;
+    if (chatProposal.proposedName) setProposedName(chatProposal.proposedName);
+    if (chatProposal.proposedBudget) {
+      budgetTouched.current = true;
+      setProposedBudget(chatProposal.proposedBudget);
+    }
+    if (chatProposal.proposedBid) setProposedBid(chatProposal.proposedBid);
+    if (chatProposal.geo) setGeo(chatProposal.geo);
+    if (chatProposal.language) setLanguage(chatProposal.language);
+    setChatMarks(chatProposalMarks(chatProposal));
+  }, [chatProposal]);
 
   const fieldErrors = useMemo(
     () =>
@@ -311,10 +332,18 @@ export function EditPanel({
       <div className="mt-5 grid gap-4 md:grid-cols-2">
         <label className="block text-sm text-moss-400">
           Proposed name
+          {chatMarks.includes("proposedName") ? (
+            <span data-testid="ops-edit-chat-mark-name" className="ml-2 font-mono text-[10px] uppercase tracking-wide text-lime-400">
+              {CAMPAIGN_CHAT_PROPOSED_MARK}
+            </span>
+          ) : null}
           <input
             data-testid="ops-edit-name"
             value={proposedName}
-            onChange={(event) => setProposedName(event.target.value)}
+            onChange={(event) => {
+              setProposedName(event.target.value);
+              setChatMarks((marks) => marks.filter((mark) => mark !== "proposedName"));
+            }}
             className="input mt-1"
             aria-invalid={Boolean(visibleError("proposedName"))}
           />
@@ -326,12 +355,18 @@ export function EditPanel({
         </label>
         <label className="block text-sm text-moss-400">
           Proposed daily budget (USD)
+          {chatMarks.includes("proposedBudget") ? (
+            <span data-testid="ops-edit-chat-mark-budget" className="ml-2 font-mono text-[10px] uppercase tracking-wide text-lime-400">
+              {CAMPAIGN_CHAT_PROPOSED_MARK}
+            </span>
+          ) : null}
           <input
             data-testid="ops-edit-budget"
             value={proposedBudget}
             onChange={(event) => {
               budgetTouched.current = true;
               setProposedBudget(event.target.value);
+              setChatMarks((marks) => marks.filter((mark) => mark !== "proposedBudget"));
             }}
             className="input mt-1 font-mono"
             inputMode="decimal"
@@ -345,10 +380,18 @@ export function EditPanel({
         </label>
         <label className="block text-sm text-moss-400">
           Proposed ad group bid (USD){firstGroup ? ` · ${firstGroup.name}` : ""}
+          {chatMarks.includes("proposedBid") ? (
+            <span data-testid="ops-edit-chat-mark-bid" className="ml-2 font-mono text-[10px] uppercase tracking-wide text-lime-400">
+              {CAMPAIGN_CHAT_PROPOSED_MARK}
+            </span>
+          ) : null}
           <input
             data-testid="ops-edit-bid"
             value={proposedBid}
-            onChange={(event) => setProposedBid(event.target.value)}
+            onChange={(event) => {
+              setProposedBid(event.target.value);
+              setChatMarks((marks) => marks.filter((mark) => mark !== "proposedBid"));
+            }}
             className="input mt-1 font-mono"
             inputMode="decimal"
             placeholder="optional"
@@ -362,10 +405,18 @@ export function EditPanel({
         </label>
         <label className="block text-sm text-moss-400">
           Targeting-safe geo
+          {chatMarks.includes("geo") ? (
+            <span data-testid="ops-edit-chat-mark-geo" className="ml-2 font-mono text-[10px] uppercase tracking-wide text-lime-400">
+              {CAMPAIGN_CHAT_PROPOSED_MARK}
+            </span>
+          ) : null}
           <select
             data-testid="ops-edit-geo"
             value={geo}
-            onChange={(event) => setGeo(event.target.value)}
+            onChange={(event) => {
+              setGeo(event.target.value);
+              setChatMarks((marks) => marks.filter((mark) => mark !== "geo"));
+            }}
             className="input mt-1"
           >
             <option value="">No geo change</option>
@@ -378,10 +429,18 @@ export function EditPanel({
         </label>
         <label className="block text-sm text-moss-400">
           Targeting-safe language
+          {chatMarks.includes("language") ? (
+            <span data-testid="ops-edit-chat-mark-language" className="ml-2 font-mono text-[10px] uppercase tracking-wide text-lime-400">
+              {CAMPAIGN_CHAT_PROPOSED_MARK}
+            </span>
+          ) : null}
           <select
             data-testid="ops-edit-language"
             value={language}
-            onChange={(event) => setLanguage(event.target.value)}
+            onChange={(event) => {
+              setLanguage(event.target.value);
+              setChatMarks((marks) => marks.filter((mark) => mark !== "language"));
+            }}
             className="input mt-1"
           >
             <option value="">No language change</option>

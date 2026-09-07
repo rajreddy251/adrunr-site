@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
-import { CampaignFocusChrome } from "@/components/campaign-focus";
+import { CampaignFocusFrame } from "@/components/campaign-focus-frame";
 import { useOpsSession } from "@/components/ops-session";
 import { useCachedCampaign } from "@/components/use-cached-campaign";
 import {
@@ -44,11 +44,10 @@ export function CampaignConfirm({ kind }: { kind: "pause" | "delete" }) {
 
   return (
     <div
-      className="mx-auto flex max-w-6xl flex-col gap-6"
+      className="mx-auto w-full max-w-7xl"
       data-testid={kind === "pause" ? "ops-campaign-pause-confirm" : "ops-campaign-delete-confirm"}
     >
-      <CampaignFocusChrome campaignId={campaignId} campaign={campaign} snapshot={snapshot} mode={kind} />
-
+      <CampaignFocusFrame campaignId={campaignId} campaign={campaign} snapshot={snapshot} mode={kind}>
       {error ? <p className="text-sm text-coral-400">{error}</p> : null}
 
       <section className="rounded-2xl border border-ink-700 bg-ink-900 p-5">
@@ -129,6 +128,7 @@ export function CampaignConfirm({ kind }: { kind: "pause" | "delete" }) {
           </p>
         )}
       </section>
+      </CampaignFocusFrame>
     </div>
   );
 }

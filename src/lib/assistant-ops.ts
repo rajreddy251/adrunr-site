@@ -3,6 +3,7 @@ import "server-only";
 import type { AssistantMessageRole } from "@prisma/client";
 
 import {
+  assistantRefusalMessage,
   detectForbiddenAssistantIntent,
   diffDemandGenDraftFields,
   diffDisplayDraftFields,
@@ -946,12 +947,7 @@ export async function runAssistantTurn(input: {
           update_draft_fields: null,
           ask_questions: [],
           memory: [],
-          assistant_message:
-            refused === "validate"
-              ? "I cannot Validate from chat. Use Validate (dry-run) on the wizard review step — that is validateOnly only."
-              : refused === "apply"
-                ? "I cannot Apply from chat. Create PAUSED lives on the form and requires typing CREATE PAUSED. There is no enable path."
-                : "I cannot enable, publish, or go live. Adrunr only drafts PAUSED campaigns; spend requires an action outside this app.",
+          assistant_message: assistantRefusalMessage(refused),
           refusedAction: refused,
         } satisfies AssistantTurnPlan,
         source: "mock" as const,
