@@ -127,6 +127,7 @@ enum PermissionResource {
   CAMPAIGN_METRIC_SNAPSHOT
   CAMPAIGN_EDIT_DRAFT
   CAMPAIGN_IMPORT_JOB
+  CAMPAIGN_REPORT_JOB
   SYNC_JOB
   AUDIT_EVENT
   BILLING
@@ -515,6 +516,7 @@ model Organization {
   campaignMetricSnapshots CampaignMetricSnapshot[]
   campaignEditDrafts CampaignEditDraft[]
   campaignImportJobs CampaignImportJob[]
+  campaignReportJobs CampaignReportJob[]
   syncJobs         SyncJob[]
   auditEvents      AuditEvent[]
   agentAssignments AgentClientAssignment[]
@@ -547,6 +549,7 @@ model User {
   localServicesDrafts LocalServicesCampaignDraft[]
   campaignEditDrafts CampaignEditDraft[]
   campaignImportJobs CampaignImportJob[]
+  campaignReportJobs CampaignReportJob[]
   changeRequests    ChangeRequest[]
   auditEvents       AuditEvent[]
   agentAssignments  AgentClientAssignment[]
@@ -611,6 +614,7 @@ model Client {
   localDrafts      LocalCampaignDraft[]
   localServicesDrafts LocalServicesCampaignDraft[]
   campaignEditDrafts CampaignEditDraft[]
+  campaignReportJobs CampaignReportJob[]
   agentAssignments AgentClientAssignment[]
   assistantThreads AssistantThread[]
   clientMemories   ClientMemory[]
@@ -684,6 +688,7 @@ model IntegrationProvider {
   syncedCampaigns  SyncedCampaign[]
   campaignMetricSnapshots CampaignMetricSnapshot[]
   campaignImportJobs CampaignImportJob[]
+  campaignReportJobs CampaignReportJob[]
   changeRequests   ChangeRequest[]
 }
 
@@ -752,6 +757,7 @@ model ExternalAccount {
   campaignMetricSnapshots CampaignMetricSnapshot[]
   campaignEditDrafts CampaignEditDraft[]
   campaignImportJobs CampaignImportJob[]
+  campaignReportJobs CampaignReportJob[]
 
   @@unique([organizationId, providerId, externalId])
   @@index([clientId])
@@ -2015,6 +2021,7 @@ model SyncedCampaign {
   metricSnapshots CampaignMetricSnapshot[]
   editDrafts      CampaignEditDraft[]
   importJobs      CampaignImportJob[]
+  reportRows      CampaignReportRow[]
 
   @@unique([providerId, externalAccountId, externalId])
   @@index([organizationId, providerId])
@@ -2152,6 +2159,7 @@ model CampaignMetricSnapshot {
   externalAccount ExternalAccount     @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
   lastSyncJob     SyncJob?            @relation(fields: [lastSyncJobId], references: [id], onDelete: SetNull)
   syncedCampaign  SyncedCampaign?     @relation(fields: [syncedCampaignId], references: [id], onDelete: SetNull)
+  reportRows      CampaignReportRow[]
 
   @@unique([providerId, externalAccountId, externalCampaignId, dateFrom, dateTo], map: "CampaignMetricSnapshot_account_campaign_window_key")
   @@index([organizationId, providerId])
@@ -2310,6 +2318,91 @@ model CampaignImportJob {
   @@index([hotelCampaignDraftId])
   @@index([localCampaignDraftId])
   @@index([localServicesCampaignDraftId])
+}
+
+model CampaignReportJob {
+  id                String        @id @default(cuid())
+  organizationId    String
+  clientId          String
+  providerId        String
+  externalAccountId String
+  createdById       String
+  dryRun            Boolean       @default(true)
+  readOnly          Boolean       @default(true)
+  neverEnable       Boolean       @default(true)
+  status            SyncJobStatus @default(QUEUED)
+  dateFrom          String
+  dateTo            String
+  source            String
+  requestBody       String?
+  responseBody      String?
+  previewText       String?
+  notesText         String?
+  errorMessage      String?
+  startedAt         DateTime?
+  finishedAt        DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client          Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  provider        IntegrationProvider @relation(fields: [providerId], references: [id])
+  externalAccount ExternalAccount     @relation(fields: [externalAccountId], references: [id], onDelete: Restrict)
+  createdBy       User                @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  rows            CampaignReportRow[]
+  summary         CampaignReportSummary?
+
+  @@index([organizationId, createdAt])
+  @@index([clientId])
+  @@index([externalAccountId, dateFrom, dateTo])
+  @@index([status])
+  @@index([providerId])
+}
+
+model CampaignReportRow {
+  id                     String   @id @default(cuid())
+  reportJobId            String
+  metricSnapshotId       String?
+  syncedCampaignId       String?
+  externalCampaignId     String
+  campaignName           String
+  advertisingChannelType String?
+  campaignStatus         String?
+  statusSnapshotNote     String?
+  spendMicros            BigInt?
+  clicks                 BigInt?
+  impressions            BigInt?
+  conversionsText        String?
+  conversionsValueText   String?
+  notesText              String?
+  createdAt              DateTime @default(now())
+
+  reportJob      CampaignReportJob       @relation(fields: [reportJobId], references: [id], onDelete: Cascade)
+  metricSnapshot CampaignMetricSnapshot? @relation(fields: [metricSnapshotId], references: [id], onDelete: SetNull)
+  syncedCampaign SyncedCampaign?         @relation(fields: [syncedCampaignId], references: [id], onDelete: SetNull)
+
+  @@index([reportJobId])
+  @@index([metricSnapshotId])
+  @@index([syncedCampaignId])
+  @@index([externalCampaignId])
+}
+
+model CampaignReportSummary {
+  id                   String   @id @default(cuid())
+  reportJobId          String   @unique
+  campaignCount        Int      @default(0)
+  enabledSnapshotCount Int      @default(0)
+  spendMicros          BigInt?
+  clicks               BigInt?
+  impressions          BigInt?
+  conversionsText      String?
+  conversionsValueText String?
+  currencyCode         String?
+  notesText            String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  reportJob CampaignReportJob @relation(fields: [reportJobId], references: [id], onDelete: Cascade)
 }
 
 model AuditEvent {

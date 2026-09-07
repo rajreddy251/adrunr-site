@@ -69,6 +69,10 @@ const v115Migration = readFileSync(
   resolve(process.cwd(), "prisma/migrations/20260906310000_schema_v1_15/migration.sql"),
   "utf8",
 );
+const v116Migration = readFileSync(
+  resolve(process.cwd(), "prisma/migrations/20260906320000_schema_v1_16/migration.sql"),
+  "utf8",
+);
 
 describe("schema v1.2 locks", () => {
   it("does not use JSONB / Prisma Json types", () => {
@@ -152,6 +156,9 @@ describe("schema v1.2 locks", () => {
       "CampaignEditBidDraft",
       "CampaignEditTargetDraft",
       "CampaignImportJob",
+      "CampaignReportJob",
+      "CampaignReportRow",
+      "CampaignReportSummary",
       "DryRunJob",
       "ChangeRequest",
       "AuditEvent",
@@ -545,6 +552,35 @@ describe("schema v1.15 locks", () => {
   });
 });
 
+describe("schema v1.16 locks", () => {
+  it("adds CampaignReportJob, rows, and summary without JSONB", () => {
+    expect(schema).toContain("model CampaignReportJob");
+    expect(schema).toContain("model CampaignReportRow");
+    expect(schema).toContain("model CampaignReportSummary");
+    expect(schema).toContain("CAMPAIGN_REPORT_JOB");
+    expect(schema).toContain("neverEnable");
+    expect(schema).toContain("previewText");
+    expect(schema).toContain("statusSnapshotNote");
+    expect(schema).toContain("enabledSnapshotCount");
+    expect(schema).not.toMatch(/\bJson\b/);
+    expect(v116Migration).toContain('ALTER TYPE "PermissionResource" ADD VALUE \'CAMPAIGN_REPORT_JOB\'');
+    expect(v116Migration).toContain('CREATE TABLE "CampaignReportJob"');
+    expect(v116Migration).toContain('CREATE TABLE "CampaignReportRow"');
+    expect(v116Migration).toContain('CREATE TABLE "CampaignReportSummary"');
+    expect(v116Migration).toContain('"neverEnable" BOOLEAN');
+    expect(v116Migration).toContain('"previewText" TEXT');
+    expect(v116Migration).toContain('"requestBody" TEXT');
+    expect(v116Migration).toContain('"responseBody" TEXT');
+    expect(v116Migration).toContain("CampaignReportJob_organizationId_fkey");
+    expect(v116Migration).toContain("CampaignReportJob_clientId_fkey");
+    expect(v116Migration).toContain("CampaignReportJob_externalAccountId_fkey");
+    expect(v116Migration).toContain("CampaignReportRow_reportJobId_fkey");
+    expect(v116Migration).toContain("CampaignReportSummary_reportJobId_fkey");
+    expect(v116Migration).not.toMatch(/DROP TABLE/i);
+    expect(v116Migration).not.toMatch(/jsonb/i);
+  });
+});
+
 describe("schema v1.11 locks", () => {
   it("adds Hotel, Local, and Local Services draft models without JSONB", () => {
     expect(schema).toContain("enum HotelDraftStatus");
@@ -632,7 +668,7 @@ describe("role permissions", () => {
 describe("client role permissions", () => {
   it("seeds READ/LIST defaults without mutating agency RolePermission", () => {
     const rows = buildClientRolePermissionRows();
-    expect(rows).toHaveLength(98);
+    expect(rows).toHaveLength(104);
     expect(rows.every((row) => row.action === "READ" || row.action === "LIST")).toBe(true);
 
     expect(clientRoleHasPermission("CLIENT_ADMIN", "AUDIT_EVENT", "READ")).toBe(true);
@@ -688,6 +724,9 @@ describe("client role permissions", () => {
       expect(clientRoleHasPermission(role, "CAMPAIGN_IMPORT_JOB", "READ")).toBe(true);
       expect(clientRoleHasPermission(role, "CAMPAIGN_IMPORT_JOB", "LIST")).toBe(true);
       expect(clientRoleHasPermission(role, "CAMPAIGN_IMPORT_JOB", "APPLY_PAUSED")).toBe(false);
+      expect(clientRoleHasPermission(role, "CAMPAIGN_REPORT_JOB", "READ")).toBe(true);
+      expect(clientRoleHasPermission(role, "CAMPAIGN_REPORT_JOB", "LIST")).toBe(true);
+      expect(clientRoleHasPermission(role, "CAMPAIGN_REPORT_JOB", "APPLY_PAUSED")).toBe(false);
     }
   });
 });

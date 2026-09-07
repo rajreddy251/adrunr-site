@@ -6,12 +6,14 @@ import { IMPLEMENTED_CAMPAIGN_OP_KINDS } from "@/lib/campaign";
 import {
   CAMPAIGN_EDIT_NOTE,
   CAMPAIGN_IMPORT_NOTE,
+  CAMPAIGN_REPORTS_NOTE,
   CONFIRM_EDIT_PHRASE,
   CONFIRM_PAUSED_PHRASE,
   LISTINGS_SYNC_READ_ONLY_NOTE,
   METRICS_SYNC_READ_ONLY_NOTE,
   assertEditDoesNotEnable,
   assertPausedOnly,
+  refuseEnableOnReport,
 } from "@/lib/safety";
 import {
   CAMPAIGN_IMPORT_JOB_TYPE,
@@ -25,10 +27,83 @@ import {
   LISTINGS_SYNC_JOB_TYPE,
 } from "@/lib/listings";
 import { METRICS_SYNC_JOB_TYPE, buildMetricsSearchQuery } from "@/lib/metrics";
+import { CAMPAIGN_REPORT_JOB_TYPE, parseCampaignReportInput } from "@/lib/reports";
 
 const schema = readFileSync(resolve(process.cwd(), "prisma/schema.prisma"), "utf8");
 const envExample = readFileSync(resolve(process.cwd(), ".env.example"), "utf8");
 const gitignore = readFileSync(resolve(process.cwd(), ".gitignore"), "utf8");
+
+describe("P12 Ops Reports safety checklist", () => {
+  it("keeps create wizards, listings, metrics, safe edit, and import working, with reports refusing ENABLE", () => {
+    expect(IMPLEMENTED_CAMPAIGN_OP_KINDS).toEqual([
+      "SEARCH_CREATE",
+      "DISPLAY_CREATE",
+      "PMAX_CREATE",
+      "DEMAND_GEN_CREATE",
+      "VIDEO_CREATE",
+      "SHOPPING_CREATE",
+      "APP_CREATE",
+      "HOTEL_CREATE",
+      "LOCAL_CREATE",
+      "LOCAL_SERVICES_CREATE",
+      "CAMPAIGN_EDIT",
+    ]);
+    expect(CONFIRM_PAUSED_PHRASE).toBe("CREATE PAUSED");
+    expect(CONFIRM_EDIT_PHRASE).toBe("EDIT SAFE");
+    expect(CAMPAIGN_IMPORT_JOB_TYPE).toBe("import_campaign");
+    expect(CAMPAIGN_REPORT_JOB_TYPE).toBe("report_performance");
+    expect(CAMPAIGN_REPORTS_NOTE).toMatch(/read-only/i);
+    expect(CAMPAIGN_IMPORT_NOTE).toMatch(/never enable/i);
+    expect(CAMPAIGN_EDIT_NOTE).toMatch(/never enables/i);
+    expect(LISTINGS_SYNC_READ_ONLY_NOTE).toMatch(/read-only/i);
+    expect(METRICS_SYNC_READ_ONLY_NOTE).toMatch(/read-only/i);
+    expect(() => assertPausedOnly("ENABLED")).toThrow(/enable path/);
+    expect(() => refuseEnableOnReport({ customerId: "1234567890", enable: true })).toThrow(
+      CAMPAIGN_REPORTS_NOTE,
+    );
+    expect(() => refuseEnableOnImport({ customerId: "1234567890", enable: true })).toThrow(
+      CAMPAIGN_IMPORT_NOTE,
+    );
+  });
+
+  it("stores CampaignReportJob / rows / summary as TEXT, not JSONB", () => {
+    expect(schema).toContain("model CampaignReportJob");
+    expect(schema).toContain("model CampaignReportRow");
+    expect(schema).toContain("model CampaignReportSummary");
+    expect(schema).toContain("requestBody");
+    expect(schema).toContain("responseBody");
+    expect(schema).toContain("previewText");
+    expect(schema).toContain("notesText");
+    expect(schema).toContain("neverEnable");
+    expect(schema).toContain("statusSnapshotNote");
+    expect(schema).toContain("CAMPAIGN_REPORT_JOB");
+    expect(schema).not.toMatch(/\bJson\b/);
+  });
+
+  it("report APIs default dry-run and never ship an enable path", () => {
+    expect(parseCampaignReportInput({ customerId: "123-456-7890" }, new Date("2026-09-06T15:00:00.000Z"))).toEqual({
+      customerId: "1234567890",
+      dryRun: true,
+      dateFrom: "2026-08-31",
+      dateTo: "2026-09-06",
+    });
+    const reports = readFileSync(resolve(process.cwd(), "src/lib/reports.ts"), "utf8");
+    const reportsOps = readFileSync(resolve(process.cwd(), "src/lib/reports-ops.ts"), "utf8");
+    const reportRoute = readFileSync(resolve(process.cwd(), "src/app/api/ads/reports/route.ts"), "utf8");
+    const syncRoute = readFileSync(resolve(process.cwd(), "src/app/api/ads/reports/sync/route.ts"), "utf8");
+    expect(reports).toContain("refuseEnableOnReport");
+    expect(reportsOps).toContain("neverEnable: true");
+    expect(reportsOps).toContain("readOnly: true");
+    expect(reportsOps).toContain("searchGoogleAds");
+    expect(reportsOps).not.toContain("mutateGoogleAds");
+    expect(reportsOps).not.toContain("googleAds:mutate");
+    expect(reportRoute).toContain("neverEnable: true");
+    expect(reportRoute).toContain("enablePath: false");
+    expect(syncRoute).toContain("neverEnable: true");
+    expect(reports).not.toMatch(/status:\s*"ENABLED"/);
+    expect(reportsOps).not.toMatch(/status:\s*"ENABLED"/);
+  });
+});
 
 describe("P11 Ops Import safety checklist", () => {
   it("keeps create wizards, listings, metrics, and safe edit working, with import refusing ENABLE", () => {
