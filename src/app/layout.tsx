@@ -20,11 +20,11 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://adrunr.app"),
   title: "Adrunr — Ads operations platform",
   description:
-    "Ads ops for agencies and advertisers. Connect Google Ads with OAuth, run paused and dry-run campaign work, and grow onto GA4, Clarity, Meta, TikTok, and LinkedIn — only for accounts you authorize.",
+    "Ads ops for agencies and advertisers. Connect Google Ads and GA4 with OAuth, run paused and dry-run campaign work, and grow onto Clarity, Meta, TikTok, and LinkedIn — only for accounts you authorize.",
   openGraph: {
     title: "Adrunr — Ads operations platform",
     description:
-      "Multi-channel ads operations: Google Ads live, GA4/Clarity/Meta/TikTok/LinkedIn schema-ready. Ops tools, not autopilot.",
+      "Multi-channel ads operations: Google Ads and GA4 Connect live, Clarity/Meta/TikTok/LinkedIn schema-ready. Ops tools, not autopilot.",
     url: "https://adrunr.app",
     siteName: "Adrunr",
     type: "website",

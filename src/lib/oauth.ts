@@ -9,6 +9,7 @@ import { GOOGLE_OAUTH_SCOPES } from "./providers";
 
 export const ADS_SCOPE = "https://www.googleapis.com/auth/adwords";
 export const GA4_SCOPE = "https://www.googleapis.com/auth/analytics.readonly";
+export const GA4_EDIT_SCOPE = "https://www.googleapis.com/auth/analytics.edit";
 export const OAUTH_SCOPES = GOOGLE_OAUTH_SCOPES;
 
 export function createOAuthClient(redirectUri?: string) {

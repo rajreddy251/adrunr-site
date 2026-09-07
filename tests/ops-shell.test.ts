@@ -23,6 +23,7 @@ describe("Slice A ops IA shell", () => {
     expect(existsSync(resolve(root, "src/app/ops/import/page.tsx"))).toBe(true);
     expect(existsSync(resolve(root, "src/app/ops/reports/page.tsx"))).toBe(true);
     expect(existsSync(resolve(root, "src/app/ops/connect/page.tsx"))).toBe(true);
+    expect(existsSync(resolve(root, "src/app/ops/analytics/page.tsx"))).toBe(true);
     expect(existsSync(resolve(root, "src/components/ops-console.tsx"))).toBe(false);
     expect(OPS_NAV.map((item) => item.label)).toEqual([
       "Campaigns",
@@ -30,6 +31,7 @@ describe("Slice A ops IA shell", () => {
       "Metrics",
       "Import",
       "Reports",
+      "Analytics",
       "Connect",
     ]);
     expect(OPS_NAV.map((item) => item.href)).toEqual([
@@ -38,6 +40,7 @@ describe("Slice A ops IA shell", () => {
       "/ops/metrics",
       "/ops/import",
       "/ops/reports",
+      "/ops/analytics",
       "/ops/connect",
     ]);
   });
@@ -90,6 +93,11 @@ describe("Slice A ops IA shell", () => {
     expect(read("src/components/ops-import.tsx")).toContain("ImportPanel");
     expect(read("src/components/ops-reports.tsx")).toContain("ReportsPanel");
     expect(read("src/components/ops-connect.tsx")).toContain("Google Ads connection");
+    expect(read("src/components/ops-analytics.tsx")).toContain("OpsAnalytics");
+    expect(read("src/components/ga4-panel.tsx")).toContain("data-testid=\"ops-connect-ga4\"");
+    expect(read("src/components/ga4-panel.tsx")).toContain("GA4_KEY_EVENTS_NOTE");
+    expect(read("src/lib/ga4-shared.ts")).toContain("Key events — Coming soon");
+    expect(read("src/components/ga4-panel.tsx")).not.toMatch(/>\s*Enable\s*</);
     expect(read("src/components/listings-panel.tsx")).toContain("data-testid=\"ops-listings\"");
     expect(read("src/components/metrics-panel.tsx")).toContain("data-testid=\"ops-metrics\"");
     expect(read("src/components/import-panel.tsx")).toContain("data-testid=\"ops-import\"");

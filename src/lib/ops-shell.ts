@@ -3,6 +3,7 @@ import { SHELL_SAFETY_STRIP } from "@/lib/safety";
 export { SHELL_SAFETY_STRIP };
 
 export const OPS_CUSTOMER_STORAGE_KEY = "adrunr.ops.customerId";
+export const OPS_GA4_PROPERTY_STORAGE_KEY = "adrunr.ops.ga4PropertyId";
 
 export const OPS_NAV = [
   { href: "/ops/campaigns", label: "Campaigns" },
@@ -10,6 +11,7 @@ export const OPS_NAV = [
   { href: "/ops/metrics", label: "Metrics" },
   { href: "/ops/import", label: "Import" },
   { href: "/ops/reports", label: "Reports" },
+  { href: "/ops/analytics", label: "Analytics" },
   { href: "/ops/connect", label: "Connect" },
 ] as const;
 
@@ -45,9 +47,14 @@ export const OPS_HUB_SHORTCUTS = [
     detail: "Read-only performance rollups. Preview first.",
   },
   {
+    href: "/ops/analytics",
+    label: "Analytics",
+    detail: "Connect GA4, pick a property, and read sessions for the last 7 days.",
+  },
+  {
     href: "/ops/connect",
     label: "Connect",
-    detail: "Google Ads OAuth, providers, and the GA4 readonly stub.",
+    detail: "Google Ads + GA4 OAuth, property bind, and the seeded provider registry.",
   },
 ] as const;
 

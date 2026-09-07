@@ -9,7 +9,7 @@ const CAPABILITIES = [
   {
     kicker: "01",
     title: "Connect what you authorize",
-    body: "OAuth for Google Ads — and GA4 readonly on the same grant. Tokens are encrypted in Postgres. There is no file-token path, and Adrunr only touches accounts you approve.",
+    body: "OAuth for Google Ads and GA4 on the same grant (Ads + analytics.readonly + analytics.edit). Tokens are encrypted in Postgres. There is no file-token path, and Adrunr only touches accounts you approve.",
   },
   {
     kicker: "02",
@@ -19,7 +19,7 @@ const CAPABILITIES = [
   {
     kicker: "03",
     title: "Grow across channels",
-    body: "Google Ads is live today. GA4, Microsoft Clarity, Meta, TikTok, LinkedIn, Heartza, and Custom sit on the same provider registry — schema-ready stubs, not a rewrite later.",
+    body: "Google Ads and GA4 Connect are live today. Microsoft Clarity, Meta, TikTok, LinkedIn, Heartza, and Custom sit on the same provider registry — schema-ready stubs, not a rewrite later.",
   },
 ] as const;
 
@@ -35,8 +35,8 @@ const PROVIDERS = [
     name: "Google Analytics (GA4)",
     slug: "google_analytics",
     category: "ANALYTICS",
-    status: "Stub",
-    note: "Readonly sample reports",
+    status: "Live",
+    note: "Connect, bind a property, sessions 7d",
   },
   {
     name: "Microsoft Clarity",
@@ -84,7 +84,7 @@ const PROVIDERS = [
 
 const HERO_CHANNELS = [
   { label: "Google Ads", live: true },
-  { label: "GA4", live: false },
+  { label: "GA4", live: true },
   { label: "Clarity", live: false },
   { label: "Meta", live: false },
   { label: "TikTok", live: false },
@@ -93,7 +93,6 @@ const HERO_CHANNELS = [
 
 function statusTone(status: (typeof PROVIDERS)[number]["status"]) {
   if (status === "Live") return "bg-lime-400 text-ink-950";
-  if (status === "Stub") return "bg-ink-950/6 text-moss-600";
   return "border border-ink-950/12 text-moss-500";
 }
 
@@ -138,8 +137,8 @@ export default function HomePage() {
             </h1>
             <p className="mt-6 max-w-xl text-[17px] leading-7 text-moss-500">
               Connect Google Ads with OAuth, run paused and dry-run campaign work, and keep reporting
-              on a multi-channel foundation — only for accounts you authorize. Google Ads is live.
-              GA4, Clarity, Meta, TikTok, and LinkedIn are schema-ready.
+              on a multi-channel foundation — only for accounts you authorize. Google Ads and GA4
+              Connect are live. Clarity, Meta, TikTok, and LinkedIn are schema-ready.
             </p>
             <ul className="mt-6 flex flex-wrap gap-2" aria-label="Supported channels">
               {HERO_CHANNELS.map((channel) => (

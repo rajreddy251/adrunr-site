@@ -49,6 +49,10 @@ export function OpsHub() {
               <Link href="/ops/connect" className="text-lime-400 hover:underline">
                 Connect
               </Link>
+              . GA4 property bind and the 7-day sessions report live on{" "}
+              <Link href="/ops/analytics" className="text-lime-400 hover:underline">
+                Analytics
+              </Link>
               .
             </p>
             <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
